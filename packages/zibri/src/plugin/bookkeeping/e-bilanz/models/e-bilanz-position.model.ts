@@ -19,7 +19,15 @@ export class EBilanzPosition implements Omit<EBilanzPositionModel, 'amount' | 'a
     /**
      * The statement of the position.
      */
-    @Property.string({ enum: { balanceSheet: 'balanceSheet', incomeStatement: 'incomeStatement', microIncomeStatement: 'microIncomeStatement', appropriationOfProfits: 'appropriationOfProfits', businessAssetComparison: 'businessAssetComparison' } })
+    @Property.string({
+        enum: {
+            balanceSheet: 'balanceSheet',
+            incomeStatement: 'incomeStatement',
+            microIncomeStatement: 'microIncomeStatement',
+            appropriationOfProfits: 'appropriationOfProfits',
+            businessAssetComparison: 'businessAssetComparison'
+        }
+    })
     statement!: EBilanzStatementName;
 
     /**

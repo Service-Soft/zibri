@@ -9,6 +9,6 @@ import { type HolidayCalendarInterface } from './holiday-calendar.interface';
 export class EmptyHolidayCalendar implements HolidayCalendarInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findHolidays(): Promise<Date[] | undefined> {
-        return await Promise.resolve(undefined);
+        return await Promise.resolve<Date[] | undefined>(undefined);
     }
 }

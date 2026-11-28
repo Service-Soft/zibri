@@ -89,4 +89,7 @@ export class FiscalYearStatement extends BaseArchivedEntity {
 /**
  * What an archived statement is created with: everything but what the repository and the chain fill in.
  */
-export type FiscalYearStatementCreateData = OmitStrict<FiscalYearStatement, 'id' | 'tenantId' | 'chainSequence' | 'chainHash' | 'archivedFiles'>;
+export type FiscalYearStatementCreateData = OmitStrict<
+    FiscalYearStatement,
+    'id' | 'tenantId' | 'chainSequence' | 'chainHash' | 'archivedFiles'
+>;

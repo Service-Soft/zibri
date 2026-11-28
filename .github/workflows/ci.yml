@@ -51,11 +51,10 @@ jobs:
             # the tests included: the builds leave them out, and jest only transpiles them, so a type
             # error in a test - or a type test's @ts-expect-error that no longer fires - is caught here or nowhere
             - run: npm run typecheck
-    # the framework's suites, in shards that run beside each other: a runner has four cores, most of
-    # these suites start a container of their own, and the run takes as long as its longest shard.
-    # Each shard uploads the coverage of what it ran, and codecov adds the uploads of one commit up,
-    # so nothing merges them here. The heavy and the cluster suites, which run in band, are jobs of
-    # their own below for the same reason.
+    # the framework's suites, in shards that run beside each other: a runner has four cores, and the run
+    # takes as long as its longest shard. Each shard uploads the coverage of what it ran, and codecov adds
+    # the uploads of one commit up, so nothing merges them here. The suites starting containers, the heavy
+    # and the cluster suites are jobs of their own below for the same reason.
     test-zibri:
         needs: node-versions
         strategy:
@@ -103,6 +102,45 @@ jobs:
               with:
                 token: ${{ secrets.CODECOV_TOKEN }}
                 files: packages/zibri/src/__testing__/coverage/raw/normal/lcov.info
+                flags: zibri
+                fail_ci_if_error: true
+    # the suites that start containers, with half as many workers as the machine has cores: each starts containers of
+    # its own, and more of them at once starved each other into timeouts
+    test-zibri-container:
+        needs: node-versions
+        strategy:
+            fail-fast: false
+            matrix:
+                node: ${{ fromJSON(needs.node-versions.outputs.majors) }}
+                shard: [1, 2, 3, 4]
+        runs-on: ubuntu-latest
+        timeout-minutes: 60
+        steps:
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+              with:
+                node-version: ${{ matrix.node }}
+                cache: npm
+            - name: install PostgreSQL 17
+              run: |
+                sudo apt-get update
+                sudo apt-get install -y postgresql-common ca-certificates curl
+                printf '\n' | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh
+                sudo apt-get update
+                sudo apt-get install -y postgresql-client-17
+            - run: npm ci
+            - run: npm run build -w zibri-contract
+            - run: npm run build -w zibri-tsx
+            - run: npm run build -w zibri-tsx-compiler
+            - run: npm run build -w zibri-mdx
+            - run: npm run build:prod -w zibri
+            - run: npm run build -w zibri-testing
+            - run: npm run build -w zibri-cli
+            - run: npm run test:container -w zibri -- --shard=${{ matrix.shard }}/4 --coverage --coverageDirectory=__testing__/coverage/raw/container --coverageReporters=lcovonly
+            - uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5.5.5
+              with:
+                token: ${{ secrets.CODECOV_TOKEN }}
+                files: packages/zibri/src/__testing__/coverage/raw/container/lcov.info
                 flags: zibri
                 fail_ci_if_error: true
     test-zibri-heavy:
@@ -444,6 +482,7 @@ jobs:
             - node-versions
             - lint
             - test-zibri
+            - test-zibri-container
             - test-zibri-heavy
             - test-zibri-cluster
             - test-zibri-nextcloud

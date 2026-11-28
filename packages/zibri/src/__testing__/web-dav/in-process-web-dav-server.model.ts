@@ -22,6 +22,11 @@ const GROUP_SHARE_TYPE: number = 1;
 const LINK_SHARE_TYPE: number = 3;
 
 /**
+ * How a response of a multistatus ends that found what it names.
+ */
+const PROPSTAT_OK_END: string = '<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+
+/**
  * A file the server stores: what was put, the ETag of that version, the id it keeps when it is moved, and when it was
  * written.
  */
@@ -41,7 +46,12 @@ export type InProcessWebDavFile = {
     /**
      * When this version was written, which a listing names as `getlastmodified`, to the second.
      */
-    modifiedAt: Date
+    modifiedAt: Date,
+    /**
+     * The checksum the put that wrote this version named in `OC-Checksum`, as Nextcloud's `oc:checksums`, or undefined
+     * for a version written without one.
+     */
+    checksum: string | undefined
 };
 
 /**
@@ -246,14 +256,36 @@ export class InProcessWebDavServer {
     }
 
     /**
-     * Changes a file, as a user does in the folder or a calendar app, which gives it a new ETag.
+     * Changes a file, as a user does in the folder or a calendar app, which gives it a new ETag and, as through the
+     * web interface of Nextcloud, no checksum.
      * @param path - Its path below `remote.php/dav/`.
      * @param content - What it holds now.
      * @param modifiedAt - When it was changed, now by default, such as a day ago for what a process left behind then.
      */
     edit(path: string, content: string | Buffer, modifiedAt: Date = new Date()): void {
         const bytes: Buffer = Buffer.from(content);
-        this.files.set(path, { content: bytes, etag: this.resolveEtag(bytes), fileId: this.files.get(path)?.fileId ?? this.nextId(), modifiedAt });
+        this.files.set(path, {
+            content: bytes,
+            etag: this.resolveEtag(bytes),
+            fileId: this.files.get(path)?.fileId ?? this.nextId(),
+            modifiedAt,
+            checksum: undefined
+        });
+    }
+
+    /**
+     * Changes a file in the second it was written in, as Nextcloud keeps its ETag then: what a client can tell the
+     * change by is the checksum, which a change through the web interface leaves the file without.
+     * @param path - Its path below `remote.php/dav/`.
+     * @param content - What it holds now.
+     * @throws When there is no file at the path.
+     */
+    editKeepingEtag(path: string, content: string | Buffer): void {
+        const file: InProcessWebDavFile | undefined = this.files.get(path);
+        if (file == undefined) {
+            throw new Error(`There is no file at "${path}" to change.`);
+        }
+        this.files.set(path, { ...file, content: Buffer.from(content), checksum: undefined });
     }
 
     /**
@@ -268,13 +300,13 @@ export class InProcessWebDavServer {
             this.files.set(to, file);
             return;
         }
-        for (const [path, id] of [...this.folders]) {
+        for (const [path, id] of this.folders) {
             if (path === from || path.startsWith(`${from}/`)) {
                 this.folders.delete(path);
                 this.folders.set(`${to}${path.slice(from.length)}`, id);
             }
         }
-        for (const [path, moved] of [...this.files]) {
+        for (const [path, moved] of this.files) {
             if (path.startsWith(`${from}/`)) {
                 this.files.delete(path);
                 this.files.set(`${to}${path.slice(from.length)}`, moved);
@@ -344,7 +376,8 @@ export class InProcessWebDavServer {
                 return Array.isArray(value) ? value.join(', ') : value;
             };
             this.requests.push({ method: request.method ?? '', path, ifMatch: header('if-match'), ifNoneMatch: header('if-none-match') });
-            const expected: string = `Basic ${Buffer.from(`${this.username}:${this.password}`).toString('base64')}`;
+            const credentials: string = `${this.username}:${this.password}`;
+            const expected: string = `Basic ${Buffer.from(credentials).toString('base64')}`;
             if (this.down) {
                 this.answer(response, 503);
                 return;
@@ -375,10 +408,16 @@ export class InProcessWebDavServer {
         return `trashbin/${this.username}/trash`;
     }
 
-    private handleDav(method: string, response: ServerResponse, path: string, header: (name: string) => string | undefined, body: Buffer): void {
+    private handleDav(
+        method: string,
+        response: ServerResponse,
+        path: string,
+        header: (name: string) => string | undefined,
+        body: Buffer
+    ): void {
         switch (method) {
             case 'PUT': {
-                this.put(response, path, body, header('if-match'), header('if-none-match'));
+                this.put(response, path, body, header('if-match'), header('if-none-match'), header('oc-checksum'));
                 return;
             }
             case 'GET': {
@@ -387,7 +426,7 @@ export class InProcessWebDavServer {
                     this.answer(response, 404);
                     return;
                 }
-                response.writeHead(200, { 'content-type': 'application/octet-stream', 'etag': file.etag });
+                response.writeHead(200, { 'content-type': 'application/octet-stream', etag: file.etag });
                 response.end(file.content);
                 return;
             }
@@ -422,7 +461,14 @@ export class InProcessWebDavServer {
         }
     }
 
-    private put(response: ServerResponse, path: string, content: Buffer, ifMatch: string | undefined, ifNoneMatch: string | undefined): void {
+    private put(
+        response: ServerResponse,
+        path: string,
+        content: Buffer,
+        ifMatch: string | undefined,
+        ifNoneMatch: string | undefined,
+        checksum: string | undefined
+    ): void {
         const existing: InProcessWebDavFile | undefined = this.files.get(path);
         // RFC 7232, section 3: an If-Match of no current version fails as well, and If-None-Match: * of any. Read
         // before the folder, as Nextcloud does
@@ -435,7 +481,8 @@ export class InProcessWebDavServer {
             return;
         }
         const etag: string = this.resolveEtag(content);
-        this.files.set(path, { content, etag, fileId: existing?.fileId ?? this.nextId(), modifiedAt: new Date() });
+        // a put naming no checksum leaves the version without one, as Nextcloud clears the one before
+        this.files.set(path, { content, etag, fileId: existing?.fileId ?? this.nextId(), modifiedAt: new Date(), checksum });
         response.writeHead(existing == undefined ? 201 : 204, this.namesEtagOnPut ? { etag } : {});
         response.end();
     }
@@ -452,12 +499,12 @@ export class InProcessWebDavServer {
             this.answer(response, 404);
             return;
         }
-        for (const folder of [...this.folders.keys()]) {
+        for (const folder of this.folders.keys()) {
             if (folder === path || folder.startsWith(`${path}/`)) {
                 this.folders.delete(folder);
             }
         }
-        for (const inside of [...this.files.keys()]) {
+        for (const inside of this.files.keys()) {
             if (inside.startsWith(`${path}/`)) {
                 this.files.delete(inside);
             }
@@ -491,16 +538,21 @@ export class InProcessWebDavServer {
         const name: string | undefined = path === this.trashBinPath ? undefined : path.slice(this.trashBinPath.length + 1);
         if (method === 'PROPFIND' && name == undefined) {
             const responses: string = [
-                `<d:response><d:href>${DAV_PATH}${this.trashBinPath}/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>`
-                + '<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>',
+                `<d:response><d:href>${DAV_PATH}${this.trashBinPath}/</d:href><d:propstat><d:prop>`
+                + '<d:resourcetype><d:collection/></d:resourcetype></d:prop>'
+                + PROPSTAT_OK_END,
                 ...[...this.trashBin].map(([trashed, entry]) => {
-                    const href: string = `${DAV_PATH}${this.trashBinPath}/${encodeURIComponent(trashed)}${entry.kind === 'folder' ? '/' : ''}`;
-                    const props: string = (entry.kind === 'folder' ? '<d:resourcetype><d:collection/></d:resourcetype>' : `<d:resourcetype/><d:getcontentlength>${entry.size ?? 0}</d:getcontentlength>`)
+                    const href: string = `${DAV_PATH}${this.trashBinPath}/${encodeURIComponent(trashed)}`
+                        + (entry.kind === 'folder' ? '/' : '');
+                    const resourceType: string = entry.kind === 'folder'
+                        ? '<d:resourcetype><d:collection/></d:resourcetype>'
+                        : `<d:resourcetype/><d:getcontentlength>${entry.size ?? 0}</d:getcontentlength>`;
+                    const props: string = resourceType
                         + `<nc:trashbin-filename>${this.escape(entry.originalLocation.split('/').at(-1) ?? '')}</nc:trashbin-filename>`
                         + `<nc:trashbin-original-location>${this.escape(entry.originalLocation)}</nc:trashbin-original-location>`
                         + `<nc:trashbin-deletion-time>${entry.deletedAt}</nc:trashbin-deletion-time>`;
                     return `<d:response><d:href>${href}</d:href><d:propstat><d:prop>${props}</d:prop>`
-                        + '<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+                        + PROPSTAT_OK_END;
                 })
             ].join('');
             response.writeHead(207, { 'content-type': 'application/xml; charset=utf-8' });
@@ -555,13 +607,14 @@ export class InProcessWebDavServer {
         }
         const children: string[] = isFile || !withChildren
             ? []
-            : [...this.folders.keys(), ...this.files.keys()].filter(candidate => candidate !== '' && candidate !== path && this.parentOf(candidate) === path);
+            : [...this.folders.keys(), ...this.files.keys()]
+                .filter(candidate => candidate !== '' && candidate !== path && this.parentOf(candidate) === path);
         this.answerMultistatus(response, [path, ...children]);
     }
 
     private search(response: ServerResponse, body: string): void {
         // the scope as Nextcloud reads it, a path relative to the WebDAV root, and the id the search is for
-        const scope: string = (/<d:href>([^<]*)<\/d:href>/.exec(body)?.[1] ?? '').replace(/^\/+|\/+$/g, '');
+        const scope: string = (/<d:href>([^<]*)<\/d:href>/.exec(body)?.[1] ?? '').replaceAll(/^\/+|\/+$/g, '');
         const fileId: string | undefined = /<d:literal>(\d+)<\/d:literal>/.exec(body)?.[1];
         const found: string[] = [...this.files].filter(([path, file]) => file.fileId === fileId && path.startsWith(`${scope}/`))
             .map(([path]) => path);
@@ -577,9 +630,10 @@ export class InProcessWebDavServer {
                 ? `<d:resourcetype><d:collection/></d:resourcetype><oc:fileid>${this.folders.get(path) ?? ''}</oc:fileid>`
                 : `<d:resourcetype/><d:getetag>${file.etag.replaceAll('"', '&quot;')}</d:getetag>`
                     + `<d:getcontentlength>${file.content.length}</d:getcontentlength><oc:fileid>${file.fileId}</oc:fileid>`
-                    + `<d:getlastmodified>${file.modifiedAt.toUTCString()}</d:getlastmodified>`;
+                    + `<d:getlastmodified>${file.modifiedAt.toUTCString()}</d:getlastmodified>`
+                    + `<oc:checksums><oc:checksum>${file.checksum ?? ''}</oc:checksum></oc:checksums>`;
             return `<d:response><d:href>${href}</d:href><d:propstat><d:prop>${props}</d:prop>`
-                + '<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>';
+                + PROPSTAT_OK_END;
         }).join('');
         response.writeHead(207, { 'content-type': 'application/xml; charset=utf-8' });
         response.end(`<?xml version="1.0"?>\n<d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">${responses}</d:multistatus>`);
@@ -601,7 +655,9 @@ export class InProcessWebDavServer {
                 return;
             }
         }
-        const shareId: string | undefined = url.pathname.startsWith(`${SHARES_PATH}/`) ? decodeURIComponent(url.pathname.slice(SHARES_PATH.length + 1)) : undefined;
+        const shareId: string | undefined = url.pathname.startsWith(`${SHARES_PATH}/`)
+            ? decodeURIComponent(url.pathname.slice(SHARES_PATH.length + 1))
+            : undefined;
         const share: InProcessWebDavShare | undefined = shareId == undefined ? undefined : this.shares.get(shareId);
         if (share == undefined || (request.method !== 'GET' && request.method !== 'DELETE' && request.method !== 'PUT')) {
             this.answerOcs(response, 404, []);
@@ -614,7 +670,10 @@ export class InProcessWebDavServer {
         }
         if (request.method === 'PUT') {
             const permissions: unknown = Reflect.get(this.parseObject(body), 'permissions');
-            const changed: InProcessWebDavShare = { ...share, permissions: typeof permissions === 'number' ? permissions : share.permissions };
+            const changed: InProcessWebDavShare = {
+                ...share,
+                permissions: typeof permissions === 'number' ? permissions : share.permissions
+            };
             this.shares.set(share.id, changed);
             this.answerOcs(response, 200, this.toOcsShare(changed));
             return;
@@ -627,7 +686,11 @@ export class InProcessWebDavServer {
             this.answerOcs(response, 404, []);
             return;
         }
-        this.answerOcs(response, 200, [...this.shares.values()].filter(share => path == undefined || share.path === path).map(share => this.toOcsShare(share)));
+        this.answerOcs(
+            response,
+            200,
+            [...this.shares.values()].filter(share => path == undefined || share.path === path).map(share => this.toOcsShare(share))
+        );
     }
 
     private createShare(response: ServerResponse, body: object): void {
@@ -639,12 +702,20 @@ export class InProcessWebDavServer {
             return;
         }
         const isRecipient: boolean = shareType === USER_SHARE_TYPE || shareType === GROUP_SHARE_TYPE;
-        if (typeof shareType !== 'number' || (shareType !== LINK_SHARE_TYPE && !isRecipient) || (isRecipient && typeof shareWith !== 'string')) {
+        if (
+            typeof shareType !== 'number'
+            || (shareType !== LINK_SHARE_TYPE && !isRecipient)
+            || (isRecipient && typeof shareWith !== 'string')
+        ) {
             this.answerOcs(response, 400, []);
             return;
         }
         // Nextcloud shares a path with a user or a group once
-        if (isRecipient && [...this.shares.values()].some(share => share.path === path && share.shareType === shareType && share.shareWith === shareWith)) {
+        if (
+            isRecipient
+            && [...this.shares.values()]
+                .some(share => share.path === path && share.shareType === shareType && share.shareWith === shareWith)
+        ) {
             this.answerOcs(response, 403, []);
             return;
         }
@@ -657,8 +728,11 @@ export class InProcessWebDavServer {
             shareType,
             shareWith: typeof shareWith === 'string' ? shareWith : undefined,
             path,
-            url: isRecipient ? undefined : `${this.origin}/s/${createHash('sha256').update(id).digest('hex')
-                .slice(0, 15)}`,
+            url: isRecipient
+                ? undefined
+                : `${this.origin}/s/${createHash('sha256').update(id)
+                    .digest('hex')
+                    .slice(0, 15)}`,
             password: typeof password === 'string' ? password : undefined,
             expiresOn: typeof expiresOn === 'string' ? expiresOn : undefined,
             permissions: typeof permissions === 'number' ? permissions : 1
@@ -688,14 +762,19 @@ export class InProcessWebDavServer {
             // as Nextcloud names the hash of the password of a link, and the user or the group of a share with one
             share_with: isRecipient
                 ? share.shareWith ?? null
-                : share.password == undefined ? null : createHash('sha256').update(share.password).digest('hex'),
+                : share.password == undefined
+                    ? null
+                    : createHash('sha256').update(share.password)
+                        .digest('hex'),
             expiration: share.expiresOn == undefined ? null : `${share.expiresOn} 00:00:00`
         };
     }
 
     private answerOcs(response: ServerResponse, status: number, data: unknown): void {
         response.writeHead(status, { 'content-type': 'application/json; charset=utf-8' });
-        response.end(JSON.stringify({ ocs: { meta: { status: status === 200 ? 'ok' : 'failure', statuscode: status, message: '' }, data } }));
+        response.end(JSON.stringify({
+            ocs: { meta: { status: status === 200 ? 'ok' : 'failure', statuscode: status, message: '' }, data }
+        }));
     }
 
     private answer(response: ServerResponse, status: number): void {
@@ -725,7 +804,9 @@ export class InProcessWebDavServer {
 
     private resolveEtag(content: Buffer): string {
         this.counter++;
-        return `"${createHash('sha256').update(`${this.counter}:`).update(content)
+        const prefix: string = `${this.counter}:`;
+        return `"${createHash('sha256').update(prefix)
+            .update(content)
             .digest('hex')
             .slice(0, 16)}"`;
     }

@@ -4,6 +4,11 @@
 const COMPARED_SLACK_RATIO: number = 1.1;
 
 /**
+ * How much more than linearly longer a backup of more data of a series may take than the smallest.
+ */
+const LINEAR_SLACK_RATIO: number = 1.5;
+
+/**
  * A measurement of a backup as it is compared with another of the same suite.
  */
 export type ComparedMeasurement = {
@@ -101,6 +106,63 @@ export abstract class BackupComparisonUtilities {
             }
         }
         return lines;
+    }
+
+    /**
+     * Finds each size of a series whose backup takes more than linearly longer than that of the smallest size, both
+     * times it is measured.
+     *
+     * A backup waiting for a disk or a network something else keeps busy takes as much longer as one that grew
+     * faster than its data, so a size over the limit is measured again with the smallest, one right after the
+     * other, and counts only when it is over the limit then as well.
+     * @param measurements - Every measurement of the suite.
+     * @param measureAgain - Measures one of them again.
+     * @returns One line per size over the limit both times.
+     */
+    static async findConfirmedNonLinearGrowth<T extends ComparedMeasurement>(
+        measurements: T[],
+        measureAgain: (measurement: T) => Promise<T>
+    ): Promise<string[]> {
+        const lines: string[] = [];
+        for (const series of this.resolveSeries(measurements)) {
+            const smallest: T | undefined = series[0];
+            if (smallest == undefined) {
+                continue;
+            }
+            for (const measurement of series.slice(1)) {
+                const dataRatio: number = measurement.dataBytes / smallest.dataBytes;
+                const limit: number = dataRatio * LINEAR_SLACK_RATIO;
+                const before: number = measurement.backupMs / smallest.backupMs;
+                if (before <= limit) {
+                    continue;
+                }
+                const again: T = await measureAgain(measurement);
+                const smallestAgain: T = await measureAgain(smallest);
+                const ratio: number = again.backupMs / smallestAgain.backupMs;
+                if (ratio > limit) {
+                    lines.push(
+                        `${measurement.name}: ${ratio.toFixed(1)}x as long as ${smallest.name}, for ${dataRatio.toFixed(1)}x the data,`
+                        + ` at most ${limit.toFixed(1)}x, and ${before.toFixed(1)}x when measured before`
+                    );
+                }
+            }
+        }
+        return lines;
+    }
+
+    /**
+     * The measurements of each series, from the least data to the most.
+     * @param measurements - Every measurement.
+     * @returns The series.
+     */
+    private static resolveSeries<T extends ComparedMeasurement>(measurements: T[]): T[][] {
+        const series: Map<string, T[]> = new Map();
+        for (const measurement of measurements) {
+            if (measurement.series != undefined) {
+                series.set(measurement.series, [...series.get(measurement.series) ?? [], measurement]);
+            }
+        }
+        return [...series.values()].map(s => s.sort((a, b) => a.dataBytes - b.dataBytes));
     }
 
     /**

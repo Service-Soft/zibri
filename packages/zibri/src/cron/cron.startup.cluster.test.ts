@@ -8,7 +8,7 @@ import { executionLeaseInMs } from './cron.startup.instance-options';
 /**
  * A job that asks for a startup run gets one per deploy, not one per instance that boots. The
  * instances agree on it without talking by keying the claim on the slot that is coming, which is
- * the same for every instance of one rolling deploy - cron.test.ts can only show two jobs asking
+ * the same for every instance of one rolling deploy - cron.container.test.ts can only show two jobs asking
  * within the same millisecond, and a deploy spreads the asking over minutes.
  */
 

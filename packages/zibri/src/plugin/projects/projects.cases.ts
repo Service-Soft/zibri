@@ -10,8 +10,8 @@ import { defaultTestServerProviders, rolesAndPermissionsProviders, TestServerRol
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { waitUntil } from '../../__testing__/wait-until.function';
 import { OtpTwoFactorMethod } from '../../auth/2fa/methods/otp/otp.two-factor-method';
-import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { AuthController } from '../../auth/auth-controller/auth-controller.model';
+import { type AuthServiceInterface } from '../../auth/auth-service.interface';
 import { LoginLinkEmailTemplate } from '../../auth/authenticators/login-link/login-link-email-template.model';
 import { LoginLinkToken } from '../../auth/authenticators/login-link/login-link-token.model';
 import { LoginLinkAuthenticator } from '../../auth/authenticators/login-link/login-link.authenticator';
@@ -47,9 +47,9 @@ import { type ProjectsPluginOptionsInput } from './models/projects-plugin-option
 import { RecurringTaskOccurrence } from './models/recurring-task-occurrence.model';
 import { RecurringTask } from './models/recurring-task.model';
 import { TaskComment } from './models/task-comment.model';
+import { type TaskEventData } from './models/task-event-data.model';
 import { TaskLabel } from './models/task-label.model';
 import { Task } from './models/task.model';
-import { type TaskEventData } from './models/task-event-data.model';
 import { ZIBRI_PROJECTS_PERMISSIONS, ZIBRI_PROJECTS_PLATFORM_PERMISSIONS } from './models/zibri-projects-permissions.model';
 import { ProjectsController } from './projects.controller';
 import { ZibriProjectsPlugin } from './projects.plugin';
@@ -73,23 +73,44 @@ declare module '../../event/event-service.interface' {
 /**
  * The events the cases have the plugin emit.
  */
-type TaskEventType = 'projects-test.task-created' | 'projects-test.task-moved' | 'projects-test.task-due-date-changed' | 'projects-test.task-done';
+type TaskEventType
+    = | 'projects-test.task-created'
+        | 'projects-test.task-moved'
+        | 'projects-test.task-due-date-changed'
+        | 'projects-test.task-done';
+
+/**
+ * The events the cases have the plugin emit, by what they tell of.
+ */
+const TASK_EVENTS: Readonly<Record<'CREATED' | 'MOVED' | 'DUE_DATE_CHANGED' | 'DONE', TaskEventType>> = {
+    CREATED: 'projects-test.task-created',
+    MOVED: 'projects-test.task-moved',
+    DUE_DATE_CHANGED: 'projects-test.task-due-date-changed',
+    DONE: 'projects-test.task-done'
+};
+
+/**
+ * The path of the first page of the projects, of up to 100.
+ */
+const PROJECTS_PAGE_PATH: string = '/?page=1&limit=100';
 
 // eslint-disable-next-line typescript/typedef
 export const Permissions = definePermissions([...ZIBRI_PERMISSIONS, ...ZIBRI_PROJECTS_PERMISSIONS, ...ZIBRI_WEB_DAV_PERMISSIONS] as const);
 
 // eslint-disable-next-line typescript/typedef
-export const PlatformPermissions = definePlatformPermissions([...ZIBRI_PLATFORM_PERMISSIONS, ...ZIBRI_PROJECTS_PLATFORM_PERMISSIONS] as const);
+export const PlatformPermissions = definePlatformPermissions(
+    [...ZIBRI_PLATFORM_PERMISSIONS, ...ZIBRI_PROJECTS_PLATFORM_PERMISSIONS] as const
+);
 
 /**
  * The tenant roles of the cases.
  */
-export const TenantRoles = {
+export const TenantRoles: Readonly<Record<'GUEST' | 'READER' | 'MEMBER' | 'MANAGER', string>> = {
     GUEST: 'project-guest',
     READER: 'project-reader',
     MEMBER: 'project-member',
     MANAGER: 'project-manager'
-} as const;
+};
 
 export const projectsTestRoles: TestServerRole[] = [
     { name: Roles.USER, level: 'platform', permissions: [], description: undefined },
@@ -97,7 +118,12 @@ export const projectsTestRoles: TestServerRole[] = [
     // a guest's role carries no permission: they see what is shared with them alone
     { name: TenantRoles.GUEST, level: 'tenant', permissions: [], description: undefined },
     { name: TenantRoles.READER, level: 'tenant', permissions: [Permissions.PROJECTS_READ], description: undefined },
-    { name: TenantRoles.MEMBER, level: 'tenant', permissions: [Permissions.PROJECTS_READ, Permissions.PROJECTS_WRITE], description: undefined },
+    {
+        name: TenantRoles.MEMBER,
+        level: 'tenant',
+        permissions: [Permissions.PROJECTS_READ, Permissions.PROJECTS_WRITE],
+        description: undefined
+    },
     {
         name: TenantRoles.MANAGER,
         level: 'tenant',
@@ -155,7 +181,8 @@ class ProjectsTestAuthController extends AuthController({
 export const projectsOptions: ProjectsPluginOptionsInput = {
     guestRoles: [TenantRoles.GUEST],
     findUsers: async userIds => {
-        const users: JwtUser[] = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).findAll({ where: { id: { oneOf: userIds } }, limit: 'all' });
+        const users: JwtUser[] = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
+            .findAll({ where: { id: { oneOf: userIds } }, limit: 'all' });
         return users.map(user => ({ id: user.id, name: user.email.split('@')[0] ?? user.email, email: user.email }));
     },
     invitationExpiresInMs: undefined,
@@ -163,10 +190,10 @@ export const projectsOptions: ProjectsPluginOptionsInput = {
     calendarSync: undefined,
     invitationColumns: invitee => ({ name: invitee.name }),
     eventNames: {
-        taskCreated: 'projects-test.task-created',
-        taskMoved: 'projects-test.task-moved',
-        taskDueDateChanged: 'projects-test.task-due-date-changed',
-        taskDone: 'projects-test.task-done'
+        taskCreated: TASK_EVENTS.CREATED,
+        taskMoved: TASK_EVENTS.MOVED,
+        taskDueDateChanged: TASK_EVENTS.DUE_DATE_CHANGED,
+        taskDone: TASK_EVENTS.DONE
     }
 };
 
@@ -310,23 +337,24 @@ export function describeProjects(
                         token: ZIBRI_DI_TOKENS.LOGIN_LINK_OPTIONS,
                         useValue: {
                             loginLinkUrl: 'https://app.example.com/login-link',
-                            loginLinkEmail: compileTsxTemplate<LoginLinkEmailTemplate>('export const Email = ({ loginLink }) => <a href={loginLink}></a>;')
+                            loginLinkEmail: compileTsxTemplate<LoginLinkEmailTemplate>(
+                                'export const Email = ({ loginLink }) => <a href={loginLink}></a>;'
+                            )
                         }
                     }),
                     defineProvider({
                         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-                        useFactory: (): EmailConfigInput => ({ maxEmailsPerHour: 1000, defaultSender: 'Ada', failedRetentionInMs: 'forever' })
+                        useFactory: (): EmailConfigInput => ({
+                            maxEmailsPerHour: 1000,
+                            defaultSender: 'Ada',
+                            failedRetentionInMs: 'forever'
+                        })
                     }),
                     defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: transport })
                 ]
             });
             baseUrl = await server.start();
-            const types: TaskEventType[] = [
-                'projects-test.task-created',
-                'projects-test.task-moved',
-                'projects-test.task-due-date-changed',
-                'projects-test.task-done'
-            ];
+            const types: TaskEventType[] = Object.values(TASK_EVENTS);
             for (const type of types) {
                 await inject(ZIBRI_DI_TOKENS.EVENT_SERVICE).subscribe(type, async (event: Event<TaskEventData>) => {
                     events.push({ type, data: event.data });
@@ -351,15 +379,30 @@ export function describeProjects(
          * @param tenant - The tenant, the one of the suite unless given.
          * @returns The caller.
          */
-        async function createCaller(tenantRoles: string[], platformRoles: Roles[] = [Roles.USER], tenant: string = tenantId): Promise<Caller> {
+        async function createCaller(
+            tenantRoles: string[],
+            platformRoles: Roles[] = [Roles.USER],
+            tenant: string = tenantId
+        ): Promise<Caller> {
             const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
                 .create({ email: `${UUIDUtilities.generate().slice(0, 8)}@projects.test`, roles: platformRoles });
-            await tenants().runAs(tenant, async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId: tenant, userId: user.id, roles: tenantRoles }));
+            await tenants().runAs(
+                tenant,
+                async () => await inject(DefaultTestServerMembershipRepository)
+                    .create({ tenantId: tenant, userId: user.id, roles: tenantRoles })
+            );
             const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
             const permissions: (Permission | PlatformPermission)[] = await authService.resolveUserPermissions(user, undefined);
             const created: CreatedApiKey = await authService.createApiKey(
                 user.id,
-                { name: 'cases', permissions, expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+                {
+                    name: 'cases',
+                    permissions,
+                    expiresAt: undefined,
+                    tenantId: undefined,
+                    clientAuthentication: undefined,
+                    requireDpop: false
+                },
                 undefined
             );
             return { user, headers: { 'x-api-key': created.key, 'x-tenant-id': tenant } };
@@ -396,7 +439,13 @@ export function describeProjects(
             return res.body;
         }
 
-        async function createTask(caller: Caller, projectId: string, columnId: string, title: string, extra: object = {}): Promise<TaskRow> {
+        async function createTask(
+            caller: Caller,
+            projectId: string,
+            columnId: string,
+            title: string,
+            extra: object = {}
+        ): Promise<TaskRow> {
             const res: Answer<TaskRow> = await call<TaskRow>(caller, 'POST', `/${projectId}/tasks`, { columnId, title, ...extra });
             expect(res.status).toBe(200);
             return res.body;
@@ -420,8 +469,10 @@ export function describeProjects(
             it('creates a project with a board, reads it in order, and changes and deletes what is on it', async () => {
                 const project: ProjectRow = await createProject(member, 'Website');
                 const done: ColumnRow = await createColumn(member, project.id, 'Done', true);
-                const todo: ColumnRow = (await call<ColumnRow>(member, 'POST', `/${project.id}/columns`, { name: 'To do', afterColumnId: null })).body;
-                const label: { id: string } = (await call<{ id: string }>(member, 'POST', `/${project.id}/labels`, { name: 'Bug', color: 'red-500' })).body;
+                const todo: ColumnRow
+                    = (await call<ColumnRow>(member, 'POST', `/${project.id}/columns`, { name: 'To do', afterColumnId: null })).body;
+                const label: { id: string }
+                    = (await call<{ id: string }>(member, 'POST', `/${project.id}/labels`, { name: 'Bug', color: 'red-500' })).body;
                 const first: TaskRow = await createTask(member, project.id, todo.id, 'Write the texts', { labelIds: [label.id] });
                 const second: TaskRow = await createTask(member, project.id, todo.id, 'Pick the images');
                 const top: TaskRow = await createTask(member, project.id, todo.id, 'Agree on the pages', { afterTaskId: null });
@@ -431,7 +482,8 @@ export function describeProjects(
                 expect(board.tasks.map(t => t.title)).toEqual(['Agree on the pages', 'Write the texts', 'Pick the images']);
                 expect(board.labels.map(l => l.name)).toEqual(['Bug']);
 
-                expect((await call<TaskRow>(member, 'PATCH', `/tasks/${second.id}`, { title: 'Choose the images' })).body.title).toBe('Choose the images');
+                expect((await call<TaskRow>(member, 'PATCH', `/tasks/${second.id}`, { title: 'Choose the images' })).body.title)
+                    .toBe('Choose the images');
                 expect((await call(member, 'PATCH', `/labels/${label.id}`, { color: '#ff0000' })).status).toBe(400);
                 expect((await call(member, 'DELETE', `/columns/${todo.id}`)).status).toBe(409);
                 expect((await call(member, 'DELETE', `/labels/${label.id}`)).status).toBe(204);
@@ -455,7 +507,8 @@ export function describeProjects(
                     (await call<TaskRow>(member, 'GET', `/tasks/${t.id}`)).body.changeSets?.length ?? 0
                 ] as const)));
 
-                const moved: Answer<TaskRow> = await call<TaskRow>(member, 'POST', `/tasks/${moving.id}/move`, { columnId: done.id, afterTaskId: null });
+                const moved: Answer<TaskRow>
+                    = await call<TaskRow>(member, 'POST', `/tasks/${moving.id}/move`, { columnId: done.id, afterTaskId: null });
 
                 expect(moved.status).toBe(200);
                 expect(moved.body.columnId).toBe(done.id);
@@ -465,15 +518,19 @@ export function describeProjects(
                 // the others keep their positions and their history
                 for (const task of after.tasks.filter(t => t.id !== moving.id)) {
                     expect(task.position).toBe(before.tasks.find(t => t.id === task.id)?.position);
-                    expect((await call<TaskRow>(member, 'GET', `/tasks/${task.id}`)).body.changeSets?.length ?? 0).toBe(historyBefore.get(task.id));
+                    expect((await call<TaskRow>(member, 'GET', `/tasks/${task.id}`)).body.changeSets?.length ?? 0)
+                        .toBe(historyBefore.get(task.id));
                 }
                 const history: TaskRow = (await call<TaskRow>(member, 'GET', `/tasks/${moving.id}`)).body;
                 expect(history.changeSets?.length).toBe((historyBefore.get(moving.id) ?? 0) + 1);
                 expect(history.changeSets?.at(-1)?.createdBy).toBe(member.user.id);
                 expect(history.changeSets?.at(-1)?.changes.map(c => c.key).sort()).toEqual(['columnId', 'doneAt']);
-                await waitUntil(async () => await Promise.resolve(events.some(e => e.type === 'projects-test.task-done' && e.data.taskId === moving.id)));
-                expect(events.filter(e => e.data.taskId === moving.id).map(e => e.type).sort())
-                    .toEqual(['projects-test.task-created', 'projects-test.task-done', 'projects-test.task-moved']);
+                await waitUntil(async () => await Promise.resolve(
+                    events.some(e => e.type === TASK_EVENTS.DONE && e.data.taskId === moving.id)
+                ));
+                expect(events.filter(e => e.data.taskId === moving.id).map(e => e.type)
+                    .sort())
+                    .toEqual([TASK_EVENTS.CREATED, TASK_EVENTS.DONE, TASK_EVENTS.MOVED]);
             });
 
             it('spreads the tasks of a column out again once the gap a task goes into ran out of precision', async () => {
@@ -485,9 +542,10 @@ export function describeProjects(
                 // the second right after the first, as close as a double gets: what about 50 tasks put between them
                 // one after the other leave
                 await tenants().runAs(tenantId, async () => await inject<Repository<Task>>(repositoryTokenFor(Task))
-                    .updateById(second.id, { position: first.position + 2 ** -42 }, { unscoped: true }));
+                    .updateById(second.id, { position: first.position + (2 ** -42) }, { unscoped: true }));
 
-                expect((await call(member, 'POST', `/tasks/${third.id}/move`, { columnId: todo.id, afterTaskId: first.id })).status).toBe(200);
+                expect((await call(member, 'POST', `/tasks/${third.id}/move`, { columnId: todo.id, afterTaskId: first.id })).status)
+                    .toBe(200);
 
                 const board: BoardRow = (await call<BoardRow>(member, 'GET', `/${project.id}/board`)).body;
                 expect(board.tasks.map(t => [t.title, t.position])).toEqual([['First', 1024], ['Third', 2048], ['Second', 3072]]);
@@ -497,9 +555,13 @@ export function describeProjects(
                 const project: ProjectRow = await createProject(member, 'Newsletter');
                 const todo: ColumnRow = await createColumn(member, project.id, 'To do');
                 const doing: ColumnRow = await createColumn(member, project.id, 'Doing');
-                const tasks: TaskRow[] = await Promise.all(['a', 'b', 'c', 'd'].map(async title => await createTask(member, project.id, todo.id, title)));
+                const tasks: TaskRow[] = await Promise.all(
+                    ['a', 'b', 'c', 'd'].map(async title => await createTask(member, project.id, todo.id, title))
+                );
 
-                await Promise.all(tasks.map(async task => await call(member, 'POST', `/tasks/${task.id}/move`, { columnId: doing.id, afterTaskId: null })));
+                await Promise.all(tasks.map(
+                    async task => await call(member, 'POST', `/tasks/${task.id}/move`, { columnId: doing.id, afterTaskId: null })
+                ));
 
                 const board: BoardRow = (await call<BoardRow>(member, 'GET', `/${project.id}/board`)).body;
                 const positions: number[] = board.tasks.filter(t => t.columnId === doing.id).map(t => t.position);
@@ -514,7 +576,9 @@ export function describeProjects(
 
                 expect((await call(member, 'PATCH', `/columns/${review.id}`, { isDone: true })).status).toBe(200);
                 expect((await call<TaskRow>(member, 'GET', `/tasks/${task.id}`)).body.doneAt).toEqual(expect.any(String));
-                await waitUntil(async () => await Promise.resolve(events.some(e => e.type === 'projects-test.task-done' && e.data.taskId === task.id)));
+                await waitUntil(async () => await Promise.resolve(
+                    events.some(e => e.type === TASK_EVENTS.DONE && e.data.taskId === task.id)
+                ));
 
                 expect((await call(member, 'PATCH', `/columns/${review.id}`, { isDone: false })).status).toBe(200);
                 expect((await call<TaskRow>(member, 'GET', `/tasks/${task.id}`)).body.doneAt).toBeNull();
@@ -528,7 +592,9 @@ export function describeProjects(
 
                 const found: PageRow<TaskRow> = (await call<PageRow<TaskRow>>(member, 'GET', '/tasks?page=1&limit=10&search=booth')).body;
                 expect(found.items.map(t => t.id)).toEqual([task.id]);
-                await waitUntil(async () => await Promise.resolve(events.some(e => e.type === 'projects-test.task-due-date-changed' && e.data.taskId === task.id)));
+                await waitUntil(async () => await Promise.resolve(
+                    events.some(e => e.type === TASK_EVENTS.DUE_DATE_CHANGED && e.data.taskId === task.id)
+                ));
             });
 
             it('keeps a due date as a day, refuses one with a time, and lists the soonest first', async () => {
@@ -538,9 +604,15 @@ export function describeProjects(
                 const sooner: TaskRow = await createTask(member, project.id, todo.id, 'Sooner', { dueOn: '2027-03-01' });
 
                 expect(later.dueOn).toBe('2027-03-02T00:00:00.000Z');
-                expect((await call(member, 'POST', `/${project.id}/tasks`, { columnId: todo.id, title: 'Timed', dueOn: '2027-03-01T09:00:00.000Z' })).status).toBe(400);
-                expect((await call(member, 'PATCH', `/tasks/${sooner.id}`, { dueOn: '2027-03-01T23:00:00.000Z' })).status).toBe(400);
-                const listed: PageRow<TaskRow> = (await call<PageRow<TaskRow>>(member, 'GET', `/tasks?page=1&limit=10&projectId=${project.id}`)).body;
+                expect((await call(member, 'POST', `/${project.id}/tasks`, {
+                    columnId: todo.id,
+                    title: 'Timed',
+                    dueOn: '2027-03-01T09:00:00.000Z'
+                })).status).toBe(400);
+                expect((await call(member, 'PATCH', `/tasks/${sooner.id}`, { dueOn: '2027-03-01T23:00:00.000Z' })).status)
+                    .toBe(400);
+                const listed: PageRow<TaskRow>
+                    = (await call<PageRow<TaskRow>>(member, 'GET', `/tasks?page=1&limit=10&projectId=${project.id}`)).body;
                 expect(listed.items.map(t => t.title)).toEqual(['Sooner', 'Later']);
             });
         });
@@ -555,7 +627,8 @@ export function describeProjects(
                 const board: Answer<BoardRow> = await call<BoardRow>(reader, 'GET', `/${project.id}/board`);
                 expect(board.status).toBe(200);
                 expect(board.body.access).toEqual({ role: 'viewer', fullAccess: true });
-                expect((await call<BoardRow>(manager, 'GET', `/${project.id}/board`)).body.access).toEqual({ role: 'editor', fullAccess: true });
+                expect((await call<BoardRow>(manager, 'GET', `/${project.id}/board`)).body.access)
+                    .toEqual({ role: 'editor', fullAccess: true });
                 expect((await call(reader, 'POST', '/', { name: 'Mine' })).status).toBe(403);
                 expect((await call(reader, 'PATCH', `/${project.id}`, { name: 'Mine' })).status).toBe(403);
                 expect((await call(reader, 'POST', `/${project.id}/tasks`, { columnId: todo.id, title: 'More' })).status).toBe(403);
@@ -570,7 +643,8 @@ export function describeProjects(
 
                 expect((await call(manager, 'GET', `/${theirs.id}`)).status).toBe(404);
                 expect((await call(manager, 'GET', `/${theirs.id}/board`)).status).toBe(404);
-                expect(ids((await call<PageRow<ProjectRow>>(manager, 'GET', '/?page=1&limit=100&includeArchived=true')).body.items)).not.toContain(theirs.id);
+                expect(ids((await call<PageRow<ProjectRow>>(manager, 'GET', '/?page=1&limit=100&includeArchived=true')).body.items))
+                    .not.toContain(theirs.id);
             });
 
             it('nests projects to any depth and refuses a parent below the project itself', async () => {
@@ -578,7 +652,9 @@ export function describeProjects(
                 const marketing: ProjectRow = await createProject(manager, 'Marketing', internal.id);
                 const blog: ProjectRow = await createProject(manager, 'SEO blog', marketing.id);
 
-                expect((await call<PageRow<ProjectRow>>(manager, 'GET', `/?page=1&limit=10&parentId=${marketing.id}`)).body.items.map(p => p.id)).toEqual([blog.id]);
+                const children: PageRow<ProjectRow>
+                    = (await call<PageRow<ProjectRow>>(manager, 'GET', `/?page=1&limit=10&parentId=${marketing.id}`)).body;
+                expect(children.items.map(p => p.id)).toEqual([blog.id]);
                 expect((await call(manager, 'PATCH', `/${internal.id}`, { parentId: blog.id })).status).toBe(400);
                 expect((await call(manager, 'PATCH', `/${internal.id}`, { parentId: internal.id })).status).toBe(400);
             });
@@ -616,12 +692,16 @@ export function describeProjects(
                 const archived: Answer<ProjectRow> = await call<ProjectRow>(manager, 'POST', `/${customer.id}/archive`);
 
                 expect(archived.body.archivedAt).toEqual(expect.any(String));
-                const listed: string[] = ids((await call<PageRow<ProjectRow>>(member, 'GET', '/?page=1&limit=100')).body.items);
+                const listed: string[] = ids((await call<PageRow<ProjectRow>>(member, 'GET', PROJECTS_PAGE_PATH)).body.items);
                 expect(listed).not.toContain(customer.id);
                 expect(listed).not.toContain(website.id);
-                expect(ids((await call<PageRow<ProjectRow>>(member, 'GET', `/?page=1&limit=100&includeArchived=true&parentId=${customer.id}`)).body.items))
-                    .toEqual([website.id, old.id].sort());
-                expect((await call<PageRow<TaskRow>>(member, 'GET', `/tasks?page=1&limit=10&projectId=${website.id}`)).body.items).toEqual([]);
+                expect(ids((await call<PageRow<ProjectRow>>(
+                    member,
+                    'GET',
+                    `/?page=1&limit=100&includeArchived=true&parentId=${customer.id}`
+                )).body.items)).toEqual([website.id, old.id].sort());
+                expect((await call<PageRow<TaskRow>>(member, 'GET', `/tasks?page=1&limit=10&projectId=${website.id}`)).body.items)
+                    .toEqual([]);
                 expect((await call(member, 'GET', `/${website.id}/board`)).status).toBe(200);
                 expect((await call(member, 'PATCH', `/tasks/${task.id}`, { title: 'Relaunch' })).status).toBe(409);
                 expect((await call(member, 'POST', `/${website.id}/tasks`, { columnId: todo.id, title: 'More' })).status).toBe(409);
@@ -657,7 +737,13 @@ export function describeProjects(
                 marketingTodo = await createColumn(manager, marketing.id, 'To do');
                 blogTodo = await createColumn(manager, blog.id, 'To do');
                 const financeTodo: ColumnRow = await createColumn(manager, finance.id, 'To do');
-                marketingTask = await createTask(manager, marketing.id, marketingTodo.id, 'Plan the campaign', { assigneeIds: [member.user.id] });
+                marketingTask = await createTask(
+                    manager,
+                    marketing.id,
+                    marketingTodo.id,
+                    'Plan the campaign',
+                    { assigneeIds: [member.user.id] }
+                );
                 financeTask = await createTask(manager, finance.id, financeTodo.id, 'File the taxes');
                 await call(manager, 'POST', `/tasks/${marketingTask.id}/comments`, { text: 'Next week' });
                 await call(manager, 'POST', `/tasks/${financeTask.id}/comments`, { text: 'Due in July' });
@@ -666,10 +752,11 @@ export function describeProjects(
             }, startTimeoutInMs);
 
             it('reads exactly the projects shared with them and those below, through every route', async () => {
-                const listed: PageRow<ProjectRow> = (await call<PageRow<ProjectRow>>(guest, 'GET', '/?page=1&limit=100')).body;
+                const listed: PageRow<ProjectRow> = (await call<PageRow<ProjectRow>>(guest, 'GET', PROJECTS_PAGE_PATH)).body;
                 expect(ids(listed.items)).toEqual([marketing.id, blog.id].sort());
                 expect(listed.totalAmount).toBe(2);
-                expect((await call<PageRow<ProjectRow>>(guest, 'GET', '/?page=1&limit=100&search=blog')).body.items.map(p => p.id)).toEqual([blog.id]);
+                expect((await call<PageRow<ProjectRow>>(guest, 'GET', '/?page=1&limit=100&search=blog')).body.items.map(p => p.id))
+                    .toEqual([blog.id]);
                 expect((await call(guest, 'GET', `/${internal.id}`)).status).toBe(404);
                 expect((await call(guest, 'GET', `/${finance.id}/board`)).status).toBe(404);
                 expect((await call(guest, 'GET', `/tasks/${financeTask.id}`)).status).toBe(404);
@@ -678,14 +765,16 @@ export function describeProjects(
                 const tasks: PageRow<TaskRow> = (await call<PageRow<TaskRow>>(guest, 'GET', '/tasks?page=1&limit=100')).body;
                 expect(tasks.items.map(t => t.id)).toEqual([marketingTask.id]);
                 expect((await call<PageRow<TaskRow>>(guest, 'GET', '/tasks?page=1&limit=100&search=taxes')).body.items).toEqual([]);
-                const comments: CommentPageRow = (await call<CommentPageRow>(guest, 'GET', `/tasks/${marketingTask.id}/comments?page=1&limit=10`)).body;
+                const comments: CommentPageRow
+                    = (await call<CommentPageRow>(guest, 'GET', `/tasks/${marketingTask.id}/comments?page=1&limit=10`)).body;
                 expect(comments.items.map(c => c.text)).toEqual(['Next week']);
             });
 
             it('is shown other people by their names alone, where a member is shown their email addresses', async () => {
                 const board: BoardRow = (await call<BoardRow>(guest, 'GET', `/${marketing.id}/board`)).body;
                 expect(board.users).toEqual([{ id: member.user.id, name: member.user.email.split('@')[0] }]);
-                const comments: CommentPageRow = (await call<CommentPageRow>(guest, 'GET', `/tasks/${marketingTask.id}/comments?page=1&limit=10`)).body;
+                const comments: CommentPageRow
+                    = (await call<CommentPageRow>(guest, 'GET', `/tasks/${marketingTask.id}/comments?page=1&limit=10`)).body;
                 expect(comments.users).toEqual([{ id: manager.user.id, name: manager.user.email.split('@')[0] }]);
                 const people: UserRow[] = (await call<UserRow[]>(guest, 'GET', `/${marketing.id}/users`)).body;
                 expect(people.map(p => p.id)).toEqual(expect.arrayContaining([guest.user.id, member.user.id, manager.user.id]));
@@ -695,24 +784,37 @@ export function describeProjects(
                 expect(shown.users).toEqual([{ id: member.user.id, name: member.user.email.split('@')[0], email: member.user.email }]);
             });
 
-            it('is answered their role with the board and the project: the one of the share, in the projects below as well, and no full access', async () => {
+            it('is answered their role with the board and the project: the one of the share, in the projects below as well, '
+                + 'and no full access', async () => {
                 const campaign: ProjectRow = await createProject(manager, 'Campaign', marketing.id);
                 const post: ProjectRow = await createProject(manager, 'First post', blog.id);
 
-                expect((await call<BoardRow>(guest, 'GET', `/${marketing.id}/board`)).body.access).toEqual({ role: 'viewer', fullAccess: false });
-                expect((await call<BoardRow>(guest, 'GET', `/${campaign.id}/board`)).body.access).toEqual({ role: 'viewer', fullAccess: false });
+                expect((await call<BoardRow>(guest, 'GET', `/${marketing.id}/board`)).body.access)
+                    .toEqual({ role: 'viewer', fullAccess: false });
+                expect((await call<BoardRow>(guest, 'GET', `/${campaign.id}/board`)).body.access)
+                    .toEqual({ role: 'viewer', fullAccess: false });
                 // a share of a project below gives more there
-                expect((await call<BoardRow>(guest, 'GET', `/${blog.id}/board`)).body.access).toEqual({ role: 'editor', fullAccess: false });
-                expect((await call<BoardRow>(guest, 'GET', `/${post.id}/board`)).body.access).toEqual({ role: 'editor', fullAccess: false });
+                expect((await call<BoardRow>(guest, 'GET', `/${blog.id}/board`)).body.access)
+                    .toEqual({ role: 'editor', fullAccess: false });
+                expect((await call<BoardRow>(guest, 'GET', `/${post.id}/board`)).body.access)
+                    .toEqual({ role: 'editor', fullAccess: false });
 
-                const found: Answer<ProjectRow & { access: AccessRow }> = await call<ProjectRow & { access: AccessRow }>(guest, 'GET', `/${post.id}`);
-                expect(found.body).toEqual(expect.objectContaining({ id: post.id, name: 'First post', parentId: blog.id, access: { role: 'editor', fullAccess: false } }));
-                expect((await call<ProjectRow & { access: AccessRow }>(member, 'GET', `/${post.id}`)).body.access).toEqual({ role: 'editor', fullAccess: true });
+                const found: Answer<ProjectRow & { access: AccessRow }>
+                    = await call<ProjectRow & { access: AccessRow }>(guest, 'GET', `/${post.id}`);
+                expect(found.body).toEqual(expect.objectContaining({
+                    id: post.id,
+                    name: 'First post',
+                    parentId: blog.id,
+                    access: { role: 'editor', fullAccess: false }
+                }));
+                expect((await call<ProjectRow & { access: AccessRow }>(member, 'GET', `/${post.id}`)).body.access)
+                    .toEqual({ role: 'editor', fullAccess: true });
             });
 
             it('does what their role allows: a viewer reads, an editor of a project below writes there', async () => {
                 expect((await call(guest, 'POST', `/tasks/${marketingTask.id}/comments`, { text: 'Looks good' })).status).toBe(403);
-                expect((await call(guest, 'POST', `/${marketing.id}/tasks`, { columnId: marketingTodo.id, title: 'More' })).status).toBe(403);
+                expect((await call(guest, 'POST', `/${marketing.id}/tasks`, { columnId: marketingTodo.id, title: 'More' })).status)
+                    .toBe(403);
                 const written: TaskRow = await createTask(guest, blog.id, blogTodo.id, 'Draft the first post');
                 expect((await call(guest, 'POST', `/tasks/${written.id}/comments`, { text: 'Started' })).status).toBe(200);
                 expect((await call(guest, 'POST', '/', { name: 'Mine' })).status).toBe(403);
@@ -724,17 +826,26 @@ export function describeProjects(
                 const commenter: Caller = await createCaller([TenantRoles.GUEST]);
                 await share(marketing.id, commenter.user.id, 'commenter');
 
-                expect((await call(commenter, 'POST', `/tasks/${marketingTask.id}/comments`, { text: 'Can we start earlier?' })).status).toBe(200);
+                expect((await call(commenter, 'POST', `/tasks/${marketingTask.id}/comments`, { text: 'Can we start earlier?' })).status)
+                    .toBe(200);
                 expect((await call(commenter, 'PATCH', `/tasks/${marketingTask.id}`, { title: 'Mine' })).status).toBe(403);
                 expect((await call(commenter, 'POST', `/tasks/${marketingTask.id}/move`, { columnId: marketingTodo.id })).status).toBe(403);
             });
 
             it('is assigned a task of a project they see, and nobody is assigned one of a project they do not see', async () => {
-                expect((await call(manager, 'PATCH', `/tasks/${marketingTask.id}`, { assigneeIds: [member.user.id, guest.user.id] })).status).toBe(200);
+                expect((await call(manager, 'PATCH', `/tasks/${marketingTask.id}`, {
+                    assigneeIds: [member.user.id, guest.user.id]
+                })).status).toBe(200);
 
-                const refused: Answer<{ message: string }> = await call<{ message: string }>(manager, 'PATCH', `/tasks/${financeTask.id}`, { assigneeIds: [guest.user.id] });
+                const refused: Answer<{ message: string }> = await call<{ message: string }>(
+                    manager,
+                    'PATCH',
+                    `/tasks/${financeTask.id}`,
+                    { assigneeIds: [guest.user.id] }
+                );
                 expect(refused.status).toBe(400);
-                expect(refused.body.message).toBe(`The user "${guest.user.id}" does not see the project, and needs to before a task of it is assigned to them.`);
+                expect(refused.body.message)
+                    .toBe(`The user "${guest.user.id}" does not see the project, and needs to before a task of it is assigned to them.`);
                 const stranger: Caller = await createCaller([TenantRoles.MEMBER], [Roles.USER], otherTenantId);
                 expect((await call(manager, 'PATCH', `/tasks/${marketingTask.id}`, { assigneeIds: [stranger.user.id] })).status).toBe(400);
             });
@@ -778,12 +889,15 @@ export function describeProjects(
                 await share(project.id, guest.user.id, 'viewer');
                 await share(project.id, guest.user.id, 'editor');
 
-                const shares: Answer<{ userId: string, role: string, user: UserRow }[]> = await call(manager, 'GET', `/${project.id}/shares`);
-                expect(shares.body).toEqual([expect.objectContaining({
-                    userId: guest.user.id,
-                    role: 'editor',
-                    user: { id: guest.user.id, name: guest.user.email.split('@')[0], email: guest.user.email }
-                })]);
+                const shares: Answer<{ userId: string, role: string, user: UserRow }[]>
+                    = await call(manager, 'GET', `/${project.id}/shares`);
+                expect(shares.body).toEqual([
+                    expect.objectContaining({
+                        userId: guest.user.id,
+                        role: 'editor',
+                        user: { id: guest.user.id, name: guest.user.email.split('@')[0], email: guest.user.email }
+                    })
+                ]);
                 expect((await call(manager, 'PUT', `/${project.id}/shares/${guest.user.id}`, { role: 'owner' })).status).toBe(400);
                 expect((await call(manager, 'DELETE', `/${project.id}/shares/${guest.user.id}`)).status).toBe(204);
                 expect((await call<unknown[]>(manager, 'GET', `/${project.id}/shares`)).body).toEqual([]);
@@ -792,11 +906,12 @@ export function describeProjects(
             it('shares by email with a member at once, and invites anybody else, who gets the share on accepting', async () => {
                 const project: ProjectRow = await createProject(manager, 'Flyer');
                 const reader: Caller = await createCaller([TenantRoles.READER]);
-                const atOnce: Answer<{ share: { userId: string } | null, invitationId: string | null }> = await call(manager, 'POST', `/${project.id}/shares`, {
-                    email: reader.user.email,
-                    name: 'Reader',
-                    role: 'commenter'
-                });
+                const atOnce: Answer<{ share: { userId: string } | null, invitationId: string | null }> = await call(
+                    manager,
+                    'POST',
+                    `/${project.id}/shares`,
+                    { email: reader.user.email, name: 'Reader', role: 'commenter' }
+                );
                 expect(atOnce.body).toEqual({ share: expect.objectContaining({ userId: reader.user.id }), invitationId: null });
 
                 const email: string = `${UUIDUtilities.generate().slice(0, 8)}@customer.test`;
@@ -809,7 +924,8 @@ export function describeProjects(
 
                 expect((await accept({ token: await readToken(email), password: 'correct horse battery staple' })).status).toBe(204);
                 const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).findOne({ where: { email } });
-                const shares: { userId: string, role: string }[] = (await call<{ userId: string, role: string }[]>(manager, 'GET', `/${project.id}/shares`)).body;
+                const shares: { userId: string, role: string }[]
+                    = (await call<{ userId: string, role: string }[]>(manager, 'GET', `/${project.id}/shares`)).body;
                 expect(shares).toEqual(expect.arrayContaining([expect.objectContaining({ userId: user.id, role: 'commenter' })]));
             });
         });
@@ -843,16 +959,18 @@ export function describeProjects(
             const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser)).findOne({ where: { email } });
             const customer: Caller = { user, headers: { authorization: `Bearer ${accessToken}`, 'x-tenant-id': tenantId } };
 
-            expect(ids((await call<PageRow<ProjectRow>>(customer, 'GET', '/?page=1&limit=100')).body.items)).toEqual([project.id]);
-            expect((await call(customer, 'POST', `/tasks/${task.id}/comments`, { text: 'The texts are attached to the mail.' })).status).toBe(200);
+            expect(ids((await call<PageRow<ProjectRow>>(customer, 'GET', PROJECTS_PAGE_PATH)).body.items)).toEqual([project.id]);
+            expect((await call(customer, 'POST', `/tasks/${task.id}/comments`, { text: 'The texts are attached to the mail.' })).status)
+                .toBe(200);
             expect((await call(customer, 'PATCH', `/tasks/${task.id}`, { title: 'Mine' })).status).toBe(403);
-            const comments: CommentPageRow = (await call<CommentPageRow>(manager, 'GET', `/tasks/${task.id}/comments?page=1&limit=10`)).body;
+            const comments: CommentPageRow
+                = (await call<CommentPageRow>(manager, 'GET', `/tasks/${task.id}/comments?page=1&limit=10`)).body;
             expect(comments.items.map(c => c.authorId)).toEqual([user.id]);
             expect(comments.users).toEqual([{ id: user.id, name: email.split('@')[0], email }]);
 
             expect((await call(manager, 'POST', `/${project.id}/archive`)).status).toBe(200);
 
-            expect((await call<PageRow<ProjectRow>>(customer, 'GET', '/?page=1&limit=100')).body.items).toEqual([]);
+            expect((await call<PageRow<ProjectRow>>(customer, 'GET', PROJECTS_PAGE_PATH)).body.items).toEqual([]);
             expect((await call(customer, 'GET', `/${project.id}/board`)).status).toBe(200);
             expect((await call(customer, 'POST', `/tasks/${task.id}/comments`, { text: 'One more thing.' })).status).toBe(409);
         });

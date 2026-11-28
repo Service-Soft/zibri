@@ -78,7 +78,10 @@ export class BankMatchWriteObserver implements EntityWriteObserver, OnAppInit {
         for (const [tenantId, transactionIds] of byTenant) {
             await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
                 tenantId,
-                async () => await inject(ZIBRI_BANK_PLUGIN_DI_TOKENS.BANK_MATCH_SERVICE).recomputeTransactionStates([...transactionIds], transaction)
+                async () => await inject(ZIBRI_BANK_PLUGIN_DI_TOKENS.BANK_MATCH_SERVICE).recomputeTransactionStates(
+                    [...transactionIds],
+                    transaction
+                )
             );
         }
     }

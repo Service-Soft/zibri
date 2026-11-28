@@ -15,7 +15,7 @@ import { S3BackupTransport } from './s3.backup-transport';
 
 // against the stand-in, which runs wherever the suites run: what is checked is what the store asks of
 // a bucket. What a real service accepts of it, such as its signatures and digests, is checked against
-// one in base-s3.backup-transport.test.ts
+// one in base-s3.backup-transport.container.test.ts
 
 const standIn: S3StandIn = new S3StandIn(FsUtilities.getPath(testFileFolder, `s3-backup-transport-${UUIDUtilities.generate()}`));
 let server: StartedTestServer | undefined;

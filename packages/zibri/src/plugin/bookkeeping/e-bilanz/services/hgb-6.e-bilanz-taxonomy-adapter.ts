@@ -4,14 +4,15 @@ import { InternalError } from '../../../../error-handling/internal-error.model';
 import { BookkeepingDayUtilities } from '../../bookkeeping-day.utilities';
 import { EBilanzTaxonomyUtilities } from '../e-bilanz-taxonomy.utilities';
 import { EBilanzAccountingStandard } from '../models/e-bilanz-accounting-standard.enum';
-import { EBilanzIncomeStatementForm } from '../models/e-bilanz-income-statement-form.enum';
 import { type EBilanzAppropriationPositions } from '../models/e-bilanz-appropriation-positions.model';
 import { type EBilanzBusinessAssetComparisonPositions } from '../models/e-bilanz-business-asset-comparison-positions.model';
 import { type EBilanzFieldContext } from '../models/e-bilanz-field-context.model';
+import { EBilanzIncomeStatementForm } from '../models/e-bilanz-income-statement-form.enum';
 import { type EBilanzTaxonomyPosition } from '../models/e-bilanz-taxonomy-position.model';
 import { type EBilanzTaxonomy } from '../models/e-bilanz-taxonomy.model';
 import { type EBilanzTotal } from '../models/e-bilanz-total.model';
 import { type GermanBookkeepingCompany } from '../models/german-bookkeeping-company.model';
+import { type GermanCompanyShareholder } from '../models/german-company-shareholder.model';
 import { type EBilanzTaxonomyAdapterInterface } from './e-bilanz-taxonomy-adapter.interface';
 
 const COMPANY: string = 'genInfo.company.id';
@@ -116,11 +117,6 @@ export class Hgb6EBilanzTaxonomyAdapter implements EBilanzTaxonomyAdapterInterfa
     readonly balanceSheetResultPosition: string = 'bs.eqLiab.equity.netIncome';
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    resolveStatementPositionMapping(taxonomy: EBilanzTaxonomy): Readonly<Record<string, string>> {
-        return { ...this.statementPositionMapping, ...this.versionMappings[taxonomy.version] };
-    }
-
-    // eslint-disable-next-line jsdoc/require-jsdoc
     readonly appropriation: EBilanzAppropriationPositions = {
         statementResultPosition: 'equity-and-liabilities.A.V',
         statementCarriedForwardPosition: 'equity-and-liabilities.A.IV',
@@ -149,7 +145,7 @@ export class Hgb6EBilanzTaxonomyAdapter implements EBilanzTaxonomyAdapterInterfa
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly incomeStatementResultPositions: Readonly<Record<'total-cost' | 'micro', string>> = {
         'total-cost': 'is.netIncome',
-        'micro': 'ismi.netIncome'
+        micro: 'ismi.netIncome'
     };
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -172,6 +168,11 @@ export class Hgb6EBilanzTaxonomyAdapter implements EBilanzTaxonomyAdapterInterfa
         depreciationBeginning: 'accDepr.beginning',
         bookValue: 'all'
     };
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    resolveStatementPositionMapping(taxonomy: EBilanzTaxonomy): Readonly<Record<string, string>> {
+        return { ...this.statementPositionMapping, ...this.versionMappings[taxonomy.version] };
+    }
 
     /**
      * Resolves the fields of the GCD module: the period, the company, its address and tax numbers, its shareholders,
@@ -235,17 +236,23 @@ export class Hgb6EBilanzTaxonomyAdapter implements EBilanzTaxonomyAdapterInterfa
             ...this.balanceSheetTotals,
             ...this.totals.map(t => t.position),
             this.fixedAssetsPosition,
-            ...Object.entries(this.appropriation).filter(([key]) => !key.startsWith('statement')).map(([, name]) => name),
+            ...Object.entries(this.appropriation).filter(([key]) => !key.startsWith('statement'))
+                .map(([, name]) => name),
             ...Object.values(this.businessAssetComparison)
         ];
         const missing: string | undefined = named.find(name => !positions.has(name));
         if (missing != undefined) {
-            throw new InternalError(`The adapter ${this.name} of the E-Bilanz maps to ${missing}, which the taxonomy ${taxonomy.version} does not have.`);
+            throw new InternalError(
+                `The adapter ${this.name} of the E-Bilanz maps to ${missing}, which the taxonomy ${taxonomy.version} does not have.`
+            );
         }
         const columns: string[] = Object.values(this.fixedAssetColumns);
         const missingColumn: string | undefined = columns.find(name => !taxonomy.fixedAssetColumns.some(c => c[0] === name));
         if (missingColumn != undefined) {
-            throw new InternalError(`The adapter ${this.name} of the E-Bilanz names the column ${missingColumn}, which the taxonomy ${taxonomy.version} does not have.`);
+            throw new InternalError(
+                `The adapter ${this.name} of the E-Bilanz names the column ${missingColumn},`
+                + ` which the taxonomy ${taxonomy.version} does not have.`
+            );
         }
     }
 
@@ -281,7 +288,7 @@ export class Hgb6EBilanzTaxonomyAdapter implements EBilanzTaxonomyAdapterInterfa
         set(`${COMPANY}.entityWithTaxablePurposeBusiness`, 'false');
         set(`${COMPANY}.domesticBranchOfForeignCompany`, 'false');
         const shareholders: GermanBookkeepingCompany['shareholders'] = company.shareholders ?? [];
-        const each: (name: string, value: (s: NonNullable<GermanBookkeepingCompany['shareholders']>[number]) => string | null | undefined) => void
+        const each: (name: string, value: (s: GermanCompanyShareholder) => string | null | undefined) => void
             = (name, value) => {
                 const values: (string | null | undefined)[] = shareholders.map(value);
                 if (values.some(v => v != undefined)) {

@@ -142,7 +142,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await server?.shutdown();
-    await nextcloud?.container.stop();
+    await nextcloud?.stop();
 }, Ms.SECOND * 30);
 
 describeBackupTransport('NextcloudBackupTransport', () => createTransport('cases', { users: [], groups: [] }));

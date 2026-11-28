@@ -25,10 +25,10 @@ import { ApprovalRequestStatus } from '../approval/models/approval-request-statu
 import { ApprovalRequest } from '../approval/models/approval-request.model';
 import { ZIBRI_BANK_PLUGIN_DI_TOKENS } from '../bank/bank.tokens';
 import { BankAccount, BankAccountCreateData } from '../bank/models/bank-account.model';
-import { BANK_STATEMENT_FILE_STORE_NAME } from '../bank/models/bank-statement-file-store-name.model';
 import { BankMatchTargetType } from '../bank/models/bank-match-target-type.enum';
 import { BankMatch } from '../bank/models/bank-match.model';
 import { BankPluginOptionsInput } from '../bank/models/bank-plugin-options-input.model';
+import { BANK_STATEMENT_FILE_STORE_NAME } from '../bank/models/bank-statement-file-store-name.model';
 import { BankStatement } from '../bank/models/bank-statement.model';
 import { BankTransactionState } from '../bank/models/bank-transaction-state.model';
 import { BankTransaction } from '../bank/models/bank-transaction.model';
@@ -137,8 +137,8 @@ export const postingTestProviders: DiProvider<unknown>[] = [
 /**
  * The accounts of the books of the cases, by what they are called in them, named after the SKR 03.
  */
-export type PostingAccountName = 'bank' | 'receivables' | 'payables' | 'outputTax19' | 'outputTax7' | 'inputTax19' | 'revenue19' | 'revenue7'
-    | 'revenueExempt' | 'difference19' | 'difference7' | 'rent' | 'vatPrepayment' | 'capital' | 'result';
+export type PostingAccountName = 'bank' | 'receivables' | 'payables' | 'outputTax19' | 'outputTax7' | 'inputTax19' | 'revenue19'
+    | 'revenue7' | 'revenueExempt' | 'difference19' | 'difference7' | 'rent' | 'vatPrepayment' | 'capital' | 'result';
 
 const ACCOUNTS: Record<PostingAccountName, Pick<BookkeepingAccountCreateData, 'number' | 'name' | 'type'>> = {
     bank: { number: '1200', name: 'Bank', type: BookkeepingAccountType.ASSET },
@@ -162,9 +162,9 @@ const ACCOUNTS: Record<PostingAccountName, Pick<BookkeepingAccountCreateData, 'n
  * The books of a tenant of its own, with a bank account and the posting rules of 2026.
  */
 export type PostingBooks = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     tenantId: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     accounts: Record<PostingAccountName, BookkeepingAccount>,
     /**
      * The fiscal year 2026.
@@ -174,7 +174,7 @@ export type PostingBooks = {
      * Its rule set, valid from its first day.
      */
     ruleSet: PostingRuleSet,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     bankAccount: BankAccount
 };
 
@@ -190,6 +190,13 @@ const siemens: InvoiceAddress = {
     companyName: 'Siemens AG',
     countryId: 'DE'
 };
+
+const FIRST_NUMBER: string = '2026-SIEMEN-0001';
+const SECOND_NUMBER: string = '2026-SIEMEN-0002';
+const COUNTERPARTY_NAME: string = 'SIEMENS AG';
+const INVOICE_DAY: string = '2026-03-01';
+const DRAFT_DATE: string = '2026-04-01T12:00:00.000Z';
+const JULY_FIRST: string = '2026-07-01';
 
 function invoices(): Repository<Invoice, OmitStrict<Invoice, 'id' | 'tenantId'>> {
     return inject(repositoryTokenFor(Invoice));
@@ -258,30 +265,44 @@ function rulesOf(accounts: Record<PostingAccountName, BookkeepingAccount>, bankA
  * @param rules - The rules of 2026, those of {@link rulesOf} by default.
  * @returns The books.
  */
-export async function createPostingBooks(rules?: (accounts: Record<PostingAccountName, BookkeepingAccount>, bankAccountId: string) => PostingRules): Promise<PostingBooks> {
+export async function createPostingBooks(
+    rules?: (accounts: Record<PostingAccountName, BookkeepingAccount>, bankAccountId: string) => PostingRules
+): Promise<PostingBooks> {
     const tenantId: string = UUIDUtilities.generate();
     return await inTenant(tenantId, async () => {
-        await journal().createSettings({ currency: 'EUR', legalForms: [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }], company: testCompany });
+        await journal().createSettings({
+            currency: 'EUR',
+            legalForms: [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
+            company: testCompany
+        });
         const repository: Repository<BookkeepingAccount, BookkeepingAccountCreateData> = inject(repositoryTokenFor(BookkeepingAccount));
-        const create: (name: PostingAccountName) => Promise<BookkeepingAccount> = async name => await repository.create(
-            { ...ACCOUNTS[name], statementPosition: null }
-        );
+        // in one write: one at a time, the accounts were most of what a case against postgres cost
+        const created: Map<string, BookkeepingAccount> = new Map((await repository.createAll(
+            Object.values(ACCOUNTS).map(account => ({ ...account, statementPosition: null }))
+        )).map(account => [account.number, account]));
+        const accountOf: (name: PostingAccountName) => BookkeepingAccount = name => {
+            const account: BookkeepingAccount | undefined = created.get(ACCOUNTS[name].number);
+            if (account == undefined) {
+                throw new Error(`The account ${name} was not created.`);
+            }
+            return account;
+        };
         const accounts: Record<PostingAccountName, BookkeepingAccount> = {
-            bank: await create('bank'),
-            receivables: await create('receivables'),
-            payables: await create('payables'),
-            outputTax19: await create('outputTax19'),
-            outputTax7: await create('outputTax7'),
-            inputTax19: await create('inputTax19'),
-            revenue19: await create('revenue19'),
-            revenue7: await create('revenue7'),
-            revenueExempt: await create('revenueExempt'),
-            difference19: await create('difference19'),
-            difference7: await create('difference7'),
-            rent: await create('rent'),
-            vatPrepayment: await create('vatPrepayment'),
-            capital: await create('capital'),
-            result: await create('result')
+            bank: accountOf('bank'),
+            receivables: accountOf('receivables'),
+            payables: accountOf('payables'),
+            outputTax19: accountOf('outputTax19'),
+            outputTax7: accountOf('outputTax7'),
+            inputTax19: accountOf('inputTax19'),
+            revenue19: accountOf('revenue19'),
+            revenue7: accountOf('revenue7'),
+            revenueExempt: accountOf('revenueExempt'),
+            difference19: accountOf('difference19'),
+            difference7: accountOf('difference7'),
+            rent: accountOf('rent'),
+            vatPrepayment: accountOf('vatPrepayment'),
+            capital: accountOf('capital'),
+            result: accountOf('result')
         };
         const bankAccount: BankAccount = await inject<Repository<BankAccount, BankAccountCreateData>>(repositoryTokenFor(BankAccount))
             .create({ iban: 'DE89370400440532013000', name: 'Business account', currency: 'EUR' });
@@ -307,7 +328,7 @@ export async function issueInvoice(
     books: PostingBooks,
     number: string,
     items: InvoiceItem[],
-    date: string = '2026-03-01',
+    date: string = INVOICE_DAY,
     transaction?: Transaction
 ): Promise<Invoice> {
     return await inTenant(books.tenantId, async () => await invoices().create(
@@ -348,7 +369,11 @@ async function findEntryOf(books: PostingBooks, sourceType: PostingSourceType, s
  * @param sourceId - The id of the source.
  * @returns Each line as the name of its account, its side and its amount.
  */
-async function describeEntryOf(books: PostingBooks, sourceType: PostingSourceType, sourceId: string): Promise<[string, 'debit' | 'credit', string][]> {
+async function describeEntryOf(
+    books: PostingBooks,
+    sourceType: PostingSourceType,
+    sourceId: string
+): Promise<[string, 'debit' | 'credit', string][]> {
     const entry: JournalEntryDetails | undefined = await findEntryOf(books, sourceType, sourceId);
     if (entry == undefined) {
         throw new Error(`Nothing is posted of ${sourceType} ${sourceId}.`);
@@ -382,7 +407,9 @@ export async function createTransaction(
     amount: string,
     data: Pick<BankTransaction, 'counterpartyName' | 'counterpartyIban' | 'remittanceInformation'>
 ): Promise<BankTransaction> {
-    return await inTenant(books.tenantId, async () => await inject<Repository<BankTransaction, OmitStrict<BankTransaction, 'id' | 'tenantId'>>>(
+    return await inTenant(books.tenantId, async () => await inject<
+        Repository<BankTransaction, OmitStrict<BankTransaction, 'id' | 'tenantId'>>
+    >(
         repositoryTokenFor(BankTransaction)
     ).create({
         accountId: books.bankAccount.id,
@@ -481,7 +508,7 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
             it('posts an invoice of 1.000 € without VAT as receivables to revenue', async () => {
                 const books: PostingBooks = await createPostingBooks();
 
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(1000, 0, 'E')]);
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(1000, 0, 'E')]);
 
                 expect(await describeEntryOf(books, PostingSourceType.INVOICE, invoice.id)).toEqual([
                     ['receivables', 'debit', '1000.00'],
@@ -489,27 +516,30 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 ]);
                 const entry: JournalEntryDetails | undefined = await findEntryOf(books, PostingSourceType.INVOICE, invoice.id);
                 expect(entry?.entry).toMatchObject({
-                    documentDate: day('2026-03-01'),
-                    postingDate: day('2026-03-01'),
-                    documentReference: '2026-SIEMEN-0001',
-                    text: 'Invoice 2026-SIEMEN-0001',
+                    documentDate: day(INVOICE_DAY),
+                    postingDate: day(INVOICE_DAY),
+                    documentReference: FIRST_NUMBER,
+                    text: `Invoice ${FIRST_NUMBER}`,
                     sourceType: 'invoicing.invoice',
                     sourceId: invoice.id
                 });
             });
 
-            it('posts the VAT of an invoice of 1.000 € with 19 % on the output tax account, by the amounts of the InvoiceCalcService', async () => {
+            it('posts the VAT of an invoice of 1.000 € with 19 % on the output tax account, '
+                + 'by the amounts of the InvoiceCalcService', async () => {
                 const books: PostingBooks = await createPostingBooks();
 
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(333.33), itemOf(666.67)]);
-                const mixed: Invoice = await issueInvoice(books, '2026-SIEMEN-0002', [itemOf(100), itemOf(100, 7), itemOf(0.05, 7)]);
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(333.33), itemOf(666.67)]);
+                const mixed: Invoice = await issueInvoice(books, SECOND_NUMBER, [itemOf(100), itemOf(100, 7), itemOf(0.05, 7)]);
 
                 expect(await describeEntryOf(books, PostingSourceType.INVOICE, invoice.id)).toEqual([
                     ['receivables', 'debit', '1190.00'],
                     ['revenue19', 'credit', '1000.00'],
                     ['outputTax19', 'credit', '190.00']
                 ]);
-                const calc: InvoiceCalcServiceInterface<Invoice> = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE);
+                const calc: InvoiceCalcServiceInterface<Invoice> = inject<InvoiceCalcServiceInterface<Invoice>>(
+                    ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE
+                );
                 expect([
                     (await calc.getTotalAfterTax(mixed)).toFixed(2),
                     (await calc.getTotalTaxForTaxGroup(mixed, { categoryCode: 'S', rate: 19 }, false)).toFixed(2),
@@ -530,8 +560,8 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                     number: 'TEMP-2026-SIEMEN-0001',
                     currency: 'EUR',
                     items: [itemOf(100)],
-                    date: new Date('2026-04-01T12:00:00.000Z'),
-                    performanceDate: new Date('2026-04-01T12:00:00.000Z'),
+                    date: new Date(DRAFT_DATE),
+                    performanceDate: new Date(DRAFT_DATE),
                     dueDate: new Date('2026-04-15T12:00:00.000Z'),
                     customerAddressData: siemens,
                     textBeforeItems: [],
@@ -552,10 +582,14 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 expect(await inTenant(books.tenantId, async () => await entries().count())).toBe(1);
             });
 
-            it('posts a source once: posted again, it answers the entry that stands, and refuses one that changed or is reversed', async () => {
+            it('posts a source once: posted again, it answers the entry that stands, and refuses one that changed '
+                + 'or is reversed', async () => {
                 const books: PostingBooks = await createPostingBooks();
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(100)]);
-                const posted: JournalEntry | undefined = await inTenant(books.tenantId, async () => await postings().findEntryOf(PostingSourceType.INVOICE, invoice.id));
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(100)]);
+                const posted: JournalEntry | undefined = await inTenant(
+                    books.tenantId,
+                    async () => await postings().findEntryOf(PostingSourceType.INVOICE, invoice.id)
+                );
                 const postAgain: (of: Invoice) => Promise<JournalEntryDetails | undefined> = async of => await inTenant(
                     books.tenantId,
                     async () => await postings().postFor({ type: PostingSourceType.INVOICE, invoice: of })
@@ -566,11 +600,16 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 const changed: Promise<JournalEntryDetails | undefined> = postAgain({ ...invoice, items: [itemOf(200)] });
                 await expect(changed).rejects.toThrow(ConflictError);
                 await expect(changed).rejects.toThrow(
-                    `The source invoicing.invoice "${invoice.id}" was posted by the entry 1, which posts other amounts or another day than it does now.`
+                    `The source invoicing.invoice "${invoice.id}" was posted by the entry 1, `
+                    + 'which posts other amounts or another day than it does now.'
                 );
-                await inTenant(books.tenantId, async () => await journal().reverse(posted?.id ?? '', { postingDate: day('2026-03-02'), text: 'Wrong' }));
+                await inTenant(
+                    books.tenantId,
+                    async () => await journal().reverse(posted?.id ?? '', { postingDate: day('2026-03-02'), text: 'Wrong' })
+                );
                 await expect(postAgain(invoice)).rejects.toThrow(
-                    `The source invoicing.invoice "${invoice.id}" was posted by the entry 1, which is reversed, and a source is posted once.`
+                    `The source invoicing.invoice "${invoice.id}" was posted by the entry 1, which is reversed, `
+                    + 'and a source is posted once.'
                 );
             });
 
@@ -578,7 +617,7 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 const books: PostingBooks = await createPostingBooks();
 
                 const transaction: Transaction = await entries().dataSource.startTransaction();
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(100)], '2026-03-01', transaction);
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(100)], INVOICE_DAY, transaction);
                 await transaction.rollback();
 
                 expect(await findEntryOf(books, PostingSourceType.INVOICE, invoice.id)).toBeUndefined();
@@ -591,10 +630,10 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
 
             it('posts nothing of an invoice whose write without a transaction fails after it was posted', async () => {
                 const books: PostingBooks = await createPostingBooks();
-                await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(100)]);
+                await issueInvoice(books, FIRST_NUMBER, [itemOf(100)]);
 
                 // posted before the insert, which the unique number then refuses
-                await expect(issueInvoice(books, '2026-SIEMEN-0001', [itemOf(200)])).rejects.toThrow();
+                await expect(issueInvoice(books, FIRST_NUMBER, [itemOf(200)])).rejects.toThrow();
 
                 expect(await inTenant(books.tenantId, async () => await entries().count())).toBe(1);
                 const fiscalYear: FiscalYear = await inTenant(books.tenantId, async () => await inject<Repository<FiscalYear>>(
@@ -614,8 +653,8 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                         number: 'TEMP-2026-SIEMEN-0001',
                         currency: 'EUR',
                         items: [itemOf(100)],
-                        date: new Date('2026-04-01T12:00:00.000Z'),
-                        performanceDate: new Date('2026-04-01T12:00:00.000Z'),
+                        date: new Date(DRAFT_DATE),
+                        performanceDate: new Date(DRAFT_DATE),
                         dueDate: new Date('2026-04-15T12:00:00.000Z'),
                         customerAddressData: siemens,
                         textBeforeItems: [],
@@ -631,7 +670,7 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                     // a write with a transaction runs in it
                     const transaction: Transaction = await entries().dataSource.startTransaction();
                     started.mockClear();
-                    await issueInvoice(books, '2026-SIEMEN-0002', [itemOf(100)], '2026-03-01', transaction);
+                    await issueInvoice(books, SECOND_NUMBER, [itemOf(100)], INVOICE_DAY, transaction);
                     expect(started).not.toHaveBeenCalled();
                     await transaction.commit();
                 }
@@ -644,12 +683,13 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
             it('refuses to issue an invoice the rules cannot post, and stores nothing', async () => {
                 const books: PostingBooks = await createPostingBooks();
 
-                const issuing: Promise<Invoice> = issueInvoice(books, '2026-SIEMEN-0001', [itemOf(100, 16)]);
+                const issuing: Promise<Invoice> = issueInvoice(books, FIRST_NUMBER, [itemOf(100, 16)]);
 
                 await expect(issuing).rejects.toThrow(ConflictError);
-                await expect(issuing).rejects.toThrow('The posting rules valid on 2026-03-01 need to name a revenue account for the VAT S 16 %.');
+                await expect(issuing).rejects
+                    .toThrow('The posting rules valid on 2026-03-01 need to name a revenue account for the VAT S 16 %.');
                 expect(await inTenant(books.tenantId, async () => await invoices().count())).toBe(0);
-                await expect(issueInvoice(books, '2026-SIEMEN-0002', [itemOf(100)], '2027-02-01'))
+                await expect(issueInvoice(books, SECOND_NUMBER, [itemOf(100)], '2027-02-01'))
                     .rejects.toThrow('The posting date 2027-02-01 needs to fall into a fiscal year, and none covers it.');
             });
 
@@ -657,7 +697,7 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 const tenantId: string = UUIDUtilities.generate();
 
                 const invoice: Invoice = await inTenant(tenantId, async () => await invoices().create({
-                    number: '2026-SIEMEN-0001',
+                    number: FIRST_NUMBER,
                     currency: 'EUR',
                     items: [itemOf(100)],
                     date: new Date('2026-03-01T12:00:00.000Z'),
@@ -677,8 +717,8 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
         describe('issuing a credit note', () => {
             it('posts the exact mirror of the entry of its invoice for a full one, and its own amounts for a partial one', async () => {
                 const books: PostingBooks = await createPostingBooks();
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(500), itemOf(500)]);
-                const partly: Invoice = await issueInvoice(books, '2026-SIEMEN-0002', [itemOf(500), itemOf(500)]);
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(500), itemOf(500)]);
+                const partly: Invoice = await issueInvoice(books, SECOND_NUMBER, [itemOf(500), itemOf(500)]);
                 // the rules change after the invoice was posted, which the mirror of its entry does not follow
                 await inTenant(books.tenantId, async () => await postingRules().updateRuleSet(books.ruleSet.id, {
                     ...books.ruleSet.rules,
@@ -686,16 +726,32 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 }));
 
                 const [full, partial] = await inTenant(books.tenantId, async () => {
-                    const cancellations: InvoiceCancellationServiceInterface<Invoice> = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE);
+                    const cancellations: InvoiceCancellationServiceInterface<Invoice>
+                        = inject<InvoiceCancellationServiceInterface<Invoice>>(
+                            ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE
+                        );
                     return [await cancellations.cancelInvoice(invoice.id), await cancellations.createCreditNote(partly.id, [itemOf(200)])];
                 });
 
-                const invoiceLines: [string, 'debit' | 'credit', string][] = await describeEntryOf(books, PostingSourceType.INVOICE, invoice.id);
+                const invoiceLines: [string, 'debit' | 'credit', string][] = await describeEntryOf(
+                    books,
+                    PostingSourceType.INVOICE,
+                    invoice.id
+                );
                 expect(await describeEntryOf(books, PostingSourceType.CREDIT_NOTE, full.id))
                     .toEqual(invoiceLines.map(([account, side, amount]) => [account, side === 'debit' ? 'credit' : 'debit', amount]));
-                expect(invoiceLines).toEqual([['receivables', 'debit', '1190.00'], ['revenue19', 'credit', '1000.00'], ['outputTax19', 'credit', '190.00']]);
+                expect(invoiceLines).toEqual([
+                    ['receivables', 'debit', '1190.00'],
+                    ['revenue19', 'credit', '1000.00'],
+                    ['outputTax19', 'credit', '190.00']
+                ]);
                 const creditNoteEntry: JournalEntryDetails | undefined = await findEntryOf(books, PostingSourceType.CREDIT_NOTE, full.id);
-                expect(creditNoteEntry?.entry).toMatchObject({ sourceType: 'invoicing.credit-note', sourceId: full.id, reversesEntryId: null, documentReference: full.number });
+                expect(creditNoteEntry?.entry).toMatchObject({
+                    sourceType: 'invoicing.credit-note',
+                    sourceId: full.id,
+                    reversesEntryId: null,
+                    documentReference: full.number
+                });
                 expect(await describeEntryOf(books, PostingSourceType.CREDIT_NOTE, partial.id)).toEqual([
                     ['receivables', 'credit', '238.00'],
                     ['revenue7', 'debit', '200.00'],
@@ -751,11 +807,16 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
 
                 await expect(inTenant(books.tenantId, async () => await expenses().updateExpense(draft.id, rentOf(books))))
                     .rejects.toThrow('The expense R-77 is recorded, and cannot be changed or deleted. A new expense corrects it.');
-                await expect(inTenant(books.tenantId, async () => await inject<Repository<Expense>>(repositoryTokenFor(Expense)).deleteById(draft.id)))
-                    .rejects.toThrow('The expense R-77 is recorded, and cannot be changed or deleted. A new expense corrects it.');
-                const correction: Expense = await inTenant(books.tenantId, async () => await expenses().correctExpense(draft.id, rentOf(books, {
-                    totals: [{ rate: 19, net: new BigNumber('110.00'), tax: new BigNumber('20.90') }]
-                })));
+                await expect(inTenant(
+                    books.tenantId,
+                    async () => await inject<Repository<Expense>>(repositoryTokenFor(Expense)).deleteById(draft.id)
+                )).rejects.toThrow('The expense R-77 is recorded, and cannot be changed or deleted. A new expense corrects it.');
+                const correction: Expense = await inTenant(
+                    books.tenantId,
+                    async () => await expenses().correctExpense(draft.id, rentOf(books, {
+                        totals: [{ rate: 19, net: new BigNumber('110.00'), tax: new BigNumber('20.90') }]
+                    }))
+                );
 
                 expect(correction).toMatchObject({ correctsExpenseId: draft.id, recordedAt: expect.any(Date) });
                 const reversal: JournalEntry | undefined = await inTenant(books.tenantId, async () => await entries().findOne({
@@ -810,13 +871,14 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                     books.tenantId,
                     async () => await postingRules().createRuleSet({
                         fiscalYearId: books.fiscalYear.id,
-                        validFrom: day('2026-07-01'),
+                        validFrom: day(JULY_FIRST),
                         rules: { ...rulesOf(books.accounts, books.bankAccount.id), payablesAccountId: accountId }
                     })
                 );
 
                 await expect(naming(unknown)).rejects.toThrow(ConflictError);
-                await expect(naming(unknown)).rejects.toThrow(`The posting rules need to name accounts of the books, and "${unknown}" is none.`);
+                await expect(naming(unknown)).rejects
+                    .toThrow(`The posting rules need to name accounts of the books, and "${unknown}" is none.`);
                 await expect(naming(other.accounts.payables.id))
                     .rejects.toThrow(`The posting rules need to name accounts of the books, and "${other.accounts.payables.id}" is none.`);
                 await expect(inTenant(books.tenantId, async () => await postingRules().updateRuleSet(books.ruleSet.id, {
@@ -838,14 +900,17 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 }));
                 await inTenant(books.tenantId, async () => await postingRules().createRuleSet({
                     fiscalYearId: books.fiscalYear.id,
-                    validFrom: day('2026-07-01'),
+                    validFrom: day(JULY_FIRST),
                     rules: rulesOf(books.accounts, books.bankAccount.id)
                 }));
 
-                const exempt: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(1000, 0, 'E')], '2026-06-30');
-                const taxed: Invoice = await issueInvoice(books, '2026-SIEMEN-0002', [itemOf(1000)], '2026-07-01');
+                const exempt: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(1000, 0, 'E')], '2026-06-30');
+                const taxed: Invoice = await issueInvoice(books, SECOND_NUMBER, [itemOf(1000)], JULY_FIRST);
 
-                expect(await describeEntryOf(books, PostingSourceType.INVOICE, exempt.id)).toEqual([['receivables', 'debit', '1000.00'], ['revenueExempt', 'credit', '1000.00']]);
+                expect(await describeEntryOf(books, PostingSourceType.INVOICE, exempt.id)).toEqual([
+                    ['receivables', 'debit', '1000.00'],
+                    ['revenueExempt', 'credit', '1000.00']
+                ]);
                 expect(await describeEntryOf(books, PostingSourceType.INVOICE, taxed.id)).toEqual([
                     ['receivables', 'debit', '1190.00'],
                     ['revenue19', 'credit', '1000.00'],
@@ -860,7 +925,7 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 const july: PostingRules = { ...rulesOf(books.accounts, books.bankAccount.id), inputTaxAccounts: [] };
                 await inTenant(books.tenantId, async () => await postingRules().createRuleSet({
                     fiscalYearId: books.fiscalYear.id,
-                    validFrom: day('2026-07-01'),
+                    validFrom: day(JULY_FIRST),
                     rules: july
                 }));
 
@@ -875,20 +940,24 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
         });
 
         describe('matching a bank transaction', () => {
-            it('posts a payment of an invoice from the receivables to the bank, and its reversal with the reversal of the match', async () => {
+            it('posts a payment of an invoice from the receivables to the bank, and its reversal with the reversal '
+                + 'of the match', async () => {
                 const books: PostingBooks = await createPostingBooks();
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(1000)]);
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(1000)]);
                 const payment: BankTransaction = await createTransaction(books, '1190', {
-                    counterpartyName: 'SIEMENS AG',
+                    counterpartyName: COUNTERPARTY_NAME,
                     counterpartyIban: 'DE02100500000054540402',
-                    remittanceInformation: 'Invoice 2026-SIEMEN-0001'
+                    remittanceInformation: `Invoice ${FIRST_NUMBER}`
                 });
 
                 const [suggestion] = await suggest(books, payment);
 
                 expect(suggestion?.request.status).toBe(ApprovalRequestStatus.APPROVED);
-                const [match] = await inTenant(books.tenantId, async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch))
-                    .findAll({ where: { targetId: invoice.id } }));
+                const [match] = await inTenant(
+                    books.tenantId,
+                    async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch))
+                        .findAll({ where: { targetId: invoice.id } })
+                );
                 expect(await describeEntryOf(books, PostingSourceType.BANK_MATCH, match?.id ?? '')).toEqual([
                     ['bank', 'debit', '1190.00'],
                     ['receivables', 'credit', '1190.00']
@@ -898,10 +967,14 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                     text: 'Payment of the invoice 2026-SIEMEN-0001'
                 });
 
-                const reversal: BankMatch = await inTenant(books.tenantId, async () => await bankMatches().reverseMatch(match?.id ?? '', 'ada'));
+                const reversal: BankMatch = await inTenant(
+                    books.tenantId,
+                    async () => await bankMatches().reverseMatch(match?.id ?? '', 'ada')
+                );
 
                 const reversed: JournalEntryDetails | undefined = await findEntryOf(books, PostingSourceType.BANK_MATCH, reversal.id);
-                expect(reversed?.entry.reversesEntryId).toBe((await findEntryOf(books, PostingSourceType.BANK_MATCH, match?.id ?? ''))?.entry.id);
+                expect(reversed?.entry.reversesEntryId)
+                    .toBe((await findEntryOf(books, PostingSourceType.BANK_MATCH, match?.id ?? ''))?.entry.id);
                 expect(await describeEntryOf(books, PostingSourceType.BANK_MATCH, reversal.id)).toEqual([
                     ['bank', 'credit', '1190.00'],
                     ['receivables', 'debit', '1190.00']
@@ -911,11 +984,11 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
 
             it('counts an invoice paid 0.01 € short as paid, within the tolerance, and posts the difference', async () => {
                 const books: PostingBooks = await createPostingBooks();
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(1000)]);
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(1000)]);
                 const payment: BankTransaction = await createTransaction(books, '1189.99', {
-                    counterpartyName: 'SIEMENS AG',
+                    counterpartyName: COUNTERPARTY_NAME,
                     counterpartyIban: null,
-                    remittanceInformation: 'Invoice 2026-SIEMEN-0001'
+                    remittanceInformation: `Invoice ${FIRST_NUMBER}`
                 });
                 const request: ApprovalRequest = single(await suggest(books, payment));
                 expect(request.status).toBe(ApprovalRequestStatus.PENDING);
@@ -933,11 +1006,11 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
 
             it('splits a difference within the tolerance by the tax groups of the invoice, which corrects its VAT', async () => {
                 const books: PostingBooks = await createPostingBooks();
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(100), itemOf(100, 7)]);
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(100), itemOf(100, 7)]);
                 const payment: BankTransaction = await createTransaction(books, '221', {
-                    counterpartyName: 'SIEMENS AG',
+                    counterpartyName: COUNTERPARTY_NAME,
                     counterpartyIban: null,
-                    remittanceInformation: 'Invoice 2026-SIEMEN-0001'
+                    remittanceInformation: `Invoice ${FIRST_NUMBER}`
                 });
                 const request: ApprovalRequest = single(await suggest(books, payment));
 
@@ -959,11 +1032,11 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
 
             it('leaves an invoice open by what a payment above the tolerance short leaves', async () => {
                 const books: PostingBooks = await createPostingBooks();
-                const invoice: Invoice = await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(1000)]);
+                const invoice: Invoice = await issueInvoice(books, FIRST_NUMBER, [itemOf(1000)]);
                 const payment: BankTransaction = await createTransaction(books, '1180', {
-                    counterpartyName: 'SIEMENS AG',
+                    counterpartyName: COUNTERPARTY_NAME,
                     counterpartyIban: null,
-                    remittanceInformation: 'Invoice 2026-SIEMEN-0001'
+                    remittanceInformation: `Invoice ${FIRST_NUMBER}`
                 });
                 const request: ApprovalRequest = single(await suggest(books, payment));
 
@@ -995,8 +1068,11 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                     status: ApprovalRequestStatus.APPROVED,
                     summary: 'Match €119.00 of OFFICE SUPPLIES GMBH on 03/20/2026 with the expense R-77 of Office Supplies GmbH.'
                 });
-                const [match] = await inTenant(books.tenantId, async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch))
-                    .findAll({ where: { targetType: BankMatchTargetType.EXPENSE, targetId: expense.id } }));
+                const [match] = await inTenant(
+                    books.tenantId,
+                    async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch))
+                        .findAll({ where: { targetType: BankMatchTargetType.EXPENSE, targetId: expense.id } })
+                );
                 expect(await describeEntryOf(books, PostingSourceType.BANK_MATCH, match?.id ?? '')).toEqual([
                     ['payables', 'debit', '119.00'],
                     ['bank', 'credit', '119.00']
@@ -1004,9 +1080,12 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                 expect(await suggest(books, payment)).toEqual([]);
             });
 
-            it('suggests the account of a rule, which waits for a person whatever its confidence, and posts it once confirmed', async () => {
+            it('suggests the account of a rule, which waits for a person whatever its confidence, '
+                + 'and posts it once confirmed', async () => {
                 const books: PostingBooks = await createPostingBooks();
-                await inTenant(books.tenantId, async () => await inject<Repository<AccountMatchRule, Omit<AccountMatchRule, 'id' | 'tenantId'>>>(
+                await inTenant(books.tenantId, async () => await inject<
+                    Repository<AccountMatchRule, Omit<AccountMatchRule, 'id' | 'tenantId'>>
+                >(
                     repositoryTokenFor(AccountMatchRule)
                 ).create({ accountId: books.accounts.capital.id, counterpartyIban: 'DE02120300000000202051', text: 'capital' }));
                 const deposit: BankTransaction = await createTransaction(books, '25000', {
@@ -1023,9 +1102,19 @@ export function describeBookkeepingPostings(dataSourceName: string): void {
                     summary: 'Match €25,000.00 of Ada Lovelace on 03/20/2026 with the account 2900 Share capital.',
                     input: { targetType: 'ACCOUNT', targetId: books.accounts.capital.id, confidence: 1 }
                 });
-                expect(await inTenant(books.tenantId, async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch)).count())).toBe(0);
+                expect(await inTenant(
+                    books.tenantId,
+                    async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch)).count()
+                )).toBe(0);
 
-                const match: BankMatch = await confirm(books, request, deposit, BankMatchTargetType.ACCOUNT, books.accounts.capital.id, '25000');
+                const match: BankMatch = await confirm(
+                    books,
+                    request,
+                    deposit,
+                    BankMatchTargetType.ACCOUNT,
+                    books.accounts.capital.id,
+                    '25000'
+                );
 
                 expect(await describeEntryOf(books, PostingSourceType.BANK_MATCH, match.id)).toEqual([
                     ['bank', 'debit', '25000.00'],

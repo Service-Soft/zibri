@@ -13,6 +13,12 @@ export abstract class PdfmakeTestUtilities {
     static readonly installs: string[] = ['pdfmake', 'pdfmake-0.3'];
 
     /**
+     * The install every other suite makes its pdfs with: the current version, which reads a font once for every
+     * document rather than once for each.
+     */
+    static readonly defaultInstall: string = 'pdfmake-0.3';
+
+    /**
      * Declares tests once for each version of pdfmake.
      * @param name - The name of the tests.
      * @param fn - Declares the tests, given the install they run with.
@@ -35,7 +41,7 @@ export abstract class PdfmakeTestUtilities {
                 PdfmakeUtilities.packageName = installedAs;
             });
             afterAll(() => {
-                PdfmakeUtilities.packageName = 'pdfmake';
+                PdfmakeUtilities.packageName = this.defaultInstall;
             });
             fn();
         });
@@ -53,7 +59,7 @@ export abstract class PdfmakeTestUtilities {
             return await fn();
         }
         finally {
-            PdfmakeUtilities.packageName = 'pdfmake';
+            PdfmakeUtilities.packageName = this.defaultInstall;
         }
     }
 }

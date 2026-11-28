@@ -14,7 +14,7 @@ export interface CalendarSyncServiceInterface {
      * @param entry - The entry.
      * @param target - The calendar.
      * @returns The link of the row to its event in the calendar.
-     * @throws {HttpClientError} When the server refuses the event or cannot be reached, such as a
+     * @throws HttpClientError when the server refuses the event or cannot be reached, such as a
      * `WebDavConflictError` for a calendar that does not exist.
      */
     syncEntry: (entry: CalendarEntry, target: CalendarSyncTarget) => Promise<CalendarEntryLink>,
@@ -22,7 +22,7 @@ export interface CalendarSyncServiceInterface {
      * Removes the entry of a row from a calendar, and its link. Nothing for a row without an entry there.
      * @param source - The row.
      * @param target - The calendar.
-     * @throws {HttpClientError} When the server refuses the removal or cannot be reached.
+     * @throws HttpClientError when the server refuses the removal or cannot be reached.
      */
     removeEntry: (source: CalendarEntrySource, target: CalendarSyncTarget) => Promise<void>,
     /**

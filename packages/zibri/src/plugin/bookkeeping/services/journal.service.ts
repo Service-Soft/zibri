@@ -12,9 +12,9 @@ import { Inject } from '../../../di/decorators/inject.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
+import { type EntityOrder } from '../../../entity/models/entity-order.model';
 import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
 import { ConflictError } from '../../../error-handling/errors/conflict.error';
-import { type EntityOrder } from '../../../entity/models/entity-order.model';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { $ts } from '../../../localization/translate.function';
 import { AuditAction, AuditOutcome } from '../../../logging/audit-event.model';
@@ -27,35 +27,35 @@ import { BookkeepingStatementUtilities } from '../bookkeeping-statement.utilitie
 import { ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from '../bookkeeping.tokens';
 import { JournalEntryUtilities } from '../journal-entry.utilities';
 import { type BookkeepingAccountBalance } from '../models/bookkeeping-account-balance.model';
-import { type BookkeepingCarriedBalances } from '../models/bookkeeping-carried-balances.model';
-import { BookkeepingAccountType } from '../models/bookkeeping-account-type.enum';
 import { type BookkeepingAccountFilter } from '../models/bookkeeping-account-filter.model';
+import { BookkeepingAccountType } from '../models/bookkeeping-account-type.enum';
 import { BookkeepingAccount } from '../models/bookkeeping-account.model';
+import { type BookkeepingCarriedBalances } from '../models/bookkeeping-carried-balances.model';
 import { type BookkeepingClosingProposal } from '../models/bookkeeping-closing-proposal.model';
-import { type BookkeepingObligation } from '../models/bookkeeping-obligation.model';
-import { type BookkeepingReportContext } from '../models/bookkeeping-report-context.model';
 import { type BookkeepingClosing } from '../models/bookkeeping-closing.model';
 import { type BookkeepingCompany } from '../models/bookkeeping-company.model';
 import { type BookkeepingLegalForm } from '../models/bookkeeping-legal-form.model';
+import { type BookkeepingObligation } from '../models/bookkeeping-obligation.model';
 import { type BookkeepingPluginOptions } from '../models/bookkeeping-plugin-options.model';
+import { type BookkeepingReportContext } from '../models/bookkeeping-report-context.model';
 import { type BookkeepingSettingsChange } from '../models/bookkeeping-settings-change.model';
 import { BookkeepingSettings, type BookkeepingSettingsCreateData } from '../models/bookkeeping-settings.model';
 import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { type BookkeepingVerificationProblem } from '../models/bookkeeping-verification-problem.model';
 import { type BookkeepingVerification } from '../models/bookkeeping-verification.model';
-import { type FiscalYearClosingResult } from '../models/fiscal-year-closing-result.model';
 import { type FiscalYearChange } from '../models/fiscal-year-change.model';
+import { type FiscalYearClosingResult } from '../models/fiscal-year-closing-result.model';
 import { type FiscalYearClosing } from '../models/fiscal-year-closing.model';
+import { FiscalYearEntrySourceType } from '../models/fiscal-year-entry-source-type.enum';
 import { type FiscalYearReopeningResult } from '../models/fiscal-year-reopening-result.model';
 import { type FiscalYearReopeningPosting } from '../models/fiscal-year-reopening.model';
-import { FiscalYearEntrySourceType } from '../models/fiscal-year-entry-source-type.enum';
 import { FiscalYear } from '../models/fiscal-year.model';
 import { type JournalEntryDetails } from '../models/journal-entry-details.model';
 import { type JournalEntryFilter } from '../models/journal-entry-filter.model';
 import { JournalEntryLine } from '../models/journal-entry-line.model';
+import { type JournalEntryPage } from '../models/journal-entry-page.model';
 import { type JournalEntryPosting } from '../models/journal-entry-posting.model';
 import { type JournalEntryReversalPosting } from '../models/journal-entry-reversal-posting.model';
-import { type JournalEntryPage } from '../models/journal-entry-page.model';
 import { JournalEntry } from '../models/journal-entry.model';
 import { type NewBookkeepingSettings } from '../models/new-bookkeeping-settings.model';
 import { type NewFiscalYear } from '../models/new-fiscal-year.model';
@@ -265,7 +265,11 @@ export class JournalService implements JournalServiceInterface {
             await this.validateAccounts(entry.lines, started);
             // the lines are built anew: only the closing gives a line a role, and a line handed in from code may hold
             // one beyond its type, which createEntry would store
-            const lines: NewJournalEntryLine[] = entry.lines.map(line => ({ accountId: line.accountId, debit: line.debit ?? null, credit: line.credit ?? null }));
+            const lines: NewJournalEntryLine[] = entry.lines.map(line => ({
+                accountId: line.accountId,
+                debit: line.debit ?? null,
+                credit: line.credit ?? null
+            }));
             return await this.createEntry(fiscalYear, { ...entry, lines }, true, started);
         });
     }
@@ -277,8 +281,12 @@ export class JournalService implements JournalServiceInterface {
             const original: JournalEntryDetails = await this.resolveEntry(entryId, started);
             // the closing and the opening balances it carries into the next year are taken back together, by reopening
             // the year, which keeps the statements of the year and the balances of the next one in step
-            if (original.entry.sourceType === FiscalYearEntrySourceType.CLOSING || original.entry.sourceType === FiscalYearEntrySourceType.OPENING) {
+            if (
+                original.entry.sourceType === FiscalYearEntrySourceType.CLOSING
+                || original.entry.sourceType === FiscalYearEntrySourceType.OPENING
+            ) {
                 throw new ConflictError([
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                     $ts`The entry "${entryId}" closes a fiscal year or opens one with the balances of the one before, and is reversed only by reopening that fiscal year.`,
                     $ts`Reopen it with POST /fiscal-years/:id/reopening.`
                 ]);
@@ -316,7 +324,10 @@ export class JournalService implements JournalServiceInterface {
             catch (error) {
                 // a reversal of the same entry committed meanwhile, which the check above could not see yet
                 if (error instanceof UniqueConstraintViolationError && error.properties.includes('reversesEntryId')) {
-                    throw new ConflictError($ts`The entry "${entryId}" is reversed already, and an entry is reversed at most once.`, { cause: error });
+                    throw new ConflictError(
+                        $ts`The entry "${entryId}" is reversed already, and an entry is reversed at most once.`,
+                        { cause: error }
+                    );
                 }
                 throw error;
             }
@@ -388,7 +399,9 @@ export class JournalService implements JournalServiceInterface {
         const escaped: string | undefined = search == undefined || search === '' ? undefined : FilterUtilities.escapeLike(search);
         return await this.accountRepository.findAll({
             // the number from its start, such as 12 for 1200, and the name anywhere in it
-            where: escaped == undefined ? where : [{ ...where, number: { iLike: `${escaped}%` } }, { ...where, name: { iLike: `%${escaped}%` } }],
+            where: escaped == undefined
+                ? where
+                : [{ ...where, number: { iLike: `${escaped}%` } }, { ...where, name: { iLike: `%${escaped}%` } }],
             order: { number: 'ASC' },
             limit: 'all'
         });
@@ -527,7 +540,8 @@ export class JournalService implements JournalServiceInterface {
             transaction: undefined
         };
         const proposals: BookkeepingClosingProposal[][] = await Promise.all(this.resolveConformances(settings, fiscalYear).map(
-            async conformance => (await conformance.resolveClosingProposals(closing)).map(entry => ({ conformance: conformance.name, entry }))
+            async conformance => (await conformance.resolveClosingProposals(closing))
+                .map(entry => ({ conformance: conformance.name, entry }))
         ));
         return proposals.flat();
     }
@@ -586,7 +600,11 @@ export class JournalService implements JournalServiceInterface {
 
             // the positions the result of the year is part of, in which each account appropriating it is closed too
             const resultPositions: string[] = inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.STATEMENT_STRUCTURES)
-                .flatMap(s => s.type === BookkeepingStatementType.BALANCE_SHEET && s.rollsUpFrom == undefined && s.resultPosition != undefined ? [s.resultPosition] : []);
+                .flatMap(s => s.type === BookkeepingStatementType.BALANCE_SHEET
+                    && s.rollsUpFrom == undefined
+                    && s.resultPosition != undefined
+                    ? [s.resultPosition]
+                    : []);
             const closingLines: LineToCreate[] = JournalEntryUtilities.resolveClosingLines(balances, resultAccount.id, resultPositions);
             const closingBalances: BookkeepingAccountBalance[] = JournalEntryUtilities.resolveBalancesAfter(
                 balances,
@@ -614,7 +632,8 @@ export class JournalService implements JournalServiceInterface {
                 )
                 : null;
 
-            const next: FiscalYear = await this.findNextFiscalYear(closed, started) ?? await this.createFiscalYearAfter(closed, {}, started);
+            const next: FiscalYear = await this.findNextFiscalYear(closed, started)
+                ?? await this.createFiscalYearAfter(closed, {}, started);
             const openingEntry: JournalEntryDetails | null = openingLines.length
                 ? await this.createEntry(
                     next,
@@ -641,7 +660,11 @@ export class JournalService implements JournalServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async reopenFiscalYear(fiscalYearId: string, reopening: FiscalYearReopeningPosting, transaction?: Transaction): Promise<FiscalYearReopeningResult> {
+    async reopenFiscalYear(
+        fiscalYearId: string,
+        reopening: FiscalYearReopeningPosting,
+        transaction?: Transaction
+    ): Promise<FiscalYearReopeningResult> {
         return await this.runInTransaction(transaction, async started => {
             const fiscalYear: FiscalYear = await this.fiscalYearRepository.findById(fiscalYearId, { transaction: started });
             const [start, end] = this.formatDays(fiscalYear);
@@ -652,6 +675,7 @@ export class JournalService implements JournalServiceInterface {
             if (next?.closedAt != undefined) {
                 const [nextStart, nextEnd] = this.formatDays(next);
                 throw new ConflictError(
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                     $ts`The fiscal year from ${nextStart} to ${nextEnd} needs to be reopened before the fiscal year before it, as it opened with its closing.`
                 );
             }
@@ -681,7 +705,11 @@ export class JournalService implements JournalServiceInterface {
             const text: string = $ts`Reopening of the fiscal year from ${start} to ${end}: ${reopening.reason}`;
             // reversed as an entry is corrected: the mirror of its lines, which names it, with the kind of source of the
             // closing, so that what leaves the closing out of the balances of the year leaves its reversal out too
-            const closingEntry: JournalEntryDetails | undefined = await this.findCurrentEntry(fiscalYear, FiscalYearEntrySourceType.CLOSING, started);
+            const closingEntry: JournalEntryDetails | undefined = await this.findCurrentEntry(
+                fiscalYear,
+                FiscalYearEntrySourceType.CLOSING,
+                started
+            );
             const closingReversal: JournalEntryDetails | null = closingEntry == undefined
                 ? null
                 : await this.createEntry(
@@ -743,8 +771,14 @@ export class JournalService implements JournalServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveCarriedBalances(fiscalYearId: string, transaction?: Transaction): Promise<BookkeepingCarriedBalances> {
-        const equity: BookkeepingAccount[] = await this.accountRepository.findAll({ where: { type: BookkeepingAccountType.EQUITY }, limit: 'all', transaction });
-        const carryForward: Set<string> = new Set(equity.filter(a => BookkeepingStatementUtilities.isCarryForwardAccount(a)).map(a => a.id));
+        const equity: BookkeepingAccount[] = await this.accountRepository.findAll({
+            where: { type: BookkeepingAccountType.EQUITY },
+            limit: 'all',
+            transaction
+        });
+        const carryForward: Set<string> = new Set(
+            equity.filter(a => BookkeepingStatementUtilities.isCarryForwardAccount(a)).map(a => a.id)
+        );
         // each opening entry with the reversals of those a reopening of the year before took back, which add up to the
         // opening balances of its latest closing
         const openings: JournalEntry[] = await this.entryRepository.findAll({
@@ -754,18 +788,30 @@ export class JournalService implements JournalServiceInterface {
         });
         // the balances of books kept elsewhere carried over by hand, whichever entry and day of the year they are in
         const carriedOver: JournalEntryLine[] = carryForward.size
-            ? await this.lineRepository.findAll({ where: { fiscalYearId, accountId: { oneOf: [...carryForward] } }, limit: 'all', transaction })
+            ? await this.lineRepository.findAll({
+                where: { fiscalYearId, accountId: { oneOf: [...carryForward] } },
+                limit: 'all',
+                transaction
+            })
             : [];
         const entryIds: string[] = [...new Set([...openings.map(o => o.id), ...carriedOver.map(l => l.entryId)])];
         if (!entryIds.length) {
             return { balances: [], entryIds };
         }
         const sums: Map<string, Pick<BookkeepingAccountBalance, 'debit' | 'credit'>> = new Map();
-        const lines: JournalEntryLine[] = await this.lineRepository.findAll({ where: { entryId: { oneOf: entryIds } }, limit: 'all', transaction });
+        const lines: JournalEntryLine[] = await this.lineRepository.findAll({
+            where: { entryId: { oneOf: entryIds } },
+            limit: 'all',
+            transaction
+        });
         // the carry-forward account is the counter account of what is carried over, not a balance of its own
         for (const line of lines.filter(l => !carryForward.has(l.accountId))) {
-            const sum: Pick<BookkeepingAccountBalance, 'debit' | 'credit'> = sums.get(line.accountId) ?? { debit: new BigNumber(0), credit: new BigNumber(0) };
-            sums.set(line.accountId, { debit: NumberUtilities.add(sum.debit, line.debit ?? 0), credit: NumberUtilities.add(sum.credit, line.credit ?? 0) });
+            const sum: Pick<BookkeepingAccountBalance, 'debit' | 'credit'> = sums.get(line.accountId)
+                ?? { debit: new BigNumber(0), credit: new BigNumber(0) };
+            sums.set(line.accountId, {
+                debit: NumberUtilities.add(sum.debit, line.debit ?? 0),
+                credit: NumberUtilities.add(sum.credit, line.credit ?? 0)
+            });
         }
         const accounts: BookkeepingAccount[] = sums.size
             ? await this.accountRepository.findAll({ where: { id: { oneOf: [...sums.keys()] } }, limit: 'all', transaction })
@@ -908,6 +954,7 @@ export class JournalService implements JournalServiceInterface {
         if (latest != undefined && legalForm.validFrom.getTime() <= latest.validFrom.getTime()) {
             const latestDay: string = BookkeepingDayUtilities.formatDay(latest.validFrom);
             throw new ConflictError(
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 $ts`The legal form valid from ${day} needs to be valid from after ${latestDay}, the day the latest legal form is valid from.`
             );
         }
@@ -975,7 +1022,10 @@ export class JournalService implements JournalServiceInterface {
             if (error instanceof UniqueConstraintViolationError && error.properties.includes('sourceId')) {
                 const sourceType: string = entry.sourceType ?? '';
                 const sourceId: string = entry.sourceId ?? '';
-                throw new ConflictError($ts`The source ${sourceType} "${sourceId}" is posted already, and a source is posted once.`, { cause: error });
+                throw new ConflictError(
+                    $ts`The source ${sourceType} "${sourceId}" is posted already, and a source is posted once.`,
+                    { cause: error }
+                );
             }
             throw error;
         }

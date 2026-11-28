@@ -27,7 +27,12 @@ import { type WorkingCalendarServiceInterface } from './working-calendar-service
  * What a calendar is without anything set: Monday to Friday, no holidays, a due date kept where it falls, and the due
  * dates written into no calendar.
  */
-const DEFAULT_CALENDAR: WorkingCalendar = { workingWeekdays: [1, 2, 3, 4, 5], holidayCalendarId: null, nonWorkingDay: 'keep', calendarSync: null };
+const DEFAULT_CALENDAR: WorkingCalendar = {
+    workingWeekdays: [1, 2, 3, 4, 5],
+    holidayCalendarId: null,
+    nonWorkingDay: 'keep',
+    calendarSync: null
+};
 
 /**
  * What a project or the tenant sets of its calendar.
@@ -70,9 +75,16 @@ export class WorkingCalendarService implements WorkingCalendarServiceInterface {
         const seen: string[] = [];
         const found: CalendarValues = { workingWeekdays: null, holidayCalendarId: null, nonWorkingDay: null, calendarSync: null };
         for (let currentId: string | null | undefined = projectId; currentId != undefined && !seen.includes(currentId);) {
-            const project: Pick<Project, 'id' | 'parentId' | 'workingWeekdays' | 'holidayCalendarId' | 'nonWorkingDay' | 'calendarSync'> | undefined
+            const project: (Pick<Project, 'id' | 'parentId'> & CalendarValues) | undefined
                 = await this.projectRepository.findById(currentId, {
-                    select: { id: true, parentId: true, workingWeekdays: true, holidayCalendarId: true, nonWorkingDay: true, calendarSync: true },
+                    select: {
+                        id: true,
+                        parentId: true,
+                        workingWeekdays: true,
+                        holidayCalendarId: true,
+                        nonWorkingDay: true,
+                        calendarSync: true
+                    },
                     unscoped: true,
                     required: false
                 });
@@ -129,7 +141,10 @@ export class WorkingCalendarService implements WorkingCalendarServiceInterface {
         return {
             projectId: null,
             own,
-            effective: this.toCalendar({ workingWeekdays: null, holidayCalendarId: null, nonWorkingDay: null, calendarSync: null }, defaults)
+            effective: this.toCalendar(
+                { workingWeekdays: null, holidayCalendarId: null, nonWorkingDay: null, calendarSync: null },
+                defaults
+            )
         };
     }
 
@@ -214,7 +229,13 @@ export class WorkingCalendarService implements WorkingCalendarServiceInterface {
      */
     private toData(change: WorkingCalendarChange): Partial<CalendarValues> {
         return {
-            ...change.workingWeekdays === undefined ? {} : { workingWeekdays: change.workingWeekdays == undefined ? null : [...new Set(change.workingWeekdays)].sort((a, b) => a - b) },
+            ...change.workingWeekdays === undefined
+                ? {}
+                : {
+                    workingWeekdays: change.workingWeekdays == undefined
+                        ? null
+                        : [...new Set(change.workingWeekdays)].sort((a, b) => a - b)
+                },
             ...change.holidayCalendarId === undefined ? {} : { holidayCalendarId: change.holidayCalendarId },
             ...change.nonWorkingDay === undefined ? {} : { nonWorkingDay: change.nonWorkingDay },
             ...change.calendarSync === undefined ? {} : { calendarSync: this.toCalendarSync(change.calendarSync) }
@@ -274,7 +295,9 @@ export class WorkingCalendarService implements WorkingCalendarServiceInterface {
         }
         const segments: string[] = target.calendarPath.replaceAll(/^\/+|\/+$/g, '').split('/');
         if (segments.some(segment => segment === '' || segment === '.' || segment === '..' || /[\\\0]/.test(segment))) {
-            throw new BadRequestError($ts`The calendarPath of a calendar needs to be segments separated by "/", none of them empty, "." or "..".`);
+            throw new BadRequestError(
+                $ts`The calendarPath of a calendar needs to be segments separated by "/", none of them empty, "." or "..".`
+            );
         }
         const connections: Repository<TenantWebDavConnection> = inject(repositoryTokenFor(TenantWebDavConnection));
         if (!await connections.exists({ where: { id: target.connectionId } })) {

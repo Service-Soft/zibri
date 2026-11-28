@@ -37,13 +37,14 @@ keywords: [approvals, approval requests, four eyes principle, maker checker, rev
 `zibri-contract` has the models of the routes for your frontend: `ApprovalRequestModel`, `ApprovalDecisionModel`, `ApprovalRequestDetailsModel`, `ApprovalRequestChangeModel`, `ApprovalValueChangeModel`, `ApprovalPreconditionModel`, `NewApprovalRequestModel`, `ApprovalDecisionInputModel`, the enums and the permissions.
 
 ## Setting it up
-Add `new ZibriApprovalPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `ApprovalRequest` and `ApprovalDecision` to the `entities` of one data source, beside what a [chained entity](../data/tamper-evident-tables.md#chaining-the-rows-of-each-tenant) needs.
+Add `new ZibriApprovalPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `ApprovalRequest` and `ApprovalDecision` to the `entities` of one data source, beside what a [chained entity](../data/tamper-evident-tables.md#chaining-the-rows-of-each-tenant) needs. You import the names of the plugin from `zibri/plugin/approval`.
 
 Extend `ApprovalRequestController` with a `@Controller` of your own, at the path you choose:
 
 ```ts
 // src/controllers/approval-request.controller.ts
-import { ApprovalRequestController, Controller } from 'zibri';
+import { Controller } from 'zibri';
+import { ApprovalRequestController } from 'zibri/plugin/approval';
 
 @Controller('/approval-requests', { versions: 'all' })
 export class AppApprovalRequestController extends ApprovalRequestController {}
@@ -53,7 +54,8 @@ Add it to your application:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, ZibriApplicationOptions, ZibriApprovalPlugin } from 'zibri';
+import { OmitStrict, ZibriApplicationOptions } from 'zibri';
+import { ZibriApprovalPlugin } from 'zibri/plugin/approval';
 
 import { AppApprovalRequestController } from './controllers/approval-request.controller';
 
@@ -74,7 +76,8 @@ Spread `ZIBRI_APPROVAL_PERMISSIONS` into your tenant permissions, beside those y
 
 ```ts
 // src/models/permissions.ts
-import { DefinedPermissions, definePermissions, ZIBRI_APPROVAL_PERMISSIONS, ZIBRI_PERMISSIONS } from 'zibri';
+import { DefinedPermissions, definePermissions, ZIBRI_PERMISSIONS } from 'zibri';
+import { ZIBRI_APPROVAL_PERMISSIONS } from 'zibri/plugin/approval';
 
 const PERMISSIONS = [...ZIBRI_PERMISSIONS, ...ZIBRI_APPROVAL_PERMISSIONS, 'tasks.close', 'tasks.propose'] as const;
 
@@ -91,7 +94,8 @@ An action names its input model, the permission it takes to approve it and the o
 
 ```ts
 // src/approvals/close-task.approval-action.ts
-import { ApprovalAction, inject, Property, Repository, repositoryTokenFor } from 'zibri';
+import { inject, Property, Repository, repositoryTokenFor } from 'zibri';
+import { ApprovalAction } from 'zibri/plugin/approval';
 
 import { Permissions, Task } from '../models';
 
@@ -124,7 +128,8 @@ Register it with `provideApprovalAction`, in the `providers` of your application
 
 ```ts
 // src/providers.ts
-import { DiProvider, provideApprovalAction } from 'zibri';
+import { DiProvider } from 'zibri';
+import { provideApprovalAction } from 'zibri/plugin/approval';
 
 import { closeTaskAction } from './approvals/close-task.approval-action';
 
@@ -189,7 +194,8 @@ It answers the request and its `decision`, which is null until it is decided. No
 
 ```ts
 // src/services/task-cleanup.function.ts
-import { ApprovalRequestDetails, inject, ZIBRI_APPROVAL_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { ApprovalRequestDetails, ZIBRI_APPROVAL_PLUGIN_DI_TOKENS } from 'zibri/plugin/approval';
 
 export async function proposeClosingStaleTask(taskId: string): Promise<ApprovalRequestDetails> {
     return await inject(ZIBRI_APPROVAL_PLUGIN_DI_TOKENS.APPROVAL_REQUEST_SERVICE).propose({
@@ -252,7 +258,8 @@ A policy approves the requests of its action without a person, such as a suggest
 
 ```ts
 // src/approvals/suggest-label.approval-action.ts
-import { ApprovalAction, inject, Property, Repository, repositoryTokenFor } from 'zibri';
+import { inject, Property, Repository, repositoryTokenFor } from 'zibri';
+import { ApprovalAction } from 'zibri/plugin/approval';
 
 import { Permissions, Task } from '../models';
 
@@ -301,7 +308,7 @@ A request proposed and a request decided can be emitted as [events](../backgroun
 
 ```ts
 // src/events/approval-events.ts
-import { ApprovalRequestEventData } from 'zibri';
+import { ApprovalRequestEventData } from 'zibri/plugin/approval';
 
 declare module 'zibri' {
     interface ZibriEventMap {
@@ -317,7 +324,8 @@ and name them in the `eventNames` of the options:
 
 ```ts
 // src/providers.ts
-import { defineProvider, ZIBRI_APPROVAL_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider } from 'zibri';
+import { ZIBRI_APPROVAL_PLUGIN_DI_TOKENS } from 'zibri/plugin/approval';
 
 defineProvider({
     token: ZIBRI_APPROVAL_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
@@ -337,7 +345,8 @@ The decisions of each tenant form a hash chain, which tells a decision that was 
 
 ```ts
 // src/services/approval-check.function.ts
-import { ApprovalDecision, ChainVerification, inject, ZIBRI_DI_TOKENS } from 'zibri';
+import { ChainVerification, inject, ZIBRI_DI_TOKENS } from 'zibri';
+import { ApprovalDecision } from 'zibri/plugin/approval';
 
 export async function checkApprovalDecisions(tenantId: string): Promise<ChainVerification> {
     return await inject(ZIBRI_DI_TOKENS.CHAIN_SERVICE).resolveChainVerification(ApprovalDecision, tenantId);

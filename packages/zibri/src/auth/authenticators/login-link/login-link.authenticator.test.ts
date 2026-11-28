@@ -85,21 +85,21 @@ type ErrorBody = {
  */
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
 class LoginLinkTestAuthController extends AuthController({
-    strategies: [JwtAuthStrategy, CookieAuthStrategy],
-    authenticators: [PasswordAuthenticator, LoginLinkAuthenticator],
-    twoFactorMethods: [OtpTwoFactorMethod, EmailTwoFactorMethod]
-}) {}
+        strategies: [JwtAuthStrategy, CookieAuthStrategy],
+        authenticators: [PasswordAuthenticator, LoginLinkAuthenticator],
+        twoFactorMethods: [OtpTwoFactorMethod, EmailTwoFactorMethod]
+    }) {}
 
 /**
  * The same routes, with the one answering the ways of logging in.
  */
 @Controller('/auth', { allowOrphan: true, versions: 'all' })
 class LoginMethodsTestAuthController extends AuthController({
-    strategies: [JwtAuthStrategy, CookieAuthStrategy],
-    authenticators: [PasswordAuthenticator, LoginLinkAuthenticator],
-    twoFactorMethods: [OtpTwoFactorMethod, EmailTwoFactorMethod],
-    loginMethodsRoute: true
-}) {}
+        strategies: [JwtAuthStrategy, CookieAuthStrategy],
+        authenticators: [PasswordAuthenticator, LoginLinkAuthenticator],
+        twoFactorMethods: [OtpTwoFactorMethod, EmailTwoFactorMethod],
+        loginMethodsRoute: true
+    }) {}
 
 /**
  * A route that takes a second factor or a recent login.
@@ -284,7 +284,8 @@ async function readAddress(headers: Record<string, string>): Promise<Response> {
 }
 
 function cookiesOf(res: Response): string {
-    return res.headers.getSetCookie().map(line => line.split(';')[0]).join('; ');
+    return res.headers.getSetCookie().map(line => line.split(';')[0])
+        .join('; ');
 }
 
 async function entriesOf(action: AuditAction, subject: string): Promise<AuditEntry[]> {
@@ -394,9 +395,7 @@ describe('LoginLinkAuthenticator', () => {
             expect((await requestLink(service.email)).status).toBe(204);
 
             await waitUntil(async () => (await entriesOf(AuditAction.LOGIN_LINK_REQUESTED, service.email)).length === 1);
-            expect(await entriesOf(AuditAction.LOGIN_LINK_REQUESTED, service.email)).toMatchObject([
-                { outcome: AuditOutcome.FAILURE, reason: AuditReason.SERVICE_ACCOUNT, userId: service.id, userKind: 'service' }
-            ]);
+            expect(await entriesOf(AuditAction.LOGIN_LINK_REQUESTED, service.email)).toMatchObject([{ outcome: AuditOutcome.FAILURE, reason: AuditReason.SERVICE_ACCOUNT, userId: service.id, userKind: 'service' }]);
             expect(await tokensOf(service)).toHaveLength(0);
             await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).sendQueuedEmails();
             expect(sendsTo(service.email)).toBe(0);
@@ -420,9 +419,7 @@ describe('LoginLinkAuthenticator', () => {
             expect(byPassword.status).toBe(403);
             expect((await byPassword.json() as ErrorBody).name).toBe('ServiceAccountRefusedError');
             expect(byLink.status).toBe(403);
-            expect(await entriesOf(AuditAction.LOGIN, service.email)).toMatchObject([
-                { outcome: AuditOutcome.FAILURE, reason: AuditReason.SERVICE_ACCOUNT, userKind: 'service' }
-            ]);
+            expect(await entriesOf(AuditAction.LOGIN, service.email)).toMatchObject([{ outcome: AuditOutcome.FAILURE, reason: AuditReason.SERVICE_ACCOUNT, userKind: 'service' }]);
         });
 
         it('binds the link to no browser by default', async () => {

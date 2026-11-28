@@ -90,7 +90,8 @@ export class BankTransactionWriteObserver implements EntityWriteObserver, OnAppI
         try {
             const logger: LoggerInterface = inject(ZIBRI_DI_TOKENS.LOGGER);
             const tenantIds: Set<string> = new Set();
-            for await (const row of inject<Repository<BankAccount>>(repositoryTokenFor(BankAccount)).stream({ select: { tenantId: true }, acrossTenants: true })) {
+            const accounts: Repository<BankAccount> = inject<Repository<BankAccount>>(repositoryTokenFor(BankAccount));
+            for await (const row of accounts.stream({ select: { tenantId: true }, acrossTenants: true })) {
                 tenantIds.add(row.tenantId);
             }
             let written: number = 0;

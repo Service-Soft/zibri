@@ -9,6 +9,6 @@ import { SentWebsocketMessage } from './sent-websocket-message.model';
 // take a WebsocketMessage with its required seq, still compiles.
 // TODO 4.0: (res: SentWebsocketMessage) => void | Promise<void>
 export type WebsocketResponseHandler = {
-    // eslint-disable-next-line jsdoc/require-jsdoc, typescript/method-signature-style
+    // eslint-disable-next-line typescript/method-signature-style
     handle(res: SentWebsocketMessage): void | Promise<void>
 }['handle'];

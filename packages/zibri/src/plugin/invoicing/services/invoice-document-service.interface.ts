@@ -1,8 +1,8 @@
 import { type Readable } from 'node:stream';
 
 import { type KeptRowCheckInterface } from '../../../backup/kept-row-check.interface';
-import { type PdfPageSize } from '../../../document/pdf.utilities';
 import { type RepositoryTransaction } from '../../../data-source/transaction/repository-transaction.type';
+import { type PdfPageSize } from '../../../document/pdf.utilities';
 import { type LocaleCode } from '../../../localization/models/locale-code.model';
 import { type Timezone } from '../../../localization/models/timezone.model';
 import { type InvoiceDocument } from '../models/invoice-document.model';

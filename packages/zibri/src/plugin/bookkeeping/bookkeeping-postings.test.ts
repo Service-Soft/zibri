@@ -9,13 +9,11 @@ import { FsUtilities } from '../../utilities/fs.utilities';
 import { ZibriApprovalPlugin } from '../approval/approval.plugin';
 import { ZibriBankPlugin } from '../bank/bank.plugin';
 import { ZibriInvoicingPlugin } from '../invoicing/invoicing.plugin';
-import {
-    describeBookkeepingPostings,
+import { describeBookkeepingPostings,
     postingTestEntities,
     postingTestFileStores,
     postingTestProviders,
-    statementsFolder
-} from './bookkeeping-postings.cases';
+    statementsFolder } from './bookkeeping-postings.cases';
 import { receiptsFolder } from './bookkeeping.cases';
 import { ZibriBookkeepingPlugin } from './bookkeeping.plugin';
 

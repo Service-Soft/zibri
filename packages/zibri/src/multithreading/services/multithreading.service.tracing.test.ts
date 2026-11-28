@@ -27,7 +27,7 @@ import { MultithreadingServiceInterface } from './multithreading-service.interfa
 import { MultithreadingService } from './multithreading.service';
 
 /**
- * A thread job row as the repository hands it back, for the reason multithreading.service.test.ts gives.
+ * A thread job row as the repository hands it back, for the reason multithreading.service.container.test.ts gives.
  */
 type AnyThreadJobEntity = ThreadJobEntity<BaseThreadJobWorkerData | BaseFunctionThreadJobWorkerData<unknown>, unknown>;
 

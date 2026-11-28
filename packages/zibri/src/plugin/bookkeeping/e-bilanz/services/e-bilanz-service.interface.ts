@@ -69,7 +69,16 @@ export interface EBilanzServiceInterface {
      * real without an accepted test, while a transmission of the fiscal year is running, or while one of the same kind
      * has a result that is not known.
      */
-    transmit: (fiscalYearId: string, options: { readonly test: boolean }, actingUserId: string) => Promise<EBilanzFiling>,
+    transmit: (
+        fiscalYearId: string,
+        options: {
+            /**
+             * Whether it is sent as a test, which the tax administration checks and does not file.
+             */
+            readonly test: boolean
+        },
+        actingUserId: string
+    ) => Promise<EBilanzFiling>,
     /**
      * Records the latest preparation of a fiscal year as filed by hand, with the transmission protocol.
      * @throws A ConflictError without a current preparation, or while a transmission of the fiscal year is running.

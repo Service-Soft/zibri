@@ -1,4 +1,4 @@
-import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
+import { afterAll, afterEach, beforeAll, describe, expect, it, jest } from '@jest/globals';
 import { io, Socket } from 'socket.io-client';
 import { createInMemoryDataSource } from 'zibri-testing';
 
@@ -369,6 +369,39 @@ describe('a socket whose login has ended', () => {
         // nothing ends the login: the token simply stops being accepted, and nothing else would say so
         expect(await isClosedWithin(socket, accessTokenExpiresInMs + 3000)).toBe(true);
     }, 15000);
+
+    // an expiry read while the socket disconnected set its check after the disconnect had cleared the checks: it ran for
+    // a connection that was gone, and once its application had shut down, logged into a container that was empty
+    it('checks its credential no more once it has disconnected, however late the expiry was read', async () => {
+        const login: LoggedIn = await logIn(await createUser());
+        let release: (expiresAt: Date) => void = () => undefined;
+        const held: Promise<Date> = new Promise(resolve => {
+            release = resolve;
+        });
+        const reading: jest.SpiedFunction<AuthServiceInterface['resolveCredentialExpiry']> = jest
+            .spyOn(authService, 'resolveCredentialExpiry')
+            .mockImplementationOnce(async () => await held);
+        // read after the handshake, which asks for the user as well
+        let checking: jest.SpiedFunction<AuthServiceInterface['resolveCurrentUser']> | undefined;
+        try {
+            const socket: Socket = await connectAs(login);
+            await waitUntil(() => reading.mock.calls.length > 0);
+            checking = jest.spyOn(authService, 'resolveCurrentUser');
+            // the client forgets its id as it disconnects
+            const id: string | undefined = socket.id;
+            socket.disconnect();
+            await waitUntil(async () => !(await wsService.getConnections()).some(c => c.id === id));
+
+            release(new Date(Date.now() + 50));
+            await new Promise(resolve => setTimeout(resolve, quietPeriodInMs));
+
+            expect(checking).not.toHaveBeenCalled();
+        }
+        finally {
+            reading.mockRestore();
+            checking?.mockRestore();
+        }
+    });
 
     // a browser sends headers only with the requests of long polling, and a websocket from the start goes without them
     describe('logged in through the auth of its handshake', () => {

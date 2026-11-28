@@ -13,11 +13,11 @@ import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
-import { Entity } from '../../entity/decorators/entity.decorator';
 import { BaseTenantEntity } from '../../entity/base-tenant-entity.model';
+import { Entity } from '../../entity/decorators/entity.decorator';
 import { Property } from '../../entity/decorators/property.decorator';
-import { ZibriMcpPlugin } from '../../plugin/mcp/mcp.plugin';
 import { McpController } from '../../plugin/mcp/mcp.controller';
+import { ZibriMcpPlugin } from '../../plugin/mcp/mcp.plugin';
 import { type McpReadTool } from '../../plugin/mcp/models/mcp-read-tool.model';
 import { provideMcpTool } from '../../plugin/mcp/provide-mcp-tool.function';
 import { ServiceAccountMcpToolController } from '../../plugin/mcp/service-account-mcp-tool.controller';
@@ -205,7 +205,7 @@ async function call(caller: Caller, method: string, path: string, body?: object)
     return await fetch(`${baseUrl}${path}`, {
         method,
         headers: {
-            'authorization': `Bearer ${caller.token}`,
+            authorization: `Bearer ${caller.token}`,
             ...caller.tenantId == undefined ? {} : { 'x-tenant-id': caller.tenantId },
             ...body == undefined ? {} : { 'content-type': 'application/json' }
         },
@@ -236,7 +236,7 @@ async function listTools(key: string): Promise<Response> {
         headers: {
             'x-api-key': key,
             'content-type': 'application/json',
-            'accept': 'application/json, text/event-stream',
+            accept: 'application/json, text/event-stream',
             'mcp-protocol-version': '2026-07-28',
             'mcp-method': 'tools/list'
         },
@@ -275,7 +275,7 @@ describe('the routes of the service accounts', () => {
 
         const mcp: Response = await listTools(created.key);
         expect(mcp.status).toBe(200);
-        expect(((await mcp.json() as { result: { tools: { name: string }[] } }).result.tools).map(tool => tool.name)).toEqual(['tasks.find']);
+        expect((await mcp.json() as { result: { tools: { name: string }[] } }).result.tools.map(tool => tool.name)).toEqual(['tasks.find']);
 
         const tools: Response = await call(admin, 'GET', `/service-account-tools/${account.id}`);
         expect(tools.status).toBe(200);

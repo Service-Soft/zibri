@@ -177,10 +177,12 @@ describe('the steuerlicher Betriebsvermögensvergleich in the E-Bilanz', () => {
     it('names a result other than that of the income statement, as where an entry on the equity is not read', () => {
         const preparation: EBilanzPreparation = EBilanzUtilities.resolvePreparation({ ...booksOf([{ account: CARRIED, amount: new BigNumber('10000') }]), equityLines: [] });
 
-        expect(preparation.findings).toStrictEqual([{
-            position: 'BVV.profitLoss',
-            message: 'The position "Jahresüberschuss/-fehlbetrag (BVV)" of the comparison of business assets states €35,000.00 and needs to equal '
-                + 'the result of the income statement, €10,000.00: check the positions the accounts of the equity are mapped to.'
-        }]);
+        expect(preparation.findings).toStrictEqual([
+            {
+                position: 'BVV.profitLoss',
+                message: 'The position "Jahresüberschuss/-fehlbetrag (BVV)" of the comparison of business assets states €35,000.00 and needs to equal '
+                    + 'the result of the income statement, €10,000.00: check the positions the accounts of the equity are mapped to.'
+            }
+        ]);
     });
 });

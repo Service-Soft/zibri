@@ -287,6 +287,8 @@ export * from './data-source/data-sources/postgres/postgres-schema.model';
 export * from './data-source/data-sources/postgres/postgres-table.model';
 export * from './data-source/data-sources/postgres/postgres-where-filter.converter';
 export * from './data-source/data-sources/where-converter/where-filter.evaluator';
+export * from './data-source/driver/index-lookup.model';
+export * from './data-source/driver/index-lookup.utilities';
 export * from './data-source/driver/postgres.repository-driver';
 export * from './data-source/driver/val-key.repository-driver';
 export * from './data-source/keyset/after-cursor-where.function';

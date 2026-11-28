@@ -10,6 +10,7 @@ import { type BookkeepingStatementPositionDefinition } from './models/bookkeepin
 import { type BookkeepingStatementPosition } from './models/bookkeeping-statement-position.model';
 import { type BookkeepingStatementStructure } from './models/bookkeeping-statement-structure.model';
 import { BookkeepingStatementType } from './models/bookkeeping-statement-type.enum';
+import { type ResolvedBookkeepingStatement } from './models/resolved-bookkeeping-statement.model';
 
 /**
  * A position of a structure, with where it is in it.
@@ -34,15 +35,15 @@ type PositionEntry = {
 };
 
 /**
- * The positions and the accounts without a position of a statement.
+ * The accounts of a statement with a balance, by the position they are reported in.
  */
-type ResolvedStatement = {
+type MappedBalances = {
     /**
-     * Every position of the structure, in its order.
+     * The amounts of the accounts, by the id of their position.
      */
-    positions: BookkeepingStatementPosition[],
+    accounts: Map<string, BookkeepingAccountAmount[]>,
     /**
-     * The accounts of the statement with a balance and no position.
+     * The amounts of the accounts without a position.
      */
     unmapped: BookkeepingAccountAmount[]
 };
@@ -70,11 +71,13 @@ export abstract class BookkeepingStatementUtilities {
      * @param balance - Its debits less its credits.
      * @returns The id of the position, or undefined for an account without one.
      */
-    static findPositionId(account: Pick<BookkeepingAccount, 'statementPosition' | 'creditStatementPosition'>, balance: BigNumber): string | undefined {
-        if (balance.isLessThan(0) && account.creditStatementPosition != undefined) {
-            return account.creditStatementPosition;
-        }
-        return account.statementPosition ?? undefined;
+    static findPositionId(
+        account: Pick<BookkeepingAccount, 'statementPosition' | 'creditStatementPosition'>,
+        balance: BigNumber
+    ): string | undefined {
+        return balance.isLessThan(0) && account.creditStatementPosition != undefined
+            ? account.creditStatementPosition
+            : account.statementPosition ?? undefined;
     }
 
     /**
@@ -85,7 +88,9 @@ export abstract class BookkeepingStatementUtilities {
      * @returns Whether it is.
      */
     static isCarryForwardAccount(account: Pick<BookkeepingAccount, 'type' | 'statementPosition' | 'creditStatementPosition'>): boolean {
-        return account.type === BookkeepingAccountType.EQUITY && account.statementPosition == undefined && account.creditStatementPosition == undefined;
+        return account.type === BookkeepingAccountType.EQUITY
+            && account.statementPosition == undefined
+            && account.creditStatementPosition == undefined;
     }
 
     /**
@@ -156,30 +161,12 @@ export abstract class BookkeepingStatementUtilities {
             }
             ids.add(structure.id);
             const entries: Map<string, PositionEntry> = this.resolvePositionEntries(structure);
-            const full: BookkeepingStatementStructure | undefined = structure.rollsUpFrom == undefined
-                ? structure
-                : structures.find(s => s.id === structure.rollsUpFrom && s.rollsUpFrom == undefined && s.type === structure.type);
-            if (full == undefined) {
-                throw new InternalError(
-                    `The statement structure "${structure.id}" needs to roll up from a full structure of the type ${structure.type}, and "${structure.rollsUpFrom}" is none.`
-                );
-            }
-            const summed: Map<string, PositionEntry> = full === structure ? entries : this.resolvePositionEntries(full);
-            for (const entry of entries.values()) {
-                const unknown: string | undefined = entry.definition.sums?.find(id => !summed.has(id));
-                if (unknown != undefined) {
-                    throw new InternalError(`The position "${entry.definition.id}" of "${structure.id}" sums "${unknown}", which "${full.id}" does not have.`);
-                }
-                if (full === structure && this.isMappable(entry.definition)) {
-                    const owner: string | undefined = owners.get(entry.definition.id);
-                    if (owner != undefined) {
-                        throw new InternalError(`The position "${entry.definition.id}" is a position of "${owner}" and "${structure.id}", which accounts cannot tell apart.`);
-                    }
-                    owners.set(entry.definition.id, structure.id);
-                }
-            }
+            const full: BookkeepingStatementStructure = this.resolveFullStructure(structure, structures);
+            this.validatePositions(structure, full, entries, owners);
             if (structure.resultPosition != undefined && !entries.has(structure.resultPosition)) {
-                throw new InternalError(`The result position "${structure.resultPosition}" of "${structure.id}" needs to be one of its positions.`);
+                throw new InternalError(
+                    `The result position "${structure.resultPosition}" of "${structure.id}" needs to be one of its positions.`
+                );
             }
             if (full === structure) {
                 for (const id of entries.keys()) {
@@ -199,6 +186,7 @@ export abstract class BookkeepingStatementUtilities {
      * @param result - The result of the fiscal year, part of the result position of a balance sheet.
      * @param translate - Translates a label.
      * @returns The positions, in the order of the structure, and the accounts without a position.
+     * @throws An InternalError when the structure a shortened one rolls up from is not among the structures.
      */
     static resolveStatement(
         structure: BookkeepingStatementStructure,
@@ -206,35 +194,17 @@ export abstract class BookkeepingStatementUtilities {
         balances: BookkeepingAccountBalance[],
         result: BigNumber,
         translate: (label: TranslationToken) => string
-    ): ResolvedStatement {
+    ): ResolvedBookkeepingStatement {
         const full: BookkeepingStatementStructure | undefined = structure.rollsUpFrom == undefined
             ? structure
             : structures.find(s => s.id === structure.rollsUpFrom);
         if (full == undefined) {
-            throw new InternalError(`The statement structure "${structure.id}" rolls up from "${structure.rollsUpFrom}", which is not registered.`);
+            throw new InternalError(
+                `The statement structure "${structure.id}" rolls up from "${structure.rollsUpFrom}", which is not registered.`
+            );
         }
         const fullEntries: Map<string, PositionEntry> = this.resolvePositionEntries(full);
-        const accounts: Map<string, BookkeepingAccountAmount[]> = new Map();
-        const unmapped: BookkeepingAccountAmount[] = [];
-        for (const balance of balances) {
-            if (this.resolveStatementType(balance.account.type) !== full.type) {
-                continue;
-            }
-            const net: BigNumber = NumberUtilities.subtract(balance.debit, balance.credit);
-            if (net.isZero()) {
-                continue;
-            }
-            const positionId: string | undefined = this.findPositionId(balance.account, net);
-            const entry: PositionEntry | undefined = positionId == undefined ? undefined : fullEntries.get(positionId);
-            if (entry == undefined || !this.isMappable(entry.definition)) {
-                const byDebit: boolean = balance.account.type === BookkeepingAccountType.ASSET || balance.account.type === BookkeepingAccountType.EXPENSE;
-                unmapped.push(this.resolveAccountAmount(balance.account, byDebit ? net : net.negated()));
-                continue;
-            }
-            const amounts: BookkeepingAccountAmount[] = accounts.get(entry.definition.id) ?? [];
-            amounts.push(this.resolveAccountAmount(balance.account, entry.side === 'debit' ? net : net.negated()));
-            accounts.set(entry.definition.id, amounts);
-        }
+        const { accounts, unmapped }: MappedBalances = this.resolveMappedBalances(full, fullEntries, balances);
 
         const fullAmounts: Map<string, BigNumber> = new Map();
         const resolveFullAmount: (id: string) => BigNumber = id => {
@@ -346,25 +316,123 @@ export abstract class BookkeepingStatementUtilities {
      */
     private static resolvePositionEntries(structure: BookkeepingStatementStructure): Map<string, PositionEntry> {
         const res: Map<string, PositionEntry> = new Map();
-        const visit: (definition: BookkeepingStatementPositionDefinition, parent: PositionEntry | undefined) => void = (definition, parent) => {
-            if (res.has(definition.id)) {
-                throw new InternalError(`The statement structure "${structure.id}" has the position "${definition.id}" twice.`);
-            }
-            const entry: PositionEntry = {
-                definition,
-                parentId: parent?.definition.id ?? null,
-                depth: parent == undefined ? 0 : parent.depth + 1,
-                side: definition.positiveBalance ?? parent?.side ?? structure.positiveBalance
+        const visit: (definition: BookkeepingStatementPositionDefinition, parent: PositionEntry | undefined) => void
+            = (definition, parent) => {
+                if (res.has(definition.id)) {
+                    throw new InternalError(`The statement structure "${structure.id}" has the position "${definition.id}" twice.`);
+                }
+                const entry: PositionEntry = {
+                    definition,
+                    parentId: parent?.definition.id ?? null,
+                    depth: parent == undefined ? 0 : parent.depth + 1,
+                    side: definition.positiveBalance ?? parent?.side ?? structure.positiveBalance
+                };
+                res.set(definition.id, entry);
+                for (const child of definition.positions ?? []) {
+                    visit(child, entry);
+                }
             };
-            res.set(definition.id, entry);
-            for (const child of definition.positions ?? []) {
-                visit(child, entry);
-            }
-        };
         for (const definition of structure.positions) {
             visit(definition, undefined);
         }
         return res;
+    }
+
+    /**
+     * Resolves the full structure a structure rolls up from.
+     * @param structure - The structure.
+     * @param structures - Every structure.
+     * @returns The structure itself for a full one, the full structure of its type it rolls up from for a shortened one.
+     * @throws An InternalError when there is no such full structure.
+     */
+    private static resolveFullStructure(
+        structure: BookkeepingStatementStructure,
+        structures: readonly BookkeepingStatementStructure[]
+    ): BookkeepingStatementStructure {
+        const full: BookkeepingStatementStructure | undefined = structure.rollsUpFrom == undefined
+            ? structure
+            : structures.find(s => s.id === structure.rollsUpFrom && s.rollsUpFrom == undefined && s.type === structure.type);
+        if (full == undefined) {
+            throw new InternalError(
+                `The statement structure "${structure.id}" needs to roll up from a full structure of the type ${structure.type}, `
+                + `and "${structure.rollsUpFrom}" is none.`
+            );
+        }
+        return full;
+    }
+
+    /**
+     * Validates the positions of a structure: the sums of each name positions of the full structure, and a position
+     * accounts are mapped to is a position of one full structure only.
+     * @param structure - The structure.
+     * @param full - The full structure it rolls up from, the structure itself for a full one.
+     * @param entries - The positions of the structure.
+     * @param owners - The id of the full structure of each position accounts are mapped to, by the id of the position.
+     * Takes the positions of the structure when it is a full one.
+     * @throws An InternalError naming the first position that does not.
+     */
+    private static validatePositions(
+        structure: BookkeepingStatementStructure,
+        full: BookkeepingStatementStructure,
+        entries: Map<string, PositionEntry>,
+        owners: Map<string, string>
+    ): void {
+        const summed: Map<string, PositionEntry> = full === structure ? entries : this.resolvePositionEntries(full);
+        for (const entry of entries.values()) {
+            const unknown: string | undefined = entry.definition.sums?.find(id => !summed.has(id));
+            if (unknown != undefined) {
+                throw new InternalError(
+                    `The position "${entry.definition.id}" of "${structure.id}" sums "${unknown}", which "${full.id}" does not have.`
+                );
+            }
+            if (full === structure && this.isMappable(entry.definition)) {
+                const owner: string | undefined = owners.get(entry.definition.id);
+                if (owner != undefined) {
+                    throw new InternalError(
+                        `The position "${entry.definition.id}" is a position of "${owner}" and "${structure.id}", `
+                        + 'which accounts cannot tell apart.'
+                    );
+                }
+                owners.set(entry.definition.id, structure.id);
+            }
+        }
+    }
+
+    /**
+     * Resolves the amounts of the accounts of a statement with a balance, each by the position its balance names.
+     * @param full - The full structure of the statement.
+     * @param fullEntries - The positions of the full structure.
+     * @param balances - The balances of the accounts in the fiscal year.
+     * @returns The amounts by the position they are reported in, and those of the accounts without a position.
+     */
+    private static resolveMappedBalances(
+        full: BookkeepingStatementStructure,
+        fullEntries: Map<string, PositionEntry>,
+        balances: BookkeepingAccountBalance[]
+    ): MappedBalances {
+        const accounts: Map<string, BookkeepingAccountAmount[]> = new Map();
+        const unmapped: BookkeepingAccountAmount[] = [];
+        for (const balance of balances) {
+            if (this.resolveStatementType(balance.account.type) !== full.type) {
+                continue;
+            }
+            const net: BigNumber = NumberUtilities.subtract(balance.debit, balance.credit);
+            if (net.isZero()) {
+                continue;
+            }
+            const positionId: string | undefined = this.findPositionId(balance.account, net);
+            const entry: PositionEntry | undefined = positionId == undefined ? undefined : fullEntries.get(positionId);
+            if (entry == undefined || !this.isMappable(entry.definition)) {
+                const byDebit: boolean = balance.account.type === BookkeepingAccountType.ASSET
+                    || balance.account.type === BookkeepingAccountType.EXPENSE;
+                unmapped.push(this.resolveAccountAmount(balance.account, byDebit ? net : net.negated()));
+                continue;
+            }
+            const amounts: BookkeepingAccountAmount[] = accounts.get(entry.definition.id) ?? [];
+            amounts.push(this.resolveAccountAmount(balance.account, entry.side === 'debit' ? net : net.negated()));
+            accounts.set(entry.definition.id, amounts);
+        }
+        return { accounts, unmapped };
     }
 
     /**
@@ -375,7 +443,12 @@ export abstract class BookkeepingStatementUtilities {
      * @param path - The positions summing it, the first first.
      * @throws An InternalError naming the cycle.
      */
-    private static validateNoCycle(structure: BookkeepingStatementStructure, entries: Map<string, PositionEntry>, id: string, path: string[]): void {
+    private static validateNoCycle(
+        structure: BookkeepingStatementStructure,
+        entries: Map<string, PositionEntry>,
+        id: string,
+        path: string[]
+    ): void {
         if (path.includes(id)) {
             throw new InternalError(`The positions ${[...path, id].join(' -> ')} of "${structure.id}" sum each other.`);
         }

@@ -421,6 +421,7 @@ describe('the examples in docs/', () => {
             baseUrl: __dirname,
             paths: {
                 zibri: [path.join(__dirname, '..', 'index.ts')],
+                'zibri/plugin/*': [path.join(__dirname, '..', 'plugin', '*', 'index.ts')],
                 // source rather than the built package, so that a page describing today's harness
                 // is not judged against whenever `zibri-testing` was last built
                 'zibri-testing': [path.join(__dirname, '..', '..', '..', 'testing', 'src', 'index.ts')],

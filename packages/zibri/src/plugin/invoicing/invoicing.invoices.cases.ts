@@ -1,4 +1,5 @@
 /* eslint-disable cspell/spellchecker */
+/* eslint-disable sonar/no-duplicate-string -- the invoice numbers and days are the data each case finds the invoices by */
 import { describe, expect, it } from '@jest/globals';
 
 import { companyInfoProvider } from '../../__testing__/mocks/company-info-provider.function';
@@ -16,12 +17,13 @@ import { OmitStrict } from '../../types/omit-strict.type';
 import { BigNumber } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { INVOICE_PAYMENT_SOURCE_DI_VARIANT, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from './invoicing.tokens';
-import { type InvoiceFilter } from './models/invoice-filter.model';
 import { InvoiceAddress } from './models/invoice-address.model';
+import { type InvoiceFilter } from './models/invoice-filter.model';
 import { InvoiceRecipientAbbreviation } from './models/invoice-recipient-abbreviation.model';
 import { InvoiceType } from './models/invoice-type.enum';
 import { Invoice } from './models/invoice.model';
 import { NumberInvoices } from './models/number-invoices.model';
+import { type InvoiceCancellationServiceInterface } from './services/invoice-cancellation-service.interface';
 import { type InvoicePaymentSourceInterface } from './services/invoice-payment-source.interface';
 
 /**
@@ -44,7 +46,7 @@ const PAID: Map<string, BigNumber> = new Map();
  * The payments an application records itself, such as those of a shop, as a payment source of the invoices.
  */
 class RecordedPaymentSource implements InvoicePaymentSourceInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     async resolvePaidAmounts(invoices: Invoice[]): Promise<Map<string, BigNumber>> {
         return await Promise.resolve(new Map(invoices.flatMap(i => {
             const paid: BigNumber | undefined = PAID.get(i.id);
@@ -91,10 +93,21 @@ const siemens: InvoiceAddress = {
     countryId: 'DE'
 };
 
-const mustermann: InvoiceAddress = { ...siemens, company: false, companyName: null, formOfAddress: 'Mr', firstName: 'Max', lastName: 'Mustermann' };
+const mustermann: InvoiceAddress = {
+    ...siemens,
+    company: false,
+    companyName: null,
+    formOfAddress: 'Mr',
+    firstName: 'Max',
+    lastName: 'Mustermann'
+};
 
 async function inTenant<T>(tenantId: string, work: () => Promise<T>): Promise<T> {
     return await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, work);
+}
+
+function cancellations(): InvoiceCancellationServiceInterface<Invoice> {
+    return inject<InvoiceCancellationServiceInterface<Invoice>>(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE);
 }
 
 /**
@@ -111,7 +124,15 @@ async function createInvoice(tenantId: string, number: string, day: string, data
     ).create({
         number,
         currency: 'EUR',
-        items: [{ name: 'Consulting', amount: 1, amountUnit: { code: 'HUR', displayName: 'Hours' }, vat: { categoryCode: 'S', rate: 19 }, price: 100 }],
+        items: [
+            {
+                name: 'Consulting',
+                amount: 1,
+                amountUnit: { code: 'HUR', displayName: 'Hours' },
+                vat: { categoryCode: 'S', rate: 19 },
+                price: 100
+            }
+        ],
         date: new Date(`${day}T12:00:00.000Z`),
         performanceDate: new Date(`${day}T12:00:00.000Z`),
         dueDate: new Date(`${day}T12:00:00.000Z`),
@@ -123,8 +144,16 @@ async function createInvoice(tenantId: string, number: string, day: string, data
     }));
 }
 
-async function findInvoices(tenantId: string, filter: InvoiceFilter, page: number = 1, limit: number = 10): Promise<PaginationResult<Invoice>> {
-    return await inTenant(tenantId, async () => await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_SERVICE).findInvoices(page, limit, filter));
+async function findInvoices(
+    tenantId: string,
+    filter: InvoiceFilter,
+    page: number = 1,
+    limit: number = 10
+): Promise<PaginationResult<Invoice>> {
+    return await inTenant(
+        tenantId,
+        async () => await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_SERVICE).findInvoices(page, limit, filter)
+    );
 }
 
 async function findNumbers(tenantId: string, filter: InvoiceFilter): Promise<string[]> {
@@ -158,12 +187,13 @@ export function describeInvoiceList(dataSourceName: string): void {
             const tenantId: string = UUIDUtilities.generate();
             const issued: Invoice = await createInvoice(tenantId, '2026-SIEMEN-0001', '2026-03-01');
             await createInvoice(tenantId, 'TEMP-2026-SIEMEN-0002', '2026-03-02', { issuedAt: null });
-            await inTenant(tenantId, async () => await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE).cancelInvoice(issued.id));
+            await inTenant(tenantId, async () => await cancellations().cancelInvoice(issued.id));
 
             expect(await findNumbers(tenantId, { issued: false })).toEqual(['TEMP-2026-SIEMEN-0002']);
             expect((await findNumbers(tenantId, { issued: true })).sort()).toEqual(['2026-SIEMEN-0001', '2026-SIEMEN-0001-C1']);
             expect(await findNumbers(tenantId, { type: InvoiceType.CREDIT_NOTE })).toEqual(['2026-SIEMEN-0001-C1']);
-            expect((await findNumbers(tenantId, { type: InvoiceType.INVOICE, search: 'siemen' })).sort()).toEqual(['2026-SIEMEN-0001', 'TEMP-2026-SIEMEN-0002']);
+            expect((await findNumbers(tenantId, { type: InvoiceType.INVOICE, search: 'siemen' })).sort())
+                .toEqual(['2026-SIEMEN-0001', 'TEMP-2026-SIEMEN-0002']);
             const second: PaginationResult<Invoice> = await findInvoices(tenantId, { type: InvoiceType.INVOICE }, 2, 1);
             expect([second.totalAmount, second.items.map(i => i.number)]).toEqual([2, ['2026-SIEMEN-0001']]);
         });
@@ -177,12 +207,13 @@ export function describeInvoiceList(dataSourceName: string): void {
             await createInvoice(tenantId, 'TEMP-2026-SIEMEN-0005', '2026-03-05', { issuedAt: null });
             PAID.set(paid.id, new BigNumber('119'));
             PAID.set(partly.id, new BigNumber('100'));
-            await inTenant(tenantId, async () => await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE).cancelInvoice(cancelled.id));
+            await inTenant(tenantId, async () => await cancellations().cancelInvoice(cancelled.id));
 
             const open: PaginationResult<Invoice> = await findInvoices(tenantId, { open: true });
 
             // the credit note is neither: it pays nothing
-            expect([open.totalAmount, open.items.map(i => i.number)]).toEqual([3, ['TEMP-2026-SIEMEN-0005', '2026-SIEMEN-0003', '2026-SIEMEN-0001']]);
+            expect([open.totalAmount, open.items.map(i => i.number)])
+                .toEqual([3, ['TEMP-2026-SIEMEN-0005', '2026-SIEMEN-0003', '2026-SIEMEN-0001']]);
             expect(await findNumbers(tenantId, { open: false })).toEqual(['2026-SIEMEN-0004', '2026-SIEMEN-0002']);
             expect(await findNumbers(tenantId, { open: true, issued: true, search: '0001' })).toEqual(['2026-SIEMEN-0001']);
             expect((await findInvoices(tenantId, { open: true, type: InvoiceType.CREDIT_NOTE })).totalAmount).toBe(0);

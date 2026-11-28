@@ -8,8 +8,10 @@ Nextcloud is a self-hosted cloud for files, calendars and contacts, which it ser
 ## Key exports
 | Export | Kind | Purpose |
 |---|---|---|
-| `NextcloudClient` | class | A `WebDavClient` of a Nextcloud that finds a file by its id with `findEntryByFileId`, creates a share with `createShare`, finds shares with `findShare` and `findShares`, changes one with `updateShare`, deletes one with `deleteShare`, and finds and deletes what the trash bin holds with `findTrashBinEntries` and `deleteTrashBinEntry` |
+| `NextcloudClient` | class | A `WebDavClient` of a Nextcloud that finds a file by its id with `findEntryByFileId`, writes a file with its checksum with `putWithChecksum` and tells it with `holdsChecksum`, creates a share with `createShare`, finds shares with `findShare` and `findShares`, changes one with `updateShare`, deletes one with `deleteShare`, and finds and deletes what the trash bin holds with `findTrashBinEntries` and `deleteTrashBinEntry` |
 | `NewNextcloudShare` | type | A share to create: a link of a `path` to read, with its `password` and `expiresOn`, or a share of a `path` with a `'user'` or a `'group'`, `shareWith`, and its `permissions` |
+| `NewNextcloudLinkShare` | type | A share by link to create: its `path`, `password` and `expiresOn` |
+| `NewNextcloudRecipientShare` | type | A share with a `'user'` or a `'group'` to create: its `path`, `shareWith` and `permissions` |
 | `NextcloudShareChange` | type | A change of a share: its `permissions` |
 | `NextcloudTrashBinEntry` | type | A file or a folder in the trash bin: its `id` there, the `user`, its `originalPath`, `kind`, `size` and `deletedAt` |
 | `NextcloudShare` | type | A share as Nextcloud answers it: its `id`, `type`, `permissions`, `url`, `shareWith` and `expiresOn` |
@@ -57,6 +59,29 @@ export async function findContractPath(cloud: NextcloudClient, fileId: string, f
 ```
 
 Keep the id with what you know of the file. The search is a `SEARCH` of WebDAV (RFC 5323), which Nextcloud answers for the files of a user. Its second argument is a path the file was at, which names the user whose files are searched. A file moved out of the folder of the connection, or into the trash bin, is not found, and the answer is `undefined`. A path that is not among the files of a user, such as one of a calendar, throws an `InternalError`.
+
+## Telling a change by its checksum
+Nextcloud names the same ETag for a change made in the second of the write before, so an `If-Match` lets it through. `putWithChecksum` writes a file with the SHA-256 of what it holds, which Nextcloud keeps with the file. A later write names its own checksum, or none, which leaves the file without one. `NextcloudClient.CHECKSUMS_PROPERTY` reads it back, and `holdsChecksum` tells whether a file still holds what you wrote:
+
+```ts
+// src/services/contract-upload.service.ts
+import { createHash } from 'node:crypto';
+
+import { NextcloudClient, WebDavEntry } from 'zibri';
+
+export async function uploadContract(cloud: NextcloudClient, path: string, content: Buffer): Promise<string> {
+    const sha256: string = createHash('sha256').update(content).digest('hex');
+    await cloud.putWithChecksum(path, content, { contentType: 'application/pdf', overwrite: true }, sha256);
+    return sha256;
+}
+
+export async function isUnchanged(cloud: NextcloudClient, path: string, sha256: string): Promise<boolean> {
+    const entry: WebDavEntry<'checksums'> | undefined = await cloud.findEntry(path, { checksums: NextcloudClient.CHECKSUMS_PROPERTY });
+    return NextcloudClient.holdsChecksum(entry?.properties.checksums, sha256);
+}
+```
+
+The [file mirror](./file-mirror.md#handling-a-file-somebody-changed) writes every file this way.
 
 ## Sharing a file or a folder by link
 `createShare` shares a file or a folder by a link anyone who has it reads, and changes nothing:

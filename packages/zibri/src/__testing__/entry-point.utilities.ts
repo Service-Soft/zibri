@@ -1,6 +1,19 @@
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
 import ts from 'typescript';
+
+import { JsonUtilities } from '../utilities/json.utilities';
+
+/**
+ * What the entry points are read from in the package.json of zibri.
+ */
+type PackageExports = {
+    /**
+     * The entry points, by the path an import names.
+     */
+    exports: Record<string, unknown>
+};
 
 /**
  * One name an entry point exports.
@@ -39,6 +52,20 @@ export type PublishedComment = {
  * docs as well.
  */
 export const TESTING_ENTRY_POINT: string = '../../testing/src/index.ts';
+
+/**
+ * The entry point of each plugin, relative to `src`: one for every `zibri/plugin/<name>` the package.json exports.
+ */
+export const PLUGIN_ENTRY_POINTS: string[] = Object.keys(
+    JsonUtilities.parse<PackageExports>(readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8')).exports
+)
+    .filter(exported => exported.startsWith('./plugin/'))
+    .map(exported => `${exported.slice('./'.length)}/index.ts`);
+
+/**
+ * The entry points whose names releases.md promises to keep, relative to `src`: `zibri` and those of its plugins.
+ */
+export const PUBLIC_ENTRY_POINTS: string[] = ['index.ts', ...PLUGIN_ENTRY_POINTS];
 
 /**
  * The entry points of zibri and zibri-testing, as the compiler reads them.
@@ -92,7 +119,12 @@ export abstract class EntryPointUtilities {
                 || !statement.moduleSpecifier.text.startsWith('.')) {
                 continue;
             }
-            const file: string = path.relative(this.srcDir, path.resolve(this.srcDir, `${statement.moduleSpecifier.text}.ts`));
+            // relative to the entry point, which a plugin has in a folder of its own, and a folder by its index
+            const resolved: string = path.resolve(path.dirname(path.join(this.srcDir, entryPoint)), statement.moduleSpecifier.text);
+            const file: string = path.relative(
+                this.srcDir,
+                program.getSourceFile(`${resolved}.ts`) == undefined ? path.join(resolved, 'index.ts') : `${resolved}.ts`
+            );
             names.push(...checker.getExportsOfModule(this.resolveModule(file)).map(symbol => this.toExportedName(checker, symbol, file)));
         }
         return names;
@@ -209,7 +241,8 @@ export abstract class EntryPointUtilities {
      * @returns The program.
      */
     private static resolveProgram(): ts.Program {
-        this.program ??= ts.createProgram(['index.ts', 'internal.ts', TESTING_ENTRY_POINT].map(file => path.join(this.srcDir, file)), {
+        const entryPoints: string[] = [...PUBLIC_ENTRY_POINTS, 'internal.ts', TESTING_ENTRY_POINT];
+        this.program ??= ts.createProgram(entryPoints.map(file => path.join(this.srcDir, file)), {
             experimentalDecorators: true,
             module: ts.ModuleKind.NodeNext,
             moduleResolution: ts.ModuleResolutionKind.NodeNext,

@@ -1,6 +1,7 @@
 import { InternalError } from '../error-handling/internal-error.model';
-import { getZonedDate, ZonedDate } from '../localization/format-date.function';
+import { getZonedDate } from '../localization/get-zoned-date.function';
 import { Timezone } from '../localization/models/timezone.model';
+import { ZonedDate } from '../localization/models/zoned-date.model';
 import { BackupEntity } from './backup-entity.model';
 import { BackupPeriod } from './backup-period.type';
 import { BackupResourceEntity } from './backup-resource-entity.model';

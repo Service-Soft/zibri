@@ -42,7 +42,10 @@ export class BookkeepingAccountWriteObserver implements EntityWriteObserver, OnA
      * @throws A BadRequestError naming the first position that is not valid.
      */
     async validateWrite(write: ObservedWrite): Promise<void> {
-        if (write.operation === 'remove' || !write.data.some(data => MAPPING_PROPERTIES.some(key => Reflect.get(data, key) !== undefined))) {
+        if (
+            write.operation === 'remove'
+            || !write.data.some(data => MAPPING_PROPERTIES.some(key => Reflect.get(data, key) !== undefined))
+        ) {
             return;
         }
         const positions: Map<string, BookkeepingStatementType> = BookkeepingStatementUtilities.resolveMappablePositions(
@@ -53,7 +56,8 @@ export class BookkeepingAccountWriteObserver implements EntityWriteObserver, OnA
             if (row.data == undefined) {
                 continue;
             }
-            const type: unknown = Reflect.get(row.data, 'type') ?? (row.existing == undefined ? undefined : Reflect.get(row.existing, 'type'));
+            const type: unknown = Reflect.get(row.data, 'type')
+                ?? (row.existing == undefined ? undefined : Reflect.get(row.existing, 'type'));
             for (const key of ['statementPosition', 'creditStatementPosition'] as const) {
                 const written: unknown = Reflect.get(row.data, key);
                 const position: unknown = written === undefined && row.existing != undefined ? Reflect.get(row.existing, key) : written;

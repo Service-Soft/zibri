@@ -29,7 +29,7 @@ export class NextcloudBackupTransport extends BaseBackupTransport {
      * @param name - The name of the transport.
      * @param options - The Nextcloud, the user owning the folder, the folder, who it is shared with, and how requests
      * are sent.
-     * @throws {InternalError} When the url of the connection is not below `/remote.php/dav/` of an http or https url,
+     * @throws InternalError when the url of the connection is not below `/remote.php/dav/` of an http or https url,
      * or a segment of the folder is empty, `.` or `..`.
      */
     constructor(readonly name: string, private readonly options: NextcloudBackupTransportOptions) {

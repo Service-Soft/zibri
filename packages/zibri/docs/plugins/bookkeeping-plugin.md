@@ -36,6 +36,7 @@ keywords: [accounting, double entry, double-entry bookkeeping, ledger, journal, 
 | `BookkeepingStatementForms`, `BookkeepingReportContext` | type, type | The forms the statements of a fiscal year are in by default, and a fiscal year as a conformance is handed it for a report |
 | `BookkeepingStatementFormChoices`, `BookkeepingStatementFormChoice`, `BookkeepingStatementForm` | class, class, class | The forms the balance sheet and the income statement of a fiscal year can be shown in, the one that applies to each, and a form with its name, as `GET /fiscal-years/:id/statement-forms` answers them |
 | `BookkeepingStatementUtilities`, `BookkeepingConformanceUtilities` | class, class | The position of an account by its balance and the amounts of a statement, and the conformances that apply to a fiscal year |
+| `ResolvedBookkeepingStatement` | type | The `positions` of a statement and the accounts with a balance and no position, `unmapped`, as `resolveStatement` answers them |
 | `BookkeepingAccountWriteObserver` | class | Refuses an account mapped to a position the statements do not have, however the repository gets to it. Registered for you |
 | `FiscalYearStatement`, `FiscalYearStatementCreateData` | entity, type | A statement of a closed fiscal year in one form with its pdf, archived at its closing. And what creates one. Archived by `ZibriBookkeepingPlugin` |
 | `BookkeepingCompany` | class | The company whose books they are: its `name`, `seat`, `registerCourt` and `registerNumber`, which the statements state |
@@ -80,19 +81,21 @@ keywords: [accounting, double entry, double-entry bookkeeping, ledger, journal, 
 | `BookkeepingLimits` | class | The longest names, numbers and texts, the most lines of an entry and the largest receipt |
 | `BookkeepingDayUtilities` | class | The days the books are kept by: resolves, checks, formats and steps a day held as its midnight UTC |
 | `JournalEntryUtilities` | class | The lines of entries: what a valid entry holds, and the lines of a reversal, a closing and an opening |
+| `BookedJournalEntryLine`, `ClosingJournalEntryLine` | type, type | A line as it is booked, its `accountId`, `debit` and `credit`, and a line of a closing entry, which has its `role` as well |
 | `ZIBRI_BOOKKEEPING_PERMISSIONS`, `ZibriBookkeepingPermissions` | constant, constant | The tenant permissions of the routes, to spread into yours, and the same by name |
 | `ZIBRI_BOOKKEEPING_PLATFORM_PERMISSIONS`, `ZibriBookkeepingPlatformPermissions` | constant, constant | The platform permissions of the routes, for the books of every tenant, and the same by name |
 
 `zibri-contract` has the models of the routes for your frontend, such as `JournalEntryDetailsModel`, `NewJournalEntryModel`, `PostingRuleSetModel`, `ExpenseModel`, `BookkeepingStatementModel` and `BookkeepingStatementFormChoicesModel`, `JournalEntryQueryModel` for the query of `GET /entries` and `JournalEntryPageModel` for its answer, `BookkeepingAccountQueryModel` for the query of `GET /accounts`, `ExpenseQueryModel` for the query of `GET /expenses`, `BookkeepingAccountType`, `BookkeepingStatementType` and the permissions.
 
 ## Setting it up
-Add `new ZibriBookkeepingPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `BookkeepingSettings`, `BookkeepingAccount`, `FiscalYear`, `JournalEntry`, `JournalEntryLine`, `PostingRuleSet`, `Expense`, `ExpenseReceipt` and `FiscalYearStatement` to the `entities` of one data source, beside what an [archived entity](../data/archive.md#archiving-a-type-of-document) needs. With the invoicing plugin, `Invoice` is in the same data source, and with the bank plugin matching, `BankMatch` and `AccountMatchRule` are.
+Add `new ZibriBookkeepingPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `BookkeepingSettings`, `BookkeepingAccount`, `FiscalYear`, `JournalEntry`, `JournalEntryLine`, `PostingRuleSet`, `Expense`, `ExpenseReceipt` and `FiscalYearStatement` to the `entities` of one data source, beside what an [archived entity](../data/archive.md#archiving-a-type-of-document) needs. With the invoicing plugin, `Invoice` is in the same data source, and with the bank plugin matching, `BankMatch` and `AccountMatchRule` are. You import the names of the plugin from `zibri/plugin/bookkeeping`.
 
 The receipts of expenses, and the pdfs of the statements archived at each closing, are kept in the file store named `receipts`, unless `receiptStore` of the options names another. Register it, of whichever storage you keep your documents in, see [registering a file store](../data/files.md#registering-a-file-store):
 
 ```ts
 // src/files/receipt.file-store.ts
-import { EXPENSE_RECEIPT_FILE_STORE_NAME, FileStore, FsFileStore, FsUtilities } from 'zibri';
+import { FileStore, FsFileStore, FsUtilities } from 'zibri';
+import { EXPENSE_RECEIPT_FILE_STORE_NAME } from 'zibri/plugin/bookkeeping';
 
 @FileStore()
 export class ReceiptFileStore extends FsFileStore {
@@ -107,7 +110,8 @@ Say what a tenant without bookkeeping settings does, see [choosing what a tenant
 
 ```ts
 // src/bookkeeping-options.provider.ts
-import { BookkeepingPluginOptionsInput, defineProvider, DiProvider, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { BookkeepingPluginOptionsInput, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export const bookkeepingOptions: DiProvider<BookkeepingPluginOptionsInput> = defineProvider({
     token: ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
@@ -119,7 +123,8 @@ Extend `BookkeepingController` with a `@Controller` of your own, at the path you
 
 ```ts
 // src/controllers/bookkeeping.controller.ts
-import { BookkeepingController, Controller } from 'zibri';
+import { Controller } from 'zibri';
+import { BookkeepingController } from 'zibri/plugin/bookkeeping';
 
 @Controller('/bookkeeping', { versions: 'all' })
 export class AppBookkeepingController extends BookkeepingController {}
@@ -129,7 +134,8 @@ Add the plugin, the controller and the store to your application:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, ZibriApplicationOptions, ZibriBookkeepingPlugin } from 'zibri';
+import { OmitStrict, ZibriApplicationOptions } from 'zibri';
+import { ZibriBookkeepingPlugin } from 'zibri/plugin/bookkeeping';
 
 import { AppBookkeepingController } from './controllers/bookkeeping.controller';
 import { ReceiptFileStore } from './files/receipt.file-store';
@@ -152,7 +158,8 @@ Spread `ZIBRI_BOOKKEEPING_PERMISSIONS` into your tenant permissions, see [declar
 
 ```ts
 // src/models/permissions.ts
-import { DefinedPermissions, definePermissions, ZIBRI_BOOKKEEPING_PERMISSIONS, ZIBRI_PERMISSIONS } from 'zibri';
+import { DefinedPermissions, definePermissions, ZIBRI_PERMISSIONS } from 'zibri';
+import { ZIBRI_BOOKKEEPING_PERMISSIONS } from 'zibri/plugin/bookkeeping';
 
 const PERMISSIONS = [...ZIBRI_PERMISSIONS, ...ZIBRI_BOOKKEEPING_PERMISSIONS, 'invoices.read'] as const;
 
@@ -212,7 +219,8 @@ A law can ask more of the company than its name, seat and register, such as the 
 
 ```ts
 // src/company-model.provider.ts
-import { BookkeepingCompany, DiProvider, GermanBookkeepingCompany, Newable, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { DiProvider, Newable } from 'zibri';
+import { BookkeepingCompany, GermanBookkeepingCompany, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export const companyModel: DiProvider<Newable<BookkeepingCompany>> = {
     token: ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.COMPANY_MODEL,
@@ -227,7 +235,8 @@ An account has a `number`, unique among the accounts of the tenant, a `name` and
 
 ```ts
 // src/services/seed-accounts.function.ts
-import { BookkeepingAccount, BookkeepingAccountCreateData, BookkeepingAccountType, inject, Repository, repositoryTokenFor } from 'zibri';
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+import { BookkeepingAccount, BookkeepingAccountCreateData, BookkeepingAccountType } from 'zibri/plugin/bookkeeping';
 
 export async function seedAccounts(): Promise<BookkeepingAccount[]> {
     const accounts: Repository<BookkeepingAccount, BookkeepingAccountCreateData> = inject(repositoryTokenFor(BookkeepingAccount));
@@ -371,7 +380,8 @@ A chart of accounts (Kontenrahmen) numbers the accounts a company books on. `skr
 
 ```ts
 // src/services/seed-chart-of-accounts.function.ts
-import { BookkeepingAccount, BookkeepingAccountCreateData, BookkeepingAccountType, inject, Repository, repositoryTokenFor, skr04ChartOfAccounts } from 'zibri';
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+import { BookkeepingAccount, BookkeepingAccountCreateData, BookkeepingAccountType, skr04ChartOfAccounts } from 'zibri/plugin/bookkeeping';
 
 export async function seedChartOfAccounts(): Promise<BookkeepingAccount[]> {
     const accounts: Repository<BookkeepingAccount, BookkeepingAccountCreateData> = inject(repositoryTokenFor(BookkeepingAccount));
@@ -469,7 +479,8 @@ curl https://api.example.com/bookkeeping/entries \
 
 ```ts
 // src/services/rent.function.ts
-import { BigNumber, inject, JournalEntryDetails, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { BigNumber, inject } from 'zibri';
+import { JournalEntryDetails, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export async function postRent(rentAccountId: string, bankAccountId: string): Promise<JournalEntryDetails> {
     return await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).post({
@@ -596,7 +607,8 @@ The report service answers what the books of the current tenant hold, and a rout
 
 ```ts
 // src/services/annual-statements.function.ts
-import { BookkeepingReportServiceInterface, BookkeepingStatement, inject, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { BookkeepingReportServiceInterface, BookkeepingStatement, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export async function resolveAnnualStatements(fiscalYearId: string): Promise<BookkeepingStatement[]> {
     const reports: BookkeepingReportServiceInterface = inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_SERVICE);
@@ -670,7 +682,8 @@ Each report is a pdf as well, in the locale of the request: the same route with 
 // src/services/balance-sheet-pdf.function.ts
 import { Readable } from 'node:stream';
 
-import { inject, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export async function resolveBalanceSheetPdf(fiscalYearId: string): Promise<Readable> {
     return await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_PDF_SERVICE).resolveBalanceSheetPdf(fiscalYearId, undefined);
@@ -774,7 +787,8 @@ The expense keeps the entry as its `postedEntryId`, and the entry has `bookkeepi
 
 ```ts
 // src/services/record-rent.function.ts
-import { BigNumber, Expense, ExpenseServiceInterface, inject, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { BigNumber, inject } from 'zibri';
+import { Expense, ExpenseServiceInterface, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export async function recordRent(rentAccountId: string): Promise<Expense> {
     const expenses: ExpenseServiceInterface = inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.EXPENSE_SERVICE);
@@ -844,7 +858,8 @@ With `'never'`, the settings of each tenant of the [entity of the tenants](../da
 
 ```ts
 // src/bookkeeping-tenants.provider.ts
-import { BookkeepingPluginOptionsInput, defineProvider, DiProvider, NewBookkeepingSettings, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { BookkeepingPluginOptionsInput, NewBookkeepingSettings, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export const bookkeepingTenants: DiProvider<BookkeepingPluginOptionsInput> = defineProvider({
     token: ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
@@ -867,7 +882,9 @@ A tenant that is not deactivated and has no settings, such as one created before
 
 ```ts
 // src/services/post-invoice.function.ts
-import { Invoice, inject, JournalEntryDetails, PostingSourceType, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { JournalEntryDetails, PostingSourceType, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
+import { Invoice } from 'zibri/plugin/invoicing';
 
 export async function postInvoice(invoice: Invoice): Promise<JournalEntryDetails | undefined> {
     return await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_SERVICE).postFor({ type: PostingSourceType.INVOICE, invoice });
@@ -880,7 +897,8 @@ The posting rule service turns a source into its entry. To post a source differe
 
 ```ts
 // src/services/app-posting-rule.service.ts
-import { BookkeepingSettings, Expense, NewJournalEntry, PostingRuleService, Transaction } from 'zibri';
+import { Transaction } from 'zibri';
+import { BookkeepingSettings, Expense, NewJournalEntry, PostingRuleService } from 'zibri/plugin/bookkeeping';
 
 export class AppPostingRuleService extends PostingRuleService {
     protected override async resolveExpenseEntry(expense: Expense, settings: BookkeepingSettings, transaction: Transaction): Promise<NewJournalEntry | undefined> {
@@ -930,7 +948,8 @@ Each conformance has a `name`, says with `isApplicable` whether it applies to a 
 
 ```ts
 // src/services/clearing.conformance-service.ts
-import { $ts, BookkeepingAccountBalance, BookkeepingClosing, BookkeepingConformanceServiceInterface, ConflictError, NewJournalEntry } from 'zibri';
+import { $ts, ConflictError } from 'zibri';
+import { BookkeepingAccountBalance, BookkeepingClosing, BookkeepingConformanceServiceInterface, NewJournalEntry } from 'zibri/plugin/bookkeeping';
 
 export class ClearingConformanceService implements BookkeepingConformanceServiceInterface {
     readonly name: string = 'clearing-account';
@@ -956,7 +975,8 @@ List the conformance services under `ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.BOOKKEEP
 
 ```ts
 // src/providers.ts
-import { DiProvider, HgbCorporationConformanceService, inject, UgConformanceService, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { DiProvider, inject } from 'zibri';
+import { HgbCorporationConformanceService, UgConformanceService, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 import { ClearingConformanceService } from './services/clearing.conformance-service';
 
@@ -975,7 +995,8 @@ A `BookkeepingClosing` holds the settings of the books, the fiscal year, the leg
 
 ```ts
 // src/statements/cash-statement.ts
-import { $t, BookkeepingStatementStructure, BookkeepingStatementType } from 'zibri';
+import { $t } from 'zibri';
+import { BookkeepingStatementStructure, BookkeepingStatementType } from 'zibri/plugin/bookkeeping';
 
 export const CASH_BALANCE_SHEET: BookkeepingStatementStructure = {
     id: 'cash.balance-sheet',
@@ -1002,7 +1023,8 @@ Every `JournalEntry` and `JournalEntryLine` is [archived](../data/archive.md): t
 
 ```ts
 // src/bookkeeping-retention.provider.ts
-import { BookkeepingPluginOptionsInput, defineProvider, DiProvider, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { BookkeepingPluginOptionsInput, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export const bookkeepingRetention: DiProvider<BookkeepingPluginOptionsInput> = defineProvider({
     token: ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
@@ -1025,7 +1047,8 @@ export const bookkeepingRetention: DiProvider<BookkeepingPluginOptionsInput> = d
 
 ```ts
 // src/services/check-books.function.ts
-import { BookkeepingVerification, inject, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS, ZIBRI_DI_TOKENS } from 'zibri';
+import { inject, ZIBRI_DI_TOKENS } from 'zibri';
+import { BookkeepingVerification, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export async function checkBooks(tenantId: string): Promise<BookkeepingVerification> {
     return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
@@ -1060,7 +1083,8 @@ What was issued, recorded or matched after the backup was taken therefore stays 
 
 ```ts
 // src/services/find-kept-divergences.function.ts
-import { inject, KeptRowDivergence, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS, ZIBRI_DI_TOKENS } from 'zibri';
+import { inject, KeptRowDivergence, ZIBRI_DI_TOKENS } from 'zibri';
+import { ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export async function findKeptDivergences(tenantId: string): Promise<KeptRowDivergence[]> {
     return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
@@ -1098,7 +1122,8 @@ import { createWriteStream } from 'node:fs';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
-import { BookkeepingExportArchive, inject, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS, ZIBRI_DI_TOKENS } from 'zibri';
+import { inject, ZIBRI_DI_TOKENS } from 'zibri';
+import { BookkeepingExportArchive, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export async function writeTaxAuditExport(tenantId: string, fiscalYearId: string, path: string): Promise<void> {
     const archive: BookkeepingExportArchive = await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
@@ -1141,7 +1166,8 @@ Checking the books covers every fiscal year of the tenant, as a chain holds only
 
 ```ts
 // src/bookkeeping/json-lines.exporter.ts
-import { BookkeepingExportArchive, BookkeepingExportContent, BookkeepingExporterInterface, MimeType } from 'zibri';
+import { MimeType } from 'zibri';
+import { BookkeepingExportArchive, BookkeepingExportContent, BookkeepingExporterInterface } from 'zibri/plugin/bookkeeping';
 
 export class JsonLinesExporter implements BookkeepingExporterInterface {
     resolveArchive(content: BookkeepingExportContent): BookkeepingExportArchive {
@@ -1166,7 +1192,8 @@ Provide it in place of the default, in a provider you add to your `providers`:
 
 ```ts
 // src/bookkeeping-exporter.provider.ts
-import { BookkeepingExporterInterface, defineProvider, DiProvider, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { BookkeepingExporterInterface, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 import { JsonLinesExporter } from './bookkeeping/json-lines.exporter';
 

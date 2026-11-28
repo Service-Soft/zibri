@@ -12,10 +12,25 @@ import { type TaskPlacementOptions } from './models/task-placement-options.model
 import { Task } from './models/task.model';
 
 /**
+ * What a placing run under its lease answered, told apart from a lease that was not taken.
+ */
+type LeasedPlacement<T> = {
+    /**
+     * What the placing answered.
+     */
+    value: T
+};
+
+/**
  * The places of the tasks in a column, and of the columns on a board, as fractional positions: a row is ordered by
  * its number, so moving one between two others writes a number between theirs, and that row alone.
  */
 export abstract class ProjectPositionUtilities {
+    /**
+     * The gap between two rows placed one after the other, and the place of the first row.
+     */
+    static readonly STEP: number = 1024;
+
     /**
      * Resolves where a task goes in a column, and writes the other tasks of the column spread out again when their
      * positions ran out of precision. Run it inside `withPlacementLease` of the column.
@@ -64,18 +79,15 @@ export abstract class ProjectPositionUtilities {
     }
 
     /**
-     * The gap between two rows placed one after the other, and the place of the first row.
-     */
-    static readonly STEP: number = 1024;
-
-    /**
      * Places a row among others: after the row of an id, first, or last.
      * @param ordered - The other rows, in their order.
      * @param afterId - The id of the row to place it after, null to place it first, undefined to place it last.
      * @returns Where it goes, or undefined when no row of the id is among them.
      */
     static resolvePlacement(ordered: PositionedRow[], afterId: string | null | undefined): PositionPlacement | undefined {
-        const index: number = afterId === undefined ? ordered.length - 1 : afterId === null ? -1 : ordered.findIndex(row => row.id === afterId);
+        const index: number = afterId === undefined
+            ? ordered.length - 1
+            : afterId === null ? -1 : ordered.findIndex(row => row.id === afterId);
         if (afterId != undefined && index < 0) {
             return undefined;
         }
@@ -107,7 +119,7 @@ export abstract class ProjectPositionUtilities {
         }
         // above 0, so that what is put first again and again halves towards it rather than going below every row
         const lower: number = before ?? 0;
-        const res: number = lower + (after - lower) / 2;
+        const res: number = lower + ((after - lower) / 2);
         // a double holds about 52 halvings of one gap: then the middle is one of the two ends
         return res > lower && res < after ? res : undefined;
     }
@@ -130,7 +142,7 @@ export abstract class ProjectPositionUtilities {
     static async withPlacementLease<T>(key: string, work: () => Promise<T>): Promise<T> {
         // two moves into one column at once would each read the same neighbours and write the same position. In turn,
         // the second reads what the first wrote, so no two rows share a position, and only one spreads them out again
-        const res: { value: T } | undefined = await inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).withLease(
+        const res: LeasedPlacement<T> | undefined = await inject(ZIBRI_DI_TOKENS.LEASE_SERVICE).withLease(
             { key: `zi.projects.positions:${key}`, leaseInMs: Ms.MINUTE, mode: 'wait', acquireTimeoutInMs: Ms.SECOND * 30 },
             async () => ({ value: await work() })
         );

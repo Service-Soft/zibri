@@ -11,7 +11,7 @@ import { BookkeepingLedgerLine } from './bookkeeping-ledger-line.model';
  * before closed with.
  */
 export class BookkeepingLedgerReport
-    implements Omit<BookkeepingLedgerReportModel, 'account' | 'lines' | 'openingBalance' | 'debit' | 'credit' | 'closingBalance'> {
+implements Omit<BookkeepingLedgerReportModel, 'account' | 'lines' | 'openingBalance' | 'debit' | 'credit' | 'closingBalance'> {
     /**
      * The account.
      */

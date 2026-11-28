@@ -21,8 +21,8 @@ export interface FileMirrorServiceInterface {
      * @param file - The file, and where it goes.
      * @param transaction - The transaction the file is queued in, which a write rolled back takes with it, or
      * undefined to queue it at once.
-     * @throws {NotFoundError} When the tenant has no connection of the id.
-     * @throws {InternalError} When the path has an empty segment, `.` or `..`, or no tenant is active.
+     * @throws NotFoundError when the tenant has no connection of the id.
+     * @throws InternalError when the path has an empty segment, `.` or `..`, or no tenant is active.
      */
     mirrorFile: (file: FileToMirror, transaction: RepositoryTransaction | undefined) => Promise<void>,
     /**
@@ -50,9 +50,9 @@ export interface FileMirrorServiceInterface {
      * later version mirrored to its path is a new file, written only where nothing is, and in conflict otherwise.
      * @param mirroredFileId - The id of the mirrored file.
      * @param resolution - How the conflict is resolved.
-     * @throws {NotFoundError} When the tenant has no mirrored file of the id.
-     * @throws {BadRequestError} When the file has no conflict, or the version to overwrite with is no longer kept.
-     * @throws {HttpClientError} When the server refuses the file, or cannot be reached, which leaves the conflict.
+     * @throws NotFoundError when the tenant has no mirrored file of the id.
+     * @throws BadRequestError when the file has no conflict, or the version to overwrite with is no longer kept.
+     * @throws HttpClientError when the server refuses the file, or cannot be reached, which leaves the conflict.
      */
     resolveConflict: (mirroredFileId: string, resolution: MirroredFileConflictResolution) => Promise<void>,
     /**
@@ -60,11 +60,11 @@ export interface FileMirrorServiceInterface {
      * while Nextcloud still has it, or a new one.
      * @param options - The path, and the password and the expiry of a link created.
      * @returns The link.
-     * @throws {NotFoundError} When the tenant has no connection of the id.
-     * @throws {BadRequestError} When the connection is not to a Nextcloud, or the path has an empty segment, `.` or
+     * @throws NotFoundError when the tenant has no connection of the id.
+     * @throws BadRequestError when the connection is not to a Nextcloud, or the path has an empty segment, `.` or
      * `..`.
-     * @throws {WebDavNotFoundError} When there is nothing at the path.
-     * @throws {HttpClientError} When Nextcloud refuses the link, such as for a password its policy refuses, or cannot
+     * @throws WebDavNotFoundError when there is nothing at the path.
+     * @throws HttpClientError when Nextcloud refuses the link, such as for a password its policy refuses, or cannot
      * be reached.
      */
     resolveShareLink: (options: FileMirrorShareLinkOptions) => Promise<FileMirrorShareLink>,
@@ -74,10 +74,10 @@ export interface FileMirrorServiceInterface {
      * path is a new one.
      * @param connectionId - The id of the `TenantWebDavConnection` of the active tenant, of the kind `NEXTCLOUD`.
      * @param path - The path the link was asked for, relative to the url of the connection.
-     * @throws {NotFoundError} When the tenant has no connection of the id.
-     * @throws {BadRequestError} When the connection is not to a Nextcloud, or the path has an empty segment, `.` or
+     * @throws NotFoundError when the tenant has no connection of the id.
+     * @throws BadRequestError when the connection is not to a Nextcloud, or the path has an empty segment, `.` or
      * `..`.
-     * @throws {HttpClientError} When Nextcloud refuses, or cannot be reached, which keeps the link.
+     * @throws HttpClientError when Nextcloud refuses, or cannot be reached, which keeps the link.
      */
     revokeShareLink: (connectionId: string, path: string) => Promise<void>
 }

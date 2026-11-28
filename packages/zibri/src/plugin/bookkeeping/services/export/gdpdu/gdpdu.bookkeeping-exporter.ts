@@ -105,10 +105,12 @@ export class GdpduBookkeepingExporter implements BookkeepingExporterInterface {
                 location: content.settings.company?.seat ?? '',
                 comment: this.resolveComment(content)
             },
-            media: [{
-                name: $ts`Books of the fiscal year from ${start} to ${end}`,
-                tables: tables.map(table => this.resolveTable(table, content.fiscalYear))
-            }]
+            media: [
+                {
+                    name: $ts`Books of the fiscal year from ${start} to ${end}`,
+                    tables: tables.map(table => this.resolveTable(table, content.fiscalYear))
+                }
+            ]
         };
     }
 
@@ -122,10 +124,11 @@ export class GdpduBookkeepingExporter implements BookkeepingExporterInterface {
         const start: string = this.formatDay(content.fiscalYear.start);
         const end: string = this.formatDay(content.fiscalYear.end);
         const exportedAt: string = content.exportedAt.toISOString();
-        if (!content.verification.intact) {
-            return $ts`Checking the books found that the chains of the journal entries and of their lines, or the balance of an entry, do not hold, see verification-problems. The rows are exported as they are. Books of the fiscal year from ${start} to ${end}, exported at ${exportedAt}.`;
-        }
-        return $ts`Books of the fiscal year from ${start} to ${end}, exported at ${exportedAt}. Checking the books found the chains of the journal entries and of their lines intact, and every entry balanced, see verification.`;
+        return !content.verification.intact
+            // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
+            ? $ts`Checking the books found that the chains of the journal entries and of their lines, or the balance of an entry, do not hold, see verification-problems. The rows are exported as they are. Books of the fiscal year from ${start} to ${end}, exported at ${exportedAt}.`
+            // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
+            : $ts`Books of the fiscal year from ${start} to ${end}, exported at ${exportedAt}. Checking the books found the chains of the journal entries and of their lines intact, and every entry balanced, see verification.`;
     }
 
     /**
@@ -193,7 +196,9 @@ export class GdpduBookkeepingExporter implements BookkeepingExporterInterface {
         let pending: string = this.resolveRecord(table.columns.map(column => this.formatText(column.name)));
         for await (const row of table.rows) {
             if (row.length !== table.columns.length) {
-                throw new InternalError(`A row of the table ${table.name} has ${row.length} values, and the table ${table.columns.length} columns.`);
+                throw new InternalError(
+                    `A row of the table ${table.name} has ${row.length} values, and the table ${table.columns.length} columns.`
+                );
             }
             pending += this.resolveRecord(row.map((value, index) => this.formatValue(value, table.columns[index], table)));
             if (pending.length >= PIECE_LENGTH) {
@@ -213,14 +218,19 @@ export class GdpduBookkeepingExporter implements BookkeepingExporterInterface {
      * @returns The value as CSV.
      * @throws An InternalError for a value its column does not hold.
      */
-    protected formatValue(value: BookkeepingExportValue, column: BookkeepingExportColumn | undefined, table: BookkeepingExportTable): string {
+    protected formatValue(
+        value: BookkeepingExportValue,
+        column: BookkeepingExportColumn | undefined,
+        table: BookkeepingExportTable
+    ): string {
         if (value == undefined) {
             return '';
         }
         switch (column?.type) {
             case BookkeepingExportColumnType.NUMBER: {
                 if (typeof value === 'number' || value instanceof BigNumber) {
-                    return new BigNumber(value).toFixed(column.decimals ?? 0).replace('.', DECIMAL_SYMBOL);
+                    return new BigNumber(value).toFixed(column.decimals ?? 0)
+                        .replace('.', DECIMAL_SYMBOL);
                 }
                 break;
             }

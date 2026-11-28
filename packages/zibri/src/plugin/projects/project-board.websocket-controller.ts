@@ -21,6 +21,12 @@ export class ProjectBoardWebsocketController {
         return inject(ZIBRI_PROJECTS_PLUGIN_DI_TOKENS.PROJECT_BOARD_UPDATE_SERVICE);
     }
 
+    /**
+     * Subscribes the connection to the live changes of the board of a project its user sees.
+     * @param subscription - The project.
+     * @param connection - The connection that receives the changes.
+     * @returns The project subscribed to.
+     */
     @Auth.isLoggedIn()
     @WebsocketRoute('subscribe')
     async subscribe(
@@ -33,6 +39,12 @@ export class ProjectBoardWebsocketController {
         return { projectId: subscription.projectId };
     }
 
+    /**
+     * Ends the subscription of the connection to the changes of the board of a project.
+     * @param subscription - The project.
+     * @param connection - The connection that stops receiving the changes.
+     * @returns The project unsubscribed from.
+     */
     @Auth.isLoggedIn()
     @WebsocketRoute('unsubscribe')
     async unsubscribe(

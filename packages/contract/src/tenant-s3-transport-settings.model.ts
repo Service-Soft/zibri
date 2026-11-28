@@ -1,3 +1,5 @@
+import { type TenantS3TransportSecretModel } from './tenant-s3-transport-secret.model';
+
 /**
  * Where the requests to a bucket name it: in the host, as `acme-backups.s3.example.com`, or in the path, as
  * `s3.example.com/acme-backups`.

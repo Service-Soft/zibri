@@ -8,13 +8,11 @@ import { HttpMethod } from '../http/http-method.enum';
 import { HeaderParamMetadataInput } from '../routing/decorators/param.decorator';
 import { HttpClientResponseBodyInput } from './http-client-response.model';
 import { HttpClientResult } from './http-client-result.type';
-import {
-    HttpClientHeaderValue,
+import { HttpClientHeaderValue,
     HttpClientInterface,
     HttpClientRequestBody,
     HttpClientRequestBodyMimeType,
-    HttpOptionsInput
-} from './http-client.interface';
+    HttpOptionsInput } from './http-client.interface';
 
 /**
  * A http client as an application of 3.2 implemented it, whose `request` takes the methods of HTTP alone, handing

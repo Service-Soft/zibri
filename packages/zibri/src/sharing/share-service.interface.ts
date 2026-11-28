@@ -45,7 +45,12 @@ export interface ShareServiceInterface {
      * @param userId - The id of the user.
      * @param transaction - The transaction to write in, if any.
      */
-    unshare: (entityClass: Newable<BaseEntity>, rowId: string, userId: string, transaction: RepositoryTransaction | undefined) => Promise<void>,
+    unshare: (
+        entityClass: Newable<BaseEntity>,
+        rowId: string,
+        userId: string,
+        transaction: RepositoryTransaction | undefined
+    ) => Promise<void>,
     /**
      * Finds the shares of a row itself, without those of the rows above it.
      * @param entityClass - The shareable entity the row is of.

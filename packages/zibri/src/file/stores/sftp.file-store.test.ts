@@ -9,7 +9,7 @@ import { describeFileStore } from './file-store.cases';
 import { SftpFileStore } from './sftp.file-store';
 
 // against a server in the test's own process, which runs wherever the suites run. What a real server accepts is
-// checked against one in a container in file-store.containers.test.ts
+// checked against one in a container in file-store.container.test.ts
 
 const sftp: InProcessSftpServer = new InProcessSftpServer({ 'posix-rename@openssh.com': '1' });
 let server: StartedTestServer | undefined;

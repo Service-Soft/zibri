@@ -1,4 +1,4 @@
-/* eslint-disable cspell/spellchecker */
+
 import { Repository } from '../../../../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../../../di/decorators/injectable.decorator';
@@ -84,16 +84,18 @@ export class UgConformanceService implements BookkeepingConformanceServiceInterf
             return [];
         }
         const accounts: ReserveAccounts = this.resolveAccounts(await this.findRules(closing.fiscalYear), closing.fiscalYear);
-        return [{
-            documentDate: closing.fiscalYear.end,
-            postingDate: closing.fiscalYear.end,
-            documentReference: null,
-            text: $ts`Legal reserve of § 5a (3) GmbHG`,
-            lines: [
-                { accountId: accounts.reserveAllocationAccountId, debit: missing, credit: null },
-                { accountId: accounts.legalReserveAccountId, debit: null, credit: missing }
-            ]
-        }];
+        return [
+            {
+                documentDate: closing.fiscalYear.end,
+                postingDate: closing.fiscalYear.end,
+                documentReference: null,
+                text: $ts`Legal reserve of § 5a (3) GmbHG`,
+                lines: [
+                    { accountId: accounts.reserveAllocationAccountId, debit: missing, credit: null },
+                    { accountId: accounts.legalReserveAccountId, debit: null, credit: missing }
+                ]
+            }
+        ];
     }
 
     /**
@@ -108,8 +110,12 @@ export class UgConformanceService implements BookkeepingConformanceServiceInterf
             const amount: string = missing.toFixed();
             const currency: string = closing.settings.currency;
             const accounts: ReserveAccounts = this.resolveAccounts(await this.findRules(closing.fiscalYear), closing.fiscalYear);
-            const account: BookkeepingAccount = await this.accountRepository.findById(accounts.legalReserveAccountId, { transaction: closing.transaction });
+            const account: BookkeepingAccount = await this.accountRepository.findById(
+                accounts.legalReserveAccountId,
+                { transaction: closing.transaction }
+            );
             throw new ConflictError([
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 $ts`The legal reserve of § 5a (3) GmbHG needs ${amount} ${currency} more on the account ${account.number} before the fiscal year is closed.`,
                 $ts`Post the entry its closing proposals answer.`
             ]);
@@ -128,7 +134,10 @@ export class UgConformanceService implements BookkeepingConformanceServiceInterf
         const opening: BookkeepingAccountBalance[] = await this.resolveOpeningBalances(closing);
         const carriedForward: BigNumber = opening
             .filter(b => {
-                const position: string | undefined = BookkeepingStatementUtilities.findPositionId(b.account, NumberUtilities.subtract(b.debit, b.credit));
+                const position: string | undefined = BookkeepingStatementUtilities.findPositionId(
+                    b.account,
+                    NumberUtilities.subtract(b.debit, b.credit)
+                );
                 return position != undefined && this.carriedForwardPositions.includes(position);
             })
             .reduce((sum, b) => NumberUtilities.add(sum, NumberUtilities.subtract(b.credit, b.debit)), new BigNumber(0));
@@ -144,7 +153,9 @@ export class UgConformanceService implements BookkeepingConformanceServiceInterf
             return { surplus, lossCarriedForward, reserve, posted: new BigNumber(0) };
         }
         const { legalReserveAccountId } = this.resolveAccounts(rules, closing.fiscalYear);
-        const net: (b: BookkeepingAccountBalance | undefined) => BigNumber = b => b == undefined ? new BigNumber(0) : NumberUtilities.subtract(b.credit, b.debit);
+        const net: (b: BookkeepingAccountBalance | undefined) => BigNumber = b => b == undefined
+            ? new BigNumber(0)
+            : NumberUtilities.subtract(b.credit, b.debit);
         const posted: BigNumber = NumberUtilities.subtract(
             net(closing.balances.find(b => b.account.id === legalReserveAccountId)),
             net(opening.find(b => b.account.id === legalReserveAccountId))
@@ -158,7 +169,8 @@ export class UgConformanceService implements BookkeepingConformanceServiceInterf
      * @returns The rules, or undefined for a fiscal year without.
      */
     protected async findRules(fiscalYear: FiscalYear): Promise<PostingRules | undefined> {
-        const ruleSets: PostingRuleSet[] = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_RULE_SERVICE).findRuleSets(fiscalYear.id);
+        const ruleSets: PostingRuleSet[] = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_RULE_SERVICE)
+            .findRuleSets(fiscalYear.id);
         return ruleSets.at(-1)?.rules;
     }
 
@@ -173,6 +185,7 @@ export class UgConformanceService implements BookkeepingConformanceServiceInterf
         if (rules?.legalReserveAccountId == undefined || rules.reserveAllocationAccountId == undefined) {
             const [start, end] = [fiscalYear.start, fiscalYear.end].map(day => BookkeepingDayUtilities.formatDay(day));
             throw new ConflictError(
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 $ts`The posting rules of the fiscal year from ${start} to ${end} need to name the legalReserveAccountId and the reserveAllocationAccountId of the legal reserve of § 5a (3) GmbHG.`
             );
         }
@@ -186,6 +199,7 @@ export class UgConformanceService implements BookkeepingConformanceServiceInterf
      * @returns The balance of each account carried in, none without.
      */
     protected async resolveOpeningBalances(closing: BookkeepingClosing): Promise<BookkeepingAccountBalance[]> {
-        return (await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).resolveCarriedBalances(closing.fiscalYear.id, closing.transaction)).balances;
+        return (await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE)
+            .resolveCarriedBalances(closing.fiscalYear.id, closing.transaction)).balances;
     }
 }

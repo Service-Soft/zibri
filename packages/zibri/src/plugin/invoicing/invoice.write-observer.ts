@@ -19,9 +19,9 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { OnAppInit } from '../../global/on-app-init.interface';
 import { $ts } from '../../localization/translate.function';
 import { FilterUtilities } from '../../routing/filter/filter.utilities';
-import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { TenantDeletion } from '../../tenancy/tenant-definition/tenant-deletion.model';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
+import { PromiseUtilities } from '../../utilities/promise.utilities';
 import { INVOICE_POSTING_DI_VARIANT, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from './invoicing.tokens';
 import { InvoiceType } from './models/invoice-type.enum';
 import { Invoice } from './models/invoice.model';
@@ -83,8 +83,15 @@ export class InvoiceWriteObserver implements EntityWriteObserver, OnAppInit {
         });
         if (this.handlesIssued()) {
             FrameworkColumnUtilities.validatePresent('Booking or archiving issued invoices', Invoice, 'issuedAt');
-            this.properties = ['id', ...this.properties];
         }
+        // without the column, of a schema the data source does not manage, an invoice is read without it, as in 3.2
+        this.properties = [
+            ...this.handlesIssued() ? ['id'] : [],
+            'tenantId',
+            'number',
+            ...FrameworkColumnUtilities.hasColumns(Invoice, 'issuedAt') ? ['issuedAt'] : [],
+            'date'
+        ];
         if (this.options.issuedInvoicesReadOnly === true) {
             FrameworkColumnUtilities.validatePresent('issuedInvoicesReadOnly of the invoicing options', Invoice, 'issuedAt');
         }
@@ -108,7 +115,8 @@ export class InvoiceWriteObserver implements EntityWriteObserver, OnAppInit {
     // start of its day: it is the moment 3.2 set the invoice to by default, so it is the best record of its issue
     async backfillIssuedAt(): Promise<number> {
         const invoices: Repository<Invoice> = inject(repositoryTokenFor(Invoice));
-        const draft: string = `${FilterUtilities.escapeLike(`TEMP${this.options.separator}`)}%`;
+        const draftPrefix: string = `TEMP${this.options.separator}`;
+        const draft: string = `${FilterUtilities.escapeLike(draftPrefix)}%`;
         const issued: Pick<Invoice, 'id' | 'date'>[] = [];
         for await (const row of invoices.stream({
             where: { issuedAt: null, number: { notLike: draft } },
@@ -184,7 +192,11 @@ export class InvoiceWriteObserver implements EntityWriteObserver, OnAppInit {
             }
             const resulting: object = { ...rowWrite.existing, ...rowWrite.data };
             const invoiceNumber: unknown = Reflect.get(resulting, 'number');
-            if (typeof invoiceNumber !== 'string' || !this.isFinalNumber(invoiceNumber) || Reflect.get(resulting, 'issuedAt') != undefined) {
+            if (
+                typeof invoiceNumber !== 'string'
+                || !this.isFinalNumber(invoiceNumber)
+                || Reflect.get(resulting, 'issuedAt') != undefined
+            ) {
                 continue;
             }
             const written: object | undefined = this.findWrittenRow(write, rowWrite, rowWrites.length);
@@ -272,7 +284,9 @@ export class InvoiceWriteObserver implements EntityWriteObserver, OnAppInit {
             return;
         }
         // read whole, as a write to every row a filter matches knows them by the properties above alone
-        const ids: string[] = issuing.flatMap(rowWrite => rowWrite.existing == undefined ? [] : [String(Reflect.get(rowWrite.existing, 'id'))]);
+        const ids: string[] = issuing.flatMap(
+            rowWrite => rowWrite.existing == undefined ? [] : [String(Reflect.get(rowWrite.existing, 'id'))]
+        );
         const stored: Invoice[] = ids.length
             ? await inject<Repository<Invoice>>(repositoryTokenFor(Invoice)).findAll({
                 where: { id: { oneOf: ids } },

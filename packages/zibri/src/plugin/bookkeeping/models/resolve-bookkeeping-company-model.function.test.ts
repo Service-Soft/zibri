@@ -11,15 +11,13 @@ import { Newable } from '../../../types/newable.type';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import {
-    bookkeepingTestConformances,
+import { bookkeepingTestConformances,
     bookkeepingTestEntities,
     bookkeepingTestOptions,
     inTenant,
     journal,
     ReceiptsFileStore,
-    receiptsFolder
-} from '../bookkeeping.cases';
+    receiptsFolder } from '../bookkeeping.cases';
 import { ZibriBookkeepingPlugin } from '../bookkeeping.plugin';
 import { ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from '../bookkeeping.tokens';
 import { BookkeepingCompany } from './bookkeeping-company.model';

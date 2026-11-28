@@ -17,8 +17,8 @@ import { AuditUtilities } from '../../../logging/audit.utilities';
 import { type LoggerInterface } from '../../../logging/logger.interface';
 import { OpenApiSchemaUtilities } from '../../../open-api/open-api-schema.utilities';
 import { parseObject } from '../../../parsing/functions/parse-object.function';
-import { type JsonBodyMetadata, type XmlBodyMetadata } from '../../../routing/decorators/body-metadata.model';
 import { DeclaredResponseUtilities } from '../../../routing/declared-response.utilities';
+import { type JsonBodyMetadata, type XmlBodyMetadata } from '../../../routing/decorators/body-metadata.model';
 import { resolveStructuredBodyMetadata } from '../../../routing/resolve-body-metadata.function';
 import { JsonUtilities } from '../../../utilities/json.utilities';
 import { ZIBRI_APPROVAL_PLUGIN_DI_TOKENS } from '../../approval/approval.tokens';
@@ -28,8 +28,8 @@ import { ZIBRI_MCP_PLUGIN_DI_TOKENS } from '../mcp.tokens';
 import { type McpAnswer } from '../models/mcp-answer.model';
 import { McpJsonRpcMessage } from '../models/mcp-json-rpc-message.model';
 import { type McpPluginOptions } from '../models/mcp-plugin-options.model';
-import { MCP_PROTOCOL_REVISIONS } from '../models/mcp-protocol-revisions.model';
 import { type McpProposal } from '../models/mcp-proposal.model';
+import { MCP_PROTOCOL_REVISIONS } from '../models/mcp-protocol-revisions.model';
 import { type McpTool } from '../models/mcp-tool.model';
 import { type McpServiceInterface } from './mcp-service.interface';
 
@@ -85,6 +85,20 @@ type McpRequest = {
 };
 
 /**
+ * Who the server is, as a client is told.
+ */
+type McpServerInfo = {
+    /**
+     * The name of the application.
+     */
+    name: string,
+    /**
+     * The version of the application.
+     */
+    version: string
+};
+
+/**
  * Default implementation of the MCP service: the Streamable HTTP transport answering every request with JSON, and the
  * tools of the server, for every revision of `MCP_PROTOCOL_REVISIONS`.
  */
@@ -117,10 +131,9 @@ export class McpService implements McpServiceInterface {
         const header: string | undefined = context.request.get('mcp-protocol-version');
         // a request naming its revision in _meta is of a stateless revision, and so is one whose header names one: a
         // request of such a revision without it is refused as one, rather than read as one of a handshake
-        if (meta?.[META.PROTOCOL_VERSION] != undefined || (header != undefined && MCP_PROTOCOL_REVISIONS.stateless.includes(header))) {
-            return await this.handleStateless(request, meta, header, user, context);
-        }
-        return await this.handleWithHandshake(request, header, user);
+        return meta?.[META.PROTOCOL_VERSION] != undefined || (header != undefined && MCP_PROTOCOL_REVISIONS.stateless.includes(header))
+            ? await this.handleStateless(request, meta, header, user, context)
+            : await this.handleWithHandshake(request, header, user);
     }
 
     /**
@@ -141,7 +154,12 @@ export class McpService implements McpServiceInterface {
     ): Promise<McpAnswer> {
         const revision: unknown = meta?.[META.PROTOCOL_VERSION];
         if (typeof revision !== 'string') {
-            return this.error(HttpStatus.BAD_REQUEST, request.id, McpErrorCode.INVALID_PARAMS, $ts`The request needs the protocol version in its _meta.`);
+            return this.error(
+                HttpStatus.BAD_REQUEST,
+                request.id,
+                McpErrorCode.INVALID_PARAMS,
+                $ts`The request needs the protocol version in its _meta.`
+            );
         }
         if (header !== revision) {
             return this.error(
@@ -155,13 +173,23 @@ export class McpService implements McpServiceInterface {
             return this.unsupportedRevision(request.id, revision);
         }
         if (!this.isRecord(meta?.[META.CLIENT_CAPABILITIES])) {
-            return this.error(HttpStatus.BAD_REQUEST, request.id, McpErrorCode.INVALID_PARAMS, $ts`The request needs the capabilities of its client in its _meta.`);
+            return this.error(
+                HttpStatus.BAD_REQUEST,
+                request.id,
+                McpErrorCode.INVALID_PARAMS,
+                $ts`The request needs the capabilities of its client in its _meta.`
+            );
         }
         if (request.id == undefined) {
             return { status: HttpStatus.ACCEPTED, body: undefined };
         }
         if (context.request.get('mcp-method') !== request.method) {
-            return this.error(HttpStatus.BAD_REQUEST, request.id, McpErrorCode.HEADER_MISMATCH, $ts`The Mcp-Method header needs to name the method of the request.`);
+            return this.error(
+                HttpStatus.BAD_REQUEST,
+                request.id,
+                McpErrorCode.HEADER_MISMATCH,
+                $ts`The Mcp-Method header needs to name the method of the request.`
+            );
         }
         switch (request.method) {
             case 'server/discover': {
@@ -178,13 +206,22 @@ export class McpService implements McpServiceInterface {
                 return this.listTools(request, user, true);
             }
             case 'tools/call': {
-                if (this.decodeHeader(context.request.get('mcp-name')) !== request.params['name']) {
-                    return this.error(HttpStatus.BAD_REQUEST, request.id, McpErrorCode.HEADER_MISMATCH, $ts`The Mcp-Name header needs to name the tool of the request.`);
-                }
-                return await this.callTool(request, user, true);
+                return this.decodeHeader(context.request.get('mcp-name')) !== request.params['name']
+                    ? this.error(
+                        HttpStatus.BAD_REQUEST,
+                        request.id,
+                        McpErrorCode.HEADER_MISMATCH,
+                        $ts`The Mcp-Name header needs to name the tool of the request.`
+                    )
+                    : await this.callTool(request, user, true);
             }
             default: {
-                return this.error(HttpStatus.NOT_FOUND, request.id, McpErrorCode.METHOD_NOT_FOUND, $ts`The method "${request.method}" does not exist.`);
+                return this.error(
+                    HttpStatus.NOT_FOUND,
+                    request.id,
+                    McpErrorCode.METHOD_NOT_FOUND,
+                    $ts`The method "${request.method}" does not exist.`
+                );
             }
         }
     }
@@ -230,7 +267,12 @@ export class McpService implements McpServiceInterface {
                 return await this.callTool(request, user, false);
             }
             default: {
-                return this.error(HttpStatus.OK, request.id, McpErrorCode.METHOD_NOT_FOUND, $ts`The method "${request.method}" does not exist.`);
+                return this.error(
+                    HttpStatus.OK,
+                    request.id,
+                    McpErrorCode.METHOD_NOT_FOUND,
+                    $ts`The method "${request.method}" does not exist.`
+                );
             }
         }
     }
@@ -388,22 +430,35 @@ export class McpService implements McpServiceInterface {
         const id: unknown = message.id;
         const answerId: string | number | undefined = typeof id === 'string' || typeof id === 'number' ? id : undefined;
         if (message.jsonrpc !== '2.0') {
-            return this.error(HttpStatus.BAD_REQUEST, answerId, McpErrorCode.INVALID_REQUEST, $ts`The message needs to be of JSON-RPC 2.0.`);
+            return this.error(
+                HttpStatus.BAD_REQUEST,
+                answerId,
+                McpErrorCode.INVALID_REQUEST,
+                $ts`The message needs to be of JSON-RPC 2.0.`
+            );
         }
         if (typeof message.method !== 'string') {
             // a response of the client, which a server sending no requests has nothing to match with
-            if (message.result !== undefined || message.error !== undefined) {
-                return { status: HttpStatus.ACCEPTED, body: undefined };
-            }
-            return this.error(HttpStatus.BAD_REQUEST, answerId, McpErrorCode.INVALID_REQUEST, $ts`The message needs a method.`);
+            return message.result !== undefined || message.error !== undefined
+                ? { status: HttpStatus.ACCEPTED, body: undefined }
+                : this.error(HttpStatus.BAD_REQUEST, answerId, McpErrorCode.INVALID_REQUEST, $ts`The message needs a method.`);
         }
         if (id !== undefined && answerId == undefined) {
-            return this.error(HttpStatus.BAD_REQUEST, undefined, McpErrorCode.INVALID_REQUEST, $ts`The id of a request needs to be a string or a number.`);
+            return this.error(
+                HttpStatus.BAD_REQUEST,
+                undefined,
+                McpErrorCode.INVALID_REQUEST,
+                $ts`The id of a request needs to be a string or a number.`
+            );
         }
-        if (message.params !== undefined && !this.isRecord(message.params)) {
-            return this.error(HttpStatus.BAD_REQUEST, answerId, McpErrorCode.INVALID_PARAMS, $ts`The params of a request need to be an object.`);
-        }
-        return { id: answerId, method: message.method, params: message.params ?? {} };
+        return message.params !== undefined && !this.isRecord(message.params)
+            ? this.error(
+                HttpStatus.BAD_REQUEST,
+                answerId,
+                McpErrorCode.INVALID_PARAMS,
+                $ts`The params of a request need to be an object.`
+            )
+            : { id: answerId, method: message.method, params: message.params ?? {} };
     }
 
     /**
@@ -460,7 +515,7 @@ export class McpService implements McpServiceInterface {
      * Who the server is: the name and the version of the application.
      * @returns The name and the version.
      */
-    private getServerInfo(): { name: string, version: string } {
+    private getServerInfo(): McpServerInfo {
         return { name: GlobalRegistry.getAppData('name') ?? 'zibri', version: GlobalRegistry.getAppData('version') ?? '0.0.0' };
     }
 

@@ -33,10 +33,10 @@ import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
 import { Authentication } from '../../models/authentication.model';
 import { BaseUser } from '../../models/base-user.model';
+import { UserKindUtilities } from '../../user/user-kind.utilities';
 import { type UserServiceInterface } from '../../user/user-service.interface';
 import { AuthControllerAuthenticatorInterface } from '../auth-controller-authenticator.interface';
 import { PasswordCredentials, PasswordCredentialsCreateData } from '../password/password-credentials.model';
-import { UserKindUtilities } from '../../user/user-kind.utilities';
 import { PasswordAuthenticator } from '../password/password.authenticator';
 import { LoginLinkCredentials } from './login-link-credentials.model';
 import { LoginLinkOptions } from './login-link-options.model';
@@ -106,7 +106,8 @@ export class LoginLinkAuthenticator<
             throw new InternalError('The tokenExpiresInMs of ZIBRI_DI_TOKENS.LOGIN_LINK_OPTIONS needs to be more than 0.');
         }
         this.twoFactorMethods = app.options.twoFactorMethods;
-        this.storesPasswords = app.options.authenticators.some(a => a === PasswordAuthenticator || a.prototype instanceof PasswordAuthenticator);
+        this.storesPasswords = app.options.authenticators
+            .some(a => a === PasswordAuthenticator || a.prototype instanceof PasswordAuthenticator);
     }
 
     /**
@@ -117,13 +118,11 @@ export class LoginLinkAuthenticator<
      * @returns True when they have neither.
      */
     async resolveLogsInByLinkOnly(user: BaseUser<string>, transaction: RepositoryTransaction | undefined): Promise<boolean> {
-        if (await inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE).isRegistered(user)) {
-            return false;
-        }
+        const hasSecondFactor: boolean = await inject(ZIBRI_DI_TOKENS.TWO_FACTOR_SERVICE).isRegistered(user);
         // only an application with the authenticator declares the passwords
-        return !this.storesPasswords || await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(
+        return !hasSecondFactor && (!this.storesPasswords || await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(
             repositoryTokenFor(PasswordCredentials)
-        ).findOne({ where: { userId: user.id }, transaction, required: false }) == undefined;
+        ).findOne({ where: { userId: user.id }, transaction, required: false }) == undefined);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -132,7 +131,10 @@ export class LoginLinkAuthenticator<
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async authenticate(credentials: LoginLinkCredentials, transaction: RepositoryTransaction | undefined): Promise<Authentication<UserType>> {
+    async authenticate(
+        credentials: LoginLinkCredentials,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<Authentication<UserType>> {
         const found: LoginLinkToken | undefined = await this.tokenRepository.findOne({
             where: { value: await this.hashValue(credentials.token) },
             transaction,
@@ -157,7 +159,8 @@ export class LoginLinkAuthenticator<
         if (user == undefined) {
             throw new UnauthorizedError($ts`This login link is unknown or was used already. Ask for a new one.`);
         }
-        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE).record({ action: AuditAction.LOGIN_LINK_USED, outcome: AuditOutcome.SUCCESS, userId: user.id });
+        inject(ZIBRI_DI_TOKENS.AUDIT_SERVICE)
+            .record({ action: AuditAction.LOGIN_LINK_USED, outcome: AuditOutcome.SUCCESS, userId: user.id });
         return {
             user: await this.markEmailVerified(user),
             authenticatedAt: new Date(),
@@ -251,7 +254,12 @@ export class LoginLinkAuthenticator<
             if (user == undefined || user.deactivatedAt != undefined) {
                 // the one worth seeing: the answer is identical either way, so a run against a list of addresses
                 // leaves no other trace
-                this.recordRequest(AuditOutcome.FAILURE, user == undefined ? AuditReason.NO_SUCH_SUBJECT : AuditReason.DEACTIVATED, email, user?.id);
+                this.recordRequest(
+                    AuditOutcome.FAILURE,
+                    user == undefined ? AuditReason.NO_SUCH_SUBJECT : AuditReason.DEACTIVATED,
+                    email,
+                    user?.id
+                );
                 return;
             }
             // answered alike as well: a service account never logs in, and a link would be a way to
@@ -322,7 +330,9 @@ export class LoginLinkAuthenticator<
      */
     private async mailLoginLink(user: UserType, token: string, expiresAt: Date, tenantId: string | undefined): Promise<void> {
         const url: string = `${this.options.loginLinkUrl}/${token}`;
-        const loginLink: string = tenantId == undefined ? url : await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).resolveTenantUrl(url, tenantId);
+        const loginLink: string = tenantId == undefined
+            ? url
+            : await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).resolveTenantUrl(url, tenantId);
         // in the user's locale rather than in the one of the request, which anybody knowing the address can make
         await runInLocale(user.locale, async () => {
             await inject(ZIBRI_DI_TOKENS.EMAIL_SERVICE).queue({
@@ -355,9 +365,13 @@ export class LoginLinkAuthenticator<
     private async validateEmailBudget(email: string): Promise<void> {
         // whether or not the email has an account, so the answer says nothing about it. Without it, callers at many
         // addresses could fill one mailbox with links
-        const result: RateLimitResult = await inject(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER).consume(`login-link:${email.trim().toLowerCase()}`, 1);
+        const result: RateLimitResult = await inject(ZIBRI_DI_TOKENS.AUTH_RATE_LIMITER)
+            .consume(`login-link:${email.trim().toLowerCase()}`, 1);
         if (!result.allowed) {
-            throw new TooManyRequestsError($ts`A login link was asked for this email too often. Wait before asking for another one.`, result);
+            throw new TooManyRequestsError(
+                $ts`A login link was asked for this email too often. Wait before asking for another one.`,
+                result
+            );
         }
     }
 

@@ -6,9 +6,10 @@ import { type BaseUser } from '../auth/models/base-user.model';
 import { type Permission } from '../auth/roles/permission.type';
 import { type RouteAuthServiceInterface } from '../auth/route-auth-service.interface';
 import { AlsUtilities } from '../context/als.utilities';
-import { type EntitySelection } from '../entity/models/entity-selection.model';
+import { type DataSourceInterface } from '../data-source/data-sources/data-source.interface';
 import { type Where } from '../data-source/models/where/where-filter.model';
 import { type Repository } from '../data-source/repository/repository';
+import { USER_ENTITY } from '../data-source/repository/repository-kind.model';
 import { resolveEntityScopeContext } from '../data-source/scopes/resolve-entity-scope-context.function';
 import { type RepositoryTransaction } from '../data-source/transaction/repository-transaction.type';
 import { type EntityWriteObserver } from '../data-source/write-observers/entity-write-observer.model';
@@ -16,12 +17,11 @@ import { EntityWriteObserverRegistry } from '../data-source/write-observers/enti
 import { repositoryTokenFor } from '../di/decorators/inject-repository.decorator';
 import { Injectable } from '../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { type DataSourceInterface } from '../data-source/data-sources/data-source.interface';
-import { USER_ENTITY } from '../data-source/repository/repository-kind.model';
 import { inject } from '../di/inject.function';
 import { type BaseEntity } from '../entity/base-entity.model';
 import { type PropertyMetadata } from '../entity/decorators/property.decorator';
 import { denyAll, type DenyAll, type EntityScopeContext } from '../entity/models/entity-scope.model';
+import { type EntitySelection } from '../entity/models/entity-selection.model';
 import { type EntityShareable } from '../entity/models/entity-shareable.model';
 import { Relation } from '../entity/models/relation.enum';
 import { BadRequestError } from '../error-handling/errors/bad-request.error';
@@ -60,6 +60,20 @@ type ShareableEntity = {
      * The column a row holds its parent in, undefined for rows shared one by one.
      */
     parentColumn: string | undefined
+};
+
+/**
+ * A row of a shareable entity.
+ */
+type ShareableRow = {
+    /**
+     * The shareable entity.
+     */
+    declared: ShareableEntity,
+    /**
+     * The id of the row.
+     */
+    rowId: string
 };
 
 /**
@@ -171,8 +185,9 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
         // a share given or taken, or a row of a chain written, changes what the request sees
         const forgetting: EntityWriteObserver = {
             properties: [],
-            completeWrite: async () => {
+            completeWrite: () => {
                 this.forgetVisibleRows();
+                return Promise.resolve();
             }
         };
         registry.register(RowShare, forgetting);
@@ -181,7 +196,9 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
         }
         for (const declared of this.shareables.values()) {
             registry.register(declared.entityClass, new ShareableRowWriteObserver(declared.parentColumn, {
-                validateNotBelowItself: async (rowId, parentId, transaction) => await this.validateNotBelowItself(declared, rowId, parentId, transaction),
+                validateNotBelowItself: async (rowId, parentId, transaction) => {
+                    await this.validateNotBelowItself(declared, rowId, parentId, transaction);
+                },
                 deleteSharesOf: async (rowIds, transaction) => {
                     await this.rowShareRepository.deleteAll(
                         { entity: declared.tableName, rowId: { oneOf: rowIds } },
@@ -207,7 +224,8 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
         await this.validateRowsExist(declared, [rowId], transaction);
         const tenantId: string = this.getActiveTenantId();
         // a share is seen through a membership, so one with somebody who has none would never be
-        const membership: unknown = await inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE).findActiveMembership(userId, tenantId, transaction);
+        const membership: unknown = await inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE)
+            .findActiveMembership(userId, tenantId, transaction);
         if (membership == undefined) {
             throw new BadRequestError($ts`The user needs to be an active member of the tenant to share a row with them.`);
         }
@@ -221,7 +239,12 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async unshare(entityClass: Newable<BaseEntity>, rowId: string, userId: string, transaction: RepositoryTransaction | undefined): Promise<void> {
+    async unshare(
+        entityClass: Newable<BaseEntity>,
+        rowId: string,
+        userId: string,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
         const declared: ShareableEntity = this.getShareable(entityClass);
         await this.rowShareRepository.deleteAll({ entity: declared.tableName, rowId, userId }, { transaction });
     }
@@ -239,7 +262,7 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveRole(entityClass: Newable<BaseEntity>, rowId: string, userId: string): Promise<string | undefined> {
-        const shared: { declared: ShareableEntity, rowId: string } | undefined = await this.resolveShareableRow(entityClass, rowId);
+        const shared: ShareableRow | undefined = await this.resolveShareableRow(entityClass, rowId);
         if (shared == undefined) {
             return undefined;
         }
@@ -267,7 +290,9 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
         const root: ShareableEntity = this.resolveRoot(entityClass);
         const needed: number = root.shareable.roles.indexOf(role);
         if (needed < 0) {
-            throw new InternalError(`The role '${role}' is none of the roles ${root.entityClass.name} declares: ${root.shareable.roles.join(', ')}.`);
+            throw new InternalError(
+                `The role '${role}' is none of the roles ${root.entityClass.name} declares: ${root.shareable.roles.join(', ')}.`
+            );
         }
         const context: EntityScopeContext = await resolveEntityScopeContext(entityClass);
         if (await this.hasFullAccess(root, context)) {
@@ -395,7 +420,8 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
             return;
         }
         const placed: string = elsewhere
-            .map(entity => `${entity.name} in ${dataSources.filter(d => d.entities.includes(entity)).map(d => d.constructor.name).join(', ')}`)
+            .map(entity => `${entity.name} in ${dataSources.filter(d => d.entities.includes(entity)).map(d => d.constructor.name)
+                .join(', ')}`)
             .join(', ');
         throw new InternalError([
             `${ShareService.name} needs RowShare in the data source of the users and of every shareable entity,`,
@@ -422,7 +448,9 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
      */
     private registerShareable(entityClass: Newable<BaseEntity>, shareable: EntityShareable): void {
         const tableName: string = MetadataUtilities.getEntityMetadata(entityClass)?.tableName ?? entityClass.name;
-        const parent: SharedThroughHop | undefined = shareable.parent == undefined ? undefined : this.resolveHop(entityClass, shareable.parent);
+        const parent: SharedThroughHop | undefined = shareable.parent == undefined
+            ? undefined
+            : this.resolveHop(entityClass, shareable.parent);
         if (parent != undefined && parent.target !== entityClass) {
             throw new InternalError([
                 `${entityClass.name}: The parent "${shareable.parent}" of "shareable" is a relation to ${parent.target.name}.`,
@@ -480,7 +508,8 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
                 const path: string = [...seen, current].map(e => e.name).join(' -> ');
                 throw new InternalError([
                     `${entityClass.name} is shared through ${path}, which reaches no shareable entity of the data sources.`,
-                    'An entity declared "sharedThrough" names a relation to a shareable entity, or to one shared through a relation in turn.'
+                    'An entity declared "sharedThrough" names a relation to a shareable entity,'
+                    + ' or to one shared through a relation in turn.'
                 ]);
             }
             seen.push(current);
@@ -497,7 +526,9 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
     private getShareable(entityClass: Newable<BaseEntity>): ShareableEntity {
         const declared: ShareableEntity | undefined = this.shareables.get(entityClass);
         if (declared == undefined) {
-            throw new InternalError(`${entityClass.name} is no shareable entity of the data sources. Declare it with @Entity({ shareable }).`);
+            throw new InternalError(
+                `${entityClass.name} is no shareable entity of the data sources. Declare it with @Entity({ shareable }).`
+            );
         }
         return declared;
     }
@@ -534,7 +565,11 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
      * @param transaction - The transaction to read in, if any.
      * @throws A NotFoundError for a row the tenant does not hold.
      */
-    private async validateRowsExist(declared: ShareableEntity, rowIds: string[], transaction: RepositoryTransaction | undefined): Promise<void> {
+    private async validateRowsExist(
+        declared: ShareableEntity,
+        rowIds: string[],
+        transaction: RepositoryTransaction | undefined
+    ): Promise<void> {
         const unique: string[] = [...new Set(rowIds)];
         const found: BaseEntity[] = await this.repositoryOf(declared.entityClass).findAll({
             where: { id: { oneOf: unique } },
@@ -583,7 +618,9 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
     ): Promise<string[] | undefined> {
         const parentColumn: string | undefined = declared.parentColumn;
         const repository: Repository<BaseEntity> = this.repositoryOf(declared.entityClass);
-        const selection: EntitySelection<BaseEntity> = Object.fromEntries([['id', true], ...parentColumn == undefined ? [] : [[parentColumn, true]]]);
+        const selection: EntitySelection<BaseEntity> = parentColumn == undefined
+            ? { id: true }
+            : Object.fromEntries<true>([['id', true], [parentColumn, true]]);
         const res: string[] = [];
         // stops at a row seen already as well, so rows stored in a circle before it was refused end the walk
         for (let current: string | undefined = rowId; current != undefined && !res.includes(current);) {
@@ -613,13 +650,14 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
     private async resolveShareableRow(
         entityClass: Newable<BaseEntity>,
         rowId: string
-    ): Promise<{ declared: ShareableEntity, rowId: string } | undefined> {
+    ): Promise<ShareableRow | undefined> {
         // refuses an entity that is neither, before any read
         this.resolveRoot(entityClass);
         let current: Newable<BaseEntity> = entityClass;
         let currentId: string = rowId;
         for (let hop: SharedThroughHop | undefined = this.hops.get(current); hop != undefined; hop = this.hops.get(current)) {
-            const row: BaseEntity | undefined = await this.repositoryOf(current).findOne({ where: { id: currentId }, unscoped: true, required: false });
+            const row: BaseEntity | undefined = await this.repositoryOf(current)
+                .findOne({ where: { id: currentId }, unscoped: true, required: false });
             const next: unknown = row == undefined ? undefined : Reflect.get(row, hop.joinColumn);
             if (typeof next !== 'string') {
                 return undefined;
@@ -681,7 +719,9 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
             ofRequest = { outside: new Map(), inTransaction: new WeakMap() };
             this.visibleRows.set(viewer.requestContext, ofRequest);
         }
-        let visible: VisibleRows | undefined = viewer.transaction == undefined ? ofRequest.outside : ofRequest.inTransaction.get(viewer.transaction);
+        let visible: VisibleRows | undefined = viewer.transaction == undefined
+            ? ofRequest.outside
+            : ofRequest.inTransaction.get(viewer.transaction);
         if (visible == undefined && viewer.transaction != undefined) {
             visible = new Map();
             ofRequest.inTransaction.set(viewer.transaction, visible);
@@ -693,10 +733,17 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
         if (found != undefined) {
             return await found;
         }
-        const resolving: Promise<string[]> = this.findVisibleIds(entityClass, viewer);
+        const resolving: Promise<string[]> = (async (): Promise<string[]> => {
+            try {
+                return await this.findVisibleIds(entityClass, viewer);
+            }
+            catch (error) {
+                // a read that failed is asked again rather than kept
+                ofEntity.delete(key);
+                throw error;
+            }
+        })();
         ofEntity.set(key, resolving);
-        // a read that failed is asked again rather than kept
-        resolving.catch(() => ofEntity.delete(key));
         return await resolving;
     }
 
@@ -730,7 +777,11 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
         // level by level, the same on every store: a row seen already ends the walk there, so rows stored in a
         // circle before it was refused end it too
         for (let level: string[] = [...visible]; level.length;) {
-            const below: string[] = await this.findIds(entityClass, Object.fromEntries([[parentColumn, { oneOf: level }]]), viewer.transaction);
+            const below: string[] = await this.findIds(
+                entityClass,
+                Object.fromEntries([[parentColumn, { oneOf: level }]]),
+                viewer.transaction
+            );
             level = below.filter(id => !visible.has(id));
             for (const id of level) {
                 visible.add(id);
@@ -746,7 +797,11 @@ export class ShareService implements ShareServiceInterface, OnAppInit {
      * @param transaction - The transaction to read in, if any.
      * @returns The ids.
      */
-    private async findIds(entityClass: Newable<BaseEntity>, where: Where<BaseEntity>, transaction: RepositoryTransaction | undefined): Promise<string[]> {
+    private async findIds(
+        entityClass: Newable<BaseEntity>,
+        where: Where<BaseEntity>,
+        transaction: RepositoryTransaction | undefined
+    ): Promise<string[]> {
         const rows: BaseEntity[] = await this.repositoryOf(entityClass).findAll({
             where,
             select: { id: true },

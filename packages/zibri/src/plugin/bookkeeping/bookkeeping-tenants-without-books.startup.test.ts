@@ -29,6 +29,11 @@ import { type TenantsWithoutBooksOptions } from './models/tenants-without-books.
 // nothing here depends on where the rows are stored
 
 /**
+ * The company of the books of the GmbHs of the cases, with its register.
+ */
+const COMPANY: BookkeepingCompany = { name: 'Acme GmbH', seat: 'Berlin', registerCourt: 'Amtsgericht Charlottenburg', registerNumber: 'HRB 123456 B' };
+
+/**
  * The settings a tenant is created with: in EUR, as a GmbH, unless its name asks for something else.
  * @param tenant - The tenant.
  * @param transaction - The transaction it is created in.
@@ -45,11 +50,6 @@ async function resolveSettingsOf(tenant: BaseTenantDefinition, transaction: Tran
     // a GmbH without its register, which its conformances refuse
     return { currency: 'EUR', legalForms: [{ legalForm: 'GmbH', validFrom }], company: tenant.name === 'Unregistered' ? null : COMPANY };
 }
-
-/**
- * The company of the books of the GmbHs of the cases, with its register.
- */
-const COMPANY: BookkeepingCompany = { name: 'Acme GmbH', seat: 'Berlin', registerCourt: 'Amtsgericht Charlottenburg', registerNumber: 'HRB 123456 B' };
 
 const never: TenantsWithoutBooksOptions = { tenantsWithoutBooks: 'never', resolveSettingsOf };
 

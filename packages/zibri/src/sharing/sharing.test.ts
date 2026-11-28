@@ -10,10 +10,12 @@ import { describeSharing, sharingEntities } from './sharing.cases';
 
 describeSharing(
     'the in memory data source',
-    [createInMemoryDataSource({
-        entities: [...defaultTestServerEntities, ...sharingEntities, ApiKey, LoginLinkToken, TestInvitation],
-        repositories: [...defaultTestServerRepositories, TestServerInvitationRepository]
-    })],
+    [
+        createInMemoryDataSource({
+            entities: [...defaultTestServerEntities, ...sharingEntities, ApiKey, LoginLinkToken, TestInvitation],
+            repositories: [...defaultTestServerRepositories, TestServerInvitationRepository]
+        })
+    ],
     TestTimeouts.inMemory.start,
     TestTimeouts.inMemory.shutdown
 );

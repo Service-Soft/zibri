@@ -201,12 +201,18 @@ export class TaskService implements TaskServiceInterface {
         await this.resolveWritable(task.projectId, 'editor');
         // its comments go along with it, and the tasks that are a part of it stay, a part of nothing
         const freed: Task[] = await this.taskRepository.dataSource.runInTransaction(async (transaction: Transaction) => {
-            const res: Task[] = await this.taskRepository.updateAll({ parentTaskId: taskId }, { parentTaskId: null }, { transaction, returnUpdated: true });
+            const res: Task[] = await this.taskRepository.updateAll(
+                { parentTaskId: taskId },
+                { parentTaskId: null },
+                { transaction, returnUpdated: true }
+            );
             await this.taskRepository.deleteById(taskId, { transaction });
             return res;
         }, { maxAttempts: 3 });
         await this.boardUpdateService.publish({ type: 'task-deleted', projectId: task.projectId, taskId });
-        await Promise.all(freed.map(async t => await this.boardUpdateService.publish({ type: 'task-updated', projectId: t.projectId, task: t })));
+        await Promise.all(freed.map(
+            async t => await this.boardUpdateService.publish({ type: 'task-updated', projectId: t.projectId, task: t })
+        ));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -347,7 +353,9 @@ export class TaskService implements TaskServiceInterface {
                 required: false
             });
             if (current?.projectId !== projectId || current.id === taskId) {
-                throw new BadRequestError($ts`The task a task is a part of needs to be another task of the same project, and not a part of it.`);
+                throw new BadRequestError(
+                    $ts`The task a task is a part of needs to be another task of the same project, and not a part of it.`
+                );
             }
             seen.push(current.id);
             currentId = current.parentTaskId;
@@ -363,7 +371,16 @@ export class TaskService implements TaskServiceInterface {
      * @returns Where it goes.
      * @throws A BadRequestError for a task to put it after that is not in the column.
      */
-    private async resolveTaskPlacement(columnId: string, taskId: string | undefined, afterTaskId: string | null | undefined): Promise<PositionPlacement> {
-        return await ProjectPositionUtilities.resolveTaskPlacement(columnId, taskId, afterTaskId, { transaction: undefined, unscoped: false });
+    private async resolveTaskPlacement(
+        columnId: string,
+        taskId: string | undefined,
+        afterTaskId: string | null | undefined
+    ): Promise<PositionPlacement> {
+        return await ProjectPositionUtilities.resolveTaskPlacement(
+            columnId,
+            taskId,
+            afterTaskId,
+            { transaction: undefined, unscoped: false }
+        );
     }
 }

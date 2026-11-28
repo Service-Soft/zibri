@@ -45,4 +45,7 @@ export class EBilanzSettings extends BaseEntity {
 /**
  * What the settings are created with.
  */
-export type EBilanzSettingsCreateData = Pick<EBilanzSettings, 'certificate' | 'certificatePin' | 'certificateUploadedAt' | 'certificateUploadedBy'>;
+export type EBilanzSettingsCreateData = Pick<
+    EBilanzSettings,
+    'certificate' | 'certificatePin' | 'certificateUploadedAt' | 'certificateUploadedBy'
+>;

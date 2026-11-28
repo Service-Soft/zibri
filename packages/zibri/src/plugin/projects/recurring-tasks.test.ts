@@ -8,11 +8,13 @@ import { describeRecurringTasks } from './recurring-tasks.cases';
 
 describeRecurringTasks(
     'the in memory data source',
-    [createInMemoryDataSource({
+    [
+        createInMemoryDataSource({
         // without the invitations, which nothing here sends
-        entities: [...defaultTestServerEntities, ...projectsTestEntities.filter(entity => entity !== TestInvitation)],
-        repositories: defaultTestServerRepositories
-    })],
+            entities: [...defaultTestServerEntities, ...projectsTestEntities.filter(entity => entity !== TestInvitation)],
+            repositories: defaultTestServerRepositories
+        })
+    ],
     TestTimeouts.inMemory.start,
     TestTimeouts.inMemory.shutdown
 );

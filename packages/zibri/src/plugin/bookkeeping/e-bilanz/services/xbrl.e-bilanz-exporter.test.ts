@@ -23,17 +23,17 @@ import { type NewJournalEntry } from '../../models/new-journal-entry.model';
 import { type BookkeepingConformanceServiceInterface } from '../../services/conformance/bookkeeping-conformance-service.interface';
 import { HGB_MICRO_BALANCE_SHEET } from '../../statements/hgb-micro-balance-sheet.model';
 import { HGB_MICRO_INCOME_STATEMENT } from '../../statements/hgb-micro-income-statement.model';
+import { EBilanzTaxonomyUtilities } from '../e-bilanz-taxonomy.utilities';
 import { COMPANY, createBooks, type EBilanzCaseBooks, type EBilanzCaseBooksOptions, eBilanzTestEntities, eBilanzTestProviders, FIXED_ASSETS_BOOKS, UG_LEGAL_RESERVE_BOOKS, UNIFIED } from '../e-bilanz.cases';
 import { ZibriEBilanzPlugin } from '../e-bilanz.plugin';
-import { EBilanzTaxonomyUtilities } from '../e-bilanz-taxonomy.utilities';
 import { ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS } from '../e-bilanz.tokens';
-import { EBilanzConformanceService } from './e-bilanz-conformance.service';
 import { type EBilanzContent } from '../models/e-bilanz-content.model';
 import { EBilanzIncomeStatementForm } from '../models/e-bilanz-income-statement-form.enum';
 import { type EBilanzPreparation } from '../models/e-bilanz-preparation.model';
 import { EBilanzRevisionStatus } from '../models/e-bilanz-revision-status.enum';
 import { type EBilanzTaxonomyPosition } from '../models/e-bilanz-taxonomy-position.model';
 import { type EBilanzTaxonomy } from '../models/e-bilanz-taxonomy.model';
+import { EBilanzConformanceService } from './e-bilanz-conformance.service';
 import { XbrlEBilanzExporter } from './xbrl.e-bilanz-exporter';
 
 const XBRLI: string = 'http://www.xbrl.org/2003/instance';
@@ -62,25 +62,21 @@ type Instance = {
  * A conformance stating the statements of a fiscal year naming it in the forms of a micro corporation.
  */
 class MicroFormsConformanceService implements BookkeepingConformanceServiceInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     readonly name: string = 'test-micro-forms';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     isApplicable(): boolean {
         return false;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     resolveClosingProposals(): NewJournalEntry[] {
         return [];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     validateClosing(): void {
         return;
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     resolveStatementForms(): BookkeepingStatementForms {
         return { balanceSheet: HGB_MICRO_BALANCE_SHEET.id, incomeStatement: HGB_MICRO_INCOME_STATEMENT.id };
     }
@@ -138,7 +134,8 @@ async function prepare(options: EBilanzCaseBooksOptions = {}, taxonomyVersion?: 
  * @returns The document.
  */
 function write(content: EBilanzContent): Instance {
-    const xml: string = new XbrlEBilanzExporter().resolveFile(content).toString('utf8');
+    const xml: string = new XbrlEBilanzExporter().resolveFile(content)
+        .toString('utf8');
     const root: XmlElementNode = XmlReaderUtilities.resolveRootElement(xml);
     const children: XmlElementNode[] = elementsOf(root);
     return {
@@ -225,10 +222,9 @@ describe('the XBRL of the E-Bilanz', () => {
                     return positions.has(fact.name) || columns.has(fact.name) || detail ? [] : [fact.name];
                 }
                 // a field, or the item of a choice or of a tuple of a field named after it
-                const inside: (element: XmlElementNode, parent: string) => string[] = (element, parent) =>
-                    element.namespace === gcd && (fields.has(element.name) || element.name.startsWith(`${parent}.`))
-                        ? elementsOf(element).flatMap(e => inside(e, element.name))
-                        : [element.name];
+                const inside: (element: XmlElementNode, parent: string) => string[] = (element, parent) => element.namespace === gcd && (fields.has(element.name) || element.name.startsWith(`${parent}.`))
+                    ? elementsOf(element).flatMap(e => inside(e, element.name))
+                    : [element.name];
                 return fact.namespace === gcd && fields.has(fact.name) ? elementsOf(fact).flatMap(e => inside(e, fact.name)) : [fact.name];
             });
             expect(unknown).toStrictEqual([]);
@@ -433,7 +429,8 @@ describe('the XBRL of the E-Bilanz', () => {
         ]);
         expect(accountsOf(instance69).map(a => a[1]))
             .toStrictEqual(['accountNumber 0420', 'accountNumber 1200', 'accountNumber 0800', 'accountNumber 0860', 'accountNumber 8400', 'accountNumber 4210']);
-        expect(accountsOf(write(await prepare({}, '6.10'))).find(a => a.includes('accountNumber 1200'))?.at(-1)).toBe('notPossible false');
+        expect(accountsOf(write(await prepare({}, '6.10'))).find(a => a.includes('accountNumber 1200'))
+            ?.at(-1)).toBe('notPossible false');
     });
 
     it('lists the account the closing books the result to under the result of the year, and from 6.10 on says there is none without one', async () => {
@@ -451,13 +448,15 @@ describe('the XBRL of the E-Bilanz', () => {
         const named: string[] = ['positionName de-gaap-ci:bs.eqLiab.equity.netIncome', 'accountNumber 0860', 'accountDescription Profit carried forward', 'amount 8800.00'];
         expect(tuplesOf(write(content69))).toStrictEqual([named]);
         expect(tuplesOf(write(content610))).toStrictEqual([[...named, 'notPossible false']]);
-        expect(tuplesOf(write(withoutAccount(content610)))).toStrictEqual([[
-            'positionName de-gaap-ci:bs.eqLiab.equity.netIncome',
-            'accountNumber NIL',
-            'accountDescription NIL',
-            'amount 8800.00',
-            'notPossible true'
-        ]]);
+        expect(tuplesOf(write(withoutAccount(content610)))).toStrictEqual([
+            [
+                'positionName de-gaap-ci:bs.eqLiab.equity.netIncome',
+                'accountNumber NIL',
+                'accountDescription NIL',
+                'amount 8800.00',
+                'notPossible true'
+            ]
+        ]);
         // 6.9 asks for an account of a position only of each statement, and cannot say there is none
         expect(tuplesOf(write(withoutAccount(content69)))).toStrictEqual([]);
     });
@@ -563,9 +562,11 @@ describe('the XBRL of the E-Bilanz', () => {
         const content: EBilanzContent = await prepare(UG_LEGAL_RESERVE_BOOKS);
         const again: EBilanzContent = await prepare(UG_LEGAL_RESERVE_BOOKS);
 
-        expect(new XbrlEBilanzExporter().resolveFile(content).equals(new XbrlEBilanzExporter().resolveFile(content))).toBe(true);
+        expect(new XbrlEBilanzExporter().resolveFile(content)
+            .equals(new XbrlEBilanzExporter().resolveFile(content))).toBe(true);
         // the books of another tenant, with ids of their own that the document does not name
-        expect(new XbrlEBilanzExporter().resolveFile(content).equals(new XbrlEBilanzExporter().resolveFile(again))).toBe(true);
+        expect(new XbrlEBilanzExporter().resolveFile(content)
+            .equals(new XbrlEBilanzExporter().resolveFile(again))).toBe(true);
     });
 
     it('refuses a version that is not registered', async () => {

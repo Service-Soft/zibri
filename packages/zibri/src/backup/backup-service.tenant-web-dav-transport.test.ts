@@ -157,7 +157,7 @@ describe('BackupService - the backups of tenants on their own WebDAV servers', (
 
         expect(backup.resources.map(resource => resource.transportNames)).toStrictEqual([[`tenant-transport:${transport.id}`]]);
         expect(stored.some(path => path.includes('/.zibri-repository/chunks/'))).toBe(true);
-        expect(stored.filter(path => webDav.files.get(path)?.content.includes('only-in-the-backup'))).toEqual([]);
+        expect(stored.filter(path => webDav.files.get(path)?.content.includes('only-in-the-backup') === true)).toEqual([]);
         expect(await asTenant(tenant, async () => (await inject<Repository<TenantNote>>(repositoryTokenFor(TenantNote)).findAll({})).map(note => note.text)))
             .toStrictEqual(['only-in-the-backup']);
     }, 30000);

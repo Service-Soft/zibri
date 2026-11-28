@@ -62,4 +62,7 @@ export class BookkeepingAccount extends BaseEntity implements BookkeepingAccount
 /**
  * What an account is created with.
  */
-export type BookkeepingAccountCreateData = Pick<BookkeepingAccount, 'number' | 'name' | 'type' | 'statementPosition' | 'creditStatementPosition'>;
+export type BookkeepingAccountCreateData = Pick<
+    BookkeepingAccount,
+    'number' | 'name' | 'type' | 'statementPosition' | 'creditStatementPosition'
+>;

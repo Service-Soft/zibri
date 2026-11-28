@@ -26,7 +26,7 @@ export type KeptRowDivergence = {
      */
     reason: KeptRowDivergenceReason,
     /**
-     * What a person reads of it, such as `The entry 12 posted the invoice 2026-SIEMEN-0001, which is gone.`
+     * What a person reads of it, such as `The entry 12 posted the invoice 2026-SIEMEN-0001, which is gone.`.
      */
     message: string
 };

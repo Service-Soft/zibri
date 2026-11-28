@@ -22,7 +22,7 @@ beforeAll(async () => {
 }, 60000);
 
 afterAll(async () => {
-    await webDav?.container.stop();
+    await webDav?.stop();
 }, 30000);
 
 /**

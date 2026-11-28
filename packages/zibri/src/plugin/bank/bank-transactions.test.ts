@@ -8,13 +8,11 @@ import { StartedTestServer, startTestServer } from '../../__testing__/test-serve
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { ZibriApprovalPlugin } from '../approval/approval.plugin';
 import { ZibriInvoicingPlugin } from '../invoicing/invoicing.plugin';
-import {
-    bankTransactionsStatementsFolder,
+import { bankTransactionsStatementsFolder,
     BankTransactionsStatementFileStore,
     bankTransactionsTestEntities,
     bankTransactionsTestProviders,
-    describeBankTransactions
-} from './bank-transactions.cases';
+    describeBankTransactions } from './bank-transactions.cases';
 import { ZibriBankPlugin } from './bank.plugin';
 
 let server: StartedTestServer | undefined;

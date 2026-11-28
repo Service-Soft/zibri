@@ -55,7 +55,10 @@ import { type BankMatchServiceInterface } from './services/bank-match-service.in
 /**
  * The folder the original files of the statements of the cases are kept in, which the cases import none of.
  */
-export const bankTransactionsStatementsFolder: FsPath = FsUtilities.getPath(testFileFolder, `bank-transactions-statements-${UUIDUtilities.generate()}`);
+export const bankTransactionsStatementsFolder: FsPath = FsUtilities.getPath(
+    testFileFolder,
+    `bank-transactions-statements-${UUIDUtilities.generate()}`
+);
 
 /**
  * The file store of the bank statements, which the bank plugin needs.
@@ -113,9 +116,9 @@ export const bankTransactionsTestProviders: DiProvider<unknown>[] = [
  * A tenant of its own with two bank accounts.
  */
 type TestBank = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     tenantId: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     account: BankAccount,
     /**
      * A second account, such as a savings account.
@@ -136,12 +139,36 @@ const siemens: InvoiceAddress = {
     countryId: 'DE'
 };
 
+/**
+ * What a transaction is created from.
+ */
+type TransactionCreateData = OmitStrict<BankTransaction, 'id' | 'tenantId'>;
+
+/**
+ * The number of the invoice most cases pay.
+ */
+const firstInvoiceNumber: string = '2026-SIEMEN-0001';
+
+/**
+ * What the payer of the invoice most cases pay gives.
+ */
+const firstInvoiceRemittance: string = `Invoice ${firstInvoiceNumber}`;
+
+/**
+ * When the payment of most cases is booked.
+ */
+const paymentBookedAt: string = '2026-03-20T09:30:00.000Z';
+
 async function inTenant<T>(tenantId: string, work: () => Promise<T>): Promise<T> {
     return await inject<TenantServiceInterface>(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(tenantId, work);
 }
 
 function bankMatches(): BankMatchServiceInterface {
     return inject(ZIBRI_BANK_PLUGIN_DI_TOKENS.BANK_MATCH_SERVICE);
+}
+
+function bankMatchRepository(): Repository<BankMatch> {
+    return inject(repositoryTokenFor(BankMatch));
 }
 
 async function createBank(): Promise<TestBank> {
@@ -168,7 +195,15 @@ async function issueInvoice(bank: TestBank, number: string): Promise<Invoice> {
     ).create({
         number,
         currency: 'EUR',
-        items: [{ name: 'Consulting', amount: 1, amountUnit: { code: 'HUR', displayName: 'Hours' }, vat: { categoryCode: 'S', rate: 19 }, price: 1000 }],
+        items: [
+            {
+                name: 'Consulting',
+                amount: 1,
+                amountUnit: { code: 'HUR', displayName: 'Hours' },
+                vat: { categoryCode: 'S', rate: 19 },
+                price: 1000
+            }
+        ],
         date: new Date('2026-03-01T12:00:00.000Z'),
         performanceDate: new Date('2026-03-01T12:00:00.000Z'),
         dueDate: new Date('2026-03-15T12:00:00.000Z'),
@@ -195,7 +230,7 @@ async function createTransaction(
     remittanceInformation: string | null = null,
     account: BankAccount = bank.account
 ): Promise<BankTransaction> {
-    return await inTenant(bank.tenantId, async () => await inject<Repository<BankTransaction, OmitStrict<BankTransaction, 'id' | 'tenantId'>>>(
+    return await inTenant(bank.tenantId, async () => await inject<Repository<BankTransaction, TransactionCreateData>>(
         repositoryTokenFor(BankTransaction)
     ).create({
         accountId: account.id,
@@ -239,7 +274,7 @@ async function confirm(bank: TestBank, transaction: BankTransaction, invoice: In
     if (suggestion?.request.status !== ApprovalRequestStatus.PENDING) {
         throw new Error(`No pending suggestion of ${transaction.amount.toFixed()}.`);
     }
-    return await inTenant(bank.tenantId, async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch)).dataSource.runInTransaction(
+    return await inTenant(bank.tenantId, async () => await bankMatchRepository().dataSource.runInTransaction(
         async started => await bankMatches().createMatch(
             { transactionId: transaction.id, targetType: BankMatchTargetType.INVOICE, targetId: invoice.id, amount: new BigNumber(amount) },
             { transaction: started, request: suggestion.request, decidedBy: 'ada', decidedByKind: ApprovalActorKind.USER }
@@ -248,7 +283,12 @@ async function confirm(bank: TestBank, transaction: BankTransaction, invoice: In
     ));
 }
 
-async function findDetails(bank: TestBank, filter: BankTransactionFilter, page: number = 1, limit: number = 10): Promise<PaginationResult<BankTransactionDetails>> {
+async function findDetails(
+    bank: TestBank,
+    filter: BankTransactionFilter,
+    page: number = 1,
+    limit: number = 10
+): Promise<PaginationResult<BankTransactionDetails>> {
     return await inTenant(bank.tenantId, async () => await bankMatches().findTransactionDetails(page, limit, filter));
 }
 
@@ -259,9 +299,11 @@ async function findDetails(bank: TestBank, filter: BankTransactionFilter, page: 
  * @returns The status and the open amount in two decimals, or undefined without a state.
  */
 async function findState(bank: TestBank, transaction: BankTransaction): Promise<[string, string] | undefined> {
-    const state: BankTransactionState | undefined = await inTenant(bank.tenantId, async () => await inject<Repository<BankTransactionState>>(
-        repositoryTokenFor(BankTransactionState)
-    ).findOne({ where: { transactionId: transaction.id }, required: false }));
+    const state: BankTransactionState | undefined = await inTenant(
+        bank.tenantId,
+        async () => await inject<Repository<BankTransactionState>>(repositoryTokenFor(BankTransactionState))
+            .findOne({ where: { transactionId: transaction.id }, required: false })
+    );
     return state == undefined ? undefined : [state.status, state.openAmount.toFixed(2)];
 }
 
@@ -274,8 +316,14 @@ async function findState(bank: TestBank, transaction: BankTransaction): Promise<
  * @param request - The request it is approved through.
  * @returns The match.
  */
-async function match(bank: TestBank, transaction: BankTransaction, invoice: Invoice, amount: string, request: ApprovalRequest): Promise<BankMatch> {
-    return await inTenant(bank.tenantId, async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch)).dataSource.runInTransaction(
+async function match(
+    bank: TestBank,
+    transaction: BankTransaction,
+    invoice: Invoice,
+    amount: string,
+    request: ApprovalRequest
+): Promise<BankMatch> {
+    return await inTenant(bank.tenantId, async () => await bankMatchRepository().dataSource.runInTransaction(
         async started => await bankMatches().createMatch(
             { transactionId: transaction.id, targetType: BankMatchTargetType.INVOICE, targetId: invoice.id, amount: new BigNumber(amount) },
             { transaction: started, request, decidedBy: 'ada', decidedByKind: ApprovalActorKind.USER }
@@ -315,11 +363,11 @@ export function describeBankTransactions(dataSourceName: string): void {
     describe(`the transactions of the bank on ${dataSourceName}`, () => {
         it('answers each transaction of a page with what of it is open, which a reversal opens again', async () => {
             const bank: TestBank = await createBank();
-            const invoice: Invoice = await issueInvoice(bank, '2026-SIEMEN-0001');
-            const payment: BankTransaction = await createTransaction(bank, '1190', '2026-03-20T09:30:00.000Z', 'Invoice 2026-SIEMEN-0001');
+            const invoice: Invoice = await issueInvoice(bank, firstInvoiceNumber);
+            const payment: BankTransaction = await createTransaction(bank, '1190', paymentBookedAt, firstInvoiceRemittance);
             await createTransaction(bank, '500', '2026-03-19T00:00:00.000Z');
             await createTransaction(bank, '-20', '2026-03-18T00:00:00.000Z');
-            const match: BankMatch = await confirm(bank, payment, invoice, '1190');
+            const confirmed: BankMatch = await confirm(bank, payment, invoice, '1190');
 
             const page: PaginationResult<BankTransactionDetails> = await findDetails(bank, {});
 
@@ -327,14 +375,14 @@ export function describeBankTransactions(dataSourceName: string): void {
             // the latest booking first, money paid open without its sign
             expect(describePage(page)).toEqual([['1190.00', '0.00'], ['500.00', '500.00'], ['-20.00', '20.00']]);
 
-            await inTenant(bank.tenantId, async () => await bankMatches().reverseMatch(match.id, 'ada'));
+            await inTenant(bank.tenantId, async () => await bankMatches().reverseMatch(confirmed.id, 'ada'));
 
             expect(describePage(await findDetails(bank, {}))).toEqual([['1190.00', '1190.00'], ['500.00', '500.00'], ['-20.00', '20.00']]);
         });
 
         it('narrows to the open or the matched transactions, counting every one of them, and pages them', async () => {
             const bank: TestBank = await createBank();
-            for (const [number, day] of [['2026-SIEMEN-0001', '05'], ['2026-SIEMEN-0002', '06'], ['2026-SIEMEN-0003', '07']] as const) {
+            for (const [number, day] of [[firstInvoiceNumber, '05'], ['2026-SIEMEN-0002', '06'], ['2026-SIEMEN-0003', '07']] as const) {
                 const invoice: Invoice = await issueInvoice(bank, number);
                 const payment: BankTransaction = await createTransaction(bank, '1190', `2026-03-${day}T10:00:00.000Z`, `Invoice ${number}`);
                 await confirm(bank, payment, invoice, '1190');
@@ -350,10 +398,13 @@ export function describeBankTransactions(dataSourceName: string): void {
 
             expect([open.totalAmount, describePage(open)]).toEqual([3, [['-30.00', '30.00'], ['75.00', '75.00'], ['1190.00', '190.00']]]);
             expect(matched.totalAmount).toBe(3);
-            expect(matched.items.map(d => d.transaction.bookingDate.toISOString().slice(0, 10))).toEqual(['2026-03-07', '2026-03-06', '2026-03-05']);
+            expect(matched.items.map(d => d.transaction.bookingDate.toISOString().slice(0, 10)))
+                .toEqual(['2026-03-07', '2026-03-06', '2026-03-05']);
             // the second page of two, and the count of all of them
-            const second: PaginationResult<BankTransactionDetails> = await findDetails(bank, { status: BankTransactionStatus.MATCHED }, 2, 2);
-            expect([second.totalAmount, second.items.map(d => d.transaction.bookingDate.toISOString().slice(0, 10))]).toEqual([3, ['2026-03-05']]);
+            const second: PaginationResult<BankTransactionDetails>
+                = await findDetails(bank, { status: BankTransactionStatus.MATCHED }, 2, 2);
+            expect([second.totalAmount, second.items.map(d => d.transaction.bookingDate.toISOString().slice(0, 10))])
+                .toEqual([3, ['2026-03-05']]);
             // with the account and the days, a booking at 10:00 counting for its day
             const ofAccount: PaginationResult<BankTransactionDetails> = await findDetails(bank, {
                 accountId: bank.account.id,
@@ -385,8 +436,8 @@ export function describeBankTransactions(dataSourceName: string): void {
 
         it('writes the state with each match and its reversal: open, partly matched, matched in full, and open again', async () => {
             const bank: TestBank = await createBank();
-            const invoice: Invoice = await issueInvoice(bank, '2026-SIEMEN-0001');
-            const payment: BankTransaction = await createTransaction(bank, '1190', '2026-03-20T09:30:00.000Z', 'Invoice 2026-SIEMEN-0001');
+            const invoice: Invoice = await issueInvoice(bank, firstInvoiceNumber);
+            const payment: BankTransaction = await createTransaction(bank, '1190', paymentBookedAt, firstInvoiceRemittance);
             const request: ApprovalRequest = await suggestedRequest(bank, payment);
             expect(await findState(bank, payment)).toEqual([BankTransactionStatus.OPEN, '1190.00']);
 
@@ -402,8 +453,8 @@ export function describeBankTransactions(dataSourceName: string): void {
 
         it('keeps the state of a transaction matched by several at once as its matches add up', async () => {
             const bank: TestBank = await createBank();
-            const invoice: Invoice = await issueInvoice(bank, '2026-SIEMEN-0001');
-            const payment: BankTransaction = await createTransaction(bank, '1190', '2026-03-20T09:30:00.000Z', 'Invoice 2026-SIEMEN-0001');
+            const invoice: Invoice = await issueInvoice(bank, firstInvoiceNumber);
+            const payment: BankTransaction = await createTransaction(bank, '1190', paymentBookedAt, firstInvoiceRemittance);
             const request: ApprovalRequest = await suggestedRequest(bank, payment);
 
             // three of 500 at once, of which the third is more than is left of the transaction
@@ -418,14 +469,19 @@ export function describeBankTransactions(dataSourceName: string): void {
 
         it('leaves the state as it was when the transaction a match is written in rolls back', async () => {
             const bank: TestBank = await createBank();
-            const invoice: Invoice = await issueInvoice(bank, '2026-SIEMEN-0001');
-            const payment: BankTransaction = await createTransaction(bank, '1190', '2026-03-20T09:30:00.000Z', 'Invoice 2026-SIEMEN-0001');
+            const invoice: Invoice = await issueInvoice(bank, firstInvoiceNumber);
+            const payment: BankTransaction = await createTransaction(bank, '1190', paymentBookedAt, firstInvoiceRemittance);
             const request: ApprovalRequest = await suggestedRequest(bank, payment);
 
-            await expect(inTenant(bank.tenantId, async () => await inject<Repository<BankMatch>>(repositoryTokenFor(BankMatch)).dataSource.runInTransaction(
+            await expect(inTenant(bank.tenantId, async () => await bankMatchRepository().dataSource.runInTransaction(
                 async started => {
                     await bankMatches().createMatch(
-                        { transactionId: payment.id, targetType: BankMatchTargetType.INVOICE, targetId: invoice.id, amount: new BigNumber('1190') },
+                        {
+                            transactionId: payment.id,
+                            targetType: BankMatchTargetType.INVOICE,
+                            targetId: invoice.id,
+                            amount: new BigNumber('1190')
+                        },
                         { transaction: started, request, decidedBy: 'ada', decidedByKind: ApprovalActorKind.USER }
                     );
                     throw new Error('The approval failed after the match.');
@@ -438,18 +494,22 @@ export function describeBankTransactions(dataSourceName: string): void {
 
         it('recomputes a state that does not hold from the matches, and creates one that is missing', async () => {
             const bank: TestBank = await createBank();
-            const invoice: Invoice = await issueInvoice(bank, '2026-SIEMEN-0001');
-            const payment: BankTransaction = await createTransaction(bank, '1190', '2026-03-20T09:30:00.000Z', 'Invoice 2026-SIEMEN-0001');
+            const invoice: Invoice = await issueInvoice(bank, firstInvoiceNumber);
+            const payment: BankTransaction = await createTransaction(bank, '1190', paymentBookedAt, firstInvoiceRemittance);
             const other: BankTransaction = await createTransaction(bank, '75', '2026-03-21T09:30:00.000Z');
             await match(bank, payment, invoice, '1000', await suggestedRequest(bank, payment));
             const states: Repository<BankTransactionState> = inject(repositoryTokenFor(BankTransactionState));
             await inTenant(bank.tenantId, async () => {
                 // written around the bank plugin
-                await states.updateAll({ transactionId: payment.id }, { openAmount: new BigNumber('1190'), status: BankTransactionStatus.OPEN });
+                await states.updateAll(
+                    { transactionId: payment.id },
+                    { openAmount: new BigNumber('1190'), status: BankTransactionStatus.OPEN }
+                );
                 await states.deleteAll({ transactionId: other.id });
             });
 
-            const written: BankTransactionState[] = await inTenant(bank.tenantId, async () => await bankMatches().recomputeTransactionStates());
+            const written: BankTransactionState[]
+                = await inTenant(bank.tenantId, async () => await bankMatches().recomputeTransactionStates());
 
             expect(written.map(s => [s.transactionId, s.status, s.openAmount.toFixed(2)]).sort()).toEqual([
                 [payment.id, BankTransactionStatus.OPEN, '190.00'],
@@ -462,8 +522,11 @@ export function describeBankTransactions(dataSourceName: string): void {
         it('suggests no invoice without an issuedAt, a draft', async () => {
             const bank: TestBank = await createBank();
             const draft: Invoice = await issueInvoice(bank, 'TEMP-2026-SIEMEN-0001');
-            await inTenant(bank.tenantId, async () => await inject<Repository<Invoice>>(repositoryTokenFor(Invoice)).updateById(draft.id, { issuedAt: null }));
-            const payment: BankTransaction = await createTransaction(bank, '1190', '2026-03-20T09:30:00.000Z', 'Invoice TEMP-2026-SIEMEN-0001');
+            await inTenant(
+                bank.tenantId,
+                async () => await inject<Repository<Invoice>>(repositoryTokenFor(Invoice)).updateById(draft.id, { issuedAt: null })
+            );
+            const payment: BankTransaction = await createTransaction(bank, '1190', paymentBookedAt, 'Invoice TEMP-2026-SIEMEN-0001');
 
             expect(await suggest(bank, payment)).toEqual([]);
         });
@@ -479,14 +542,15 @@ export function describeBankTransactions(dataSourceName: string): void {
 
         it('answers the pending suggestions of a transaction, with the difference each would leave of its invoice', async () => {
             const bank: TestBank = await createBank();
-            const invoice: Invoice = await issueInvoice(bank, '2026-SIEMEN-0001');
-            const short: BankTransaction = await createTransaction(bank, '1189.99', '2026-03-20T00:00:00.000Z', 'Invoice 2026-SIEMEN-0001');
+            const invoice: Invoice = await issueInvoice(bank, firstInvoiceNumber);
+            const short: BankTransaction = await createTransaction(bank, '1189.99', '2026-03-20T00:00:00.000Z', firstInvoiceRemittance);
             const other: Invoice = await issueInvoice(bank, '2026-SIEMEN-0002');
             const part: BankTransaction = await createTransaction(bank, '1000', '2026-03-21T00:00:00.000Z', 'Invoice 2026-SIEMEN-0002');
             const [suggested] = await suggest(bank, short);
             await suggest(bank, part);
 
-            const suggestions: BankTransactionSuggestion[] = await inTenant(bank.tenantId, async () => await bankMatches().findSuggestions(short.id));
+            const suggestions: BankTransactionSuggestion[]
+                = await inTenant(bank.tenantId, async () => await bankMatches().findSuggestions(short.id));
 
             expect(suggestions).toHaveLength(1);
             expect(suggestions[0]).toMatchObject({
@@ -509,7 +573,8 @@ export function describeBankTransactions(dataSourceName: string): void {
             const stranger: TestBank = await createBank();
 
             expect(await inTenant(bank.tenantId, async () => await bankMatches().findSuggestions(lonely.id))).toEqual([]);
-            await expect(inTenant(stranger.tenantId, async () => await bankMatches().findSuggestions(lonely.id))).rejects.toThrow(lonely.id);
+            await expect(inTenant(stranger.tenantId, async () => await bankMatches().findSuggestions(lonely.id)))
+                .rejects.toThrow(lonely.id);
             expect((await findDetails(stranger, {})).totalAmount).toBe(0);
         });
     });

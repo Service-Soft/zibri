@@ -1,4 +1,5 @@
-import { MailingListBaseEmailTemplate, MjColumn, MjRaw, MjSection } from 'zibri';
+import { MjColumn, MjRaw, MjSection } from 'zibri';
+import { MailingListBaseEmailTemplate } from 'zibri/plugin/mailing-list';
 
 import { BaseEmail } from './base-email';
 import { BaseEmailFooter } from './base-email-footer';

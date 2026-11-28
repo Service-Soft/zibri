@@ -83,7 +83,12 @@ export class TenantWebDavConnectionService implements TenantWebDavConnectionServ
         };
         // what logs in, changed: a connection that stops reaching its folder would fail every feature using it later,
         // where nobody sees why. A kind changed to Nextcloud needs a url of one
-        if (changed.kind !== stored.kind || changed.url !== stored.url || changed.username !== stored.username || changed.password !== stored.password) {
+        if (
+            changed.kind !== stored.kind
+            || changed.url !== stored.url
+            || changed.username !== stored.username
+            || changed.password !== stored.password
+        ) {
             await this.validateConnection(changed);
         }
         const data: Partial<Pick<TenantWebDavConnection, 'name' | 'kind' | 'url' | 'username' | 'password'>> = {
@@ -93,10 +98,7 @@ export class TenantWebDavConnectionService implements TenantWebDavConnectionServ
             ...change.username === undefined ? {} : { username: change.username },
             ...change.password === undefined ? {} : { password: change.password }
         };
-        if (!Object.keys(data).length) {
-            return stored;
-        }
-        return await this.connectionRepository.updateById(connectionId, data);
+        return !Object.keys(data).length ? stored : await this.connectionRepository.updateById(connectionId, data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -146,7 +148,9 @@ export class TenantWebDavConnectionService implements TenantWebDavConnectionServ
             throw this.resolveTestError(url, error);
         }
         if (entry == undefined) {
-            throw new BadRequestError($ts`The url of a WebDAV connection needs to be a folder on the server, and the server has nothing at ${url.href}.`);
+            throw new BadRequestError(
+                $ts`The url of a WebDAV connection needs to be a folder on the server, and the server has nothing at ${url.href}.`
+            );
         }
         if (entry.kind === 'file') {
             throw new BadRequestError($ts`The url of a WebDAV connection needs to be a folder, and ${url.href} is a file.`);
@@ -230,7 +234,7 @@ export class TenantWebDavConnectionService implements TenantWebDavConnectionServ
             throw new BadRequestError($ts`The url of a WebDAV connection needs to be an absolute url, such as https://cloud.example.com/remote.php/dav/.`);
         }
         const allowsPrivateNetworks: boolean = this.tenantConnectionOptions.allowPrivateNetworks;
-        if (parsed.protocol === 'https:' || parsed.protocol === 'http:' && allowsPrivateNetworks) {
+        if (parsed.protocol === 'https:' || (parsed.protocol === 'http:' && allowsPrivateNetworks)) {
             return parsed;
         }
         throw new BadRequestError($ts`The url of a WebDAV connection needs to start with https://.`);
@@ -248,7 +252,9 @@ export class TenantWebDavConnectionService implements TenantWebDavConnectionServ
             NetworkAddressUtilities.validateAllowedHost(url.hostname, options.allowedHosts);
         }
         catch {
-            throw new BadRequestError($ts`The host of a WebDAV connection needs to be one your application allows, and ${url.hostname} is not.`);
+            throw new BadRequestError(
+                $ts`The host of a WebDAV connection needs to be one your application allows, and ${url.hostname} is not.`
+            );
         }
         if (options.allowPrivateNetworks) {
             return;
@@ -258,7 +264,9 @@ export class TenantWebDavConnectionService implements TenantWebDavConnectionServ
         }
         catch (error) {
             if (error instanceof InternalError) {
-                throw new BadRequestError($ts`The host of a WebDAV connection needs to lead to public addresses only, and ${url.hostname} does not.`);
+                throw new BadRequestError(
+                    $ts`The host of a WebDAV connection needs to lead to public addresses only, and ${url.hostname} does not.`
+                );
             }
             throw new BadRequestError($ts`The host ${url.hostname} of the WebDAV connection cannot be found.`, { cause: error });
         }
@@ -272,23 +280,31 @@ export class TenantWebDavConnectionService implements TenantWebDavConnectionServ
      */
     private resolveTestError(url: URL, error: unknown): unknown {
         if (error instanceof WebDavForbiddenError) {
-            return new BadRequestError($ts`The user of the WebDAV connection needs to be allowed to read the folder at ${url.href}.`, { cause: error });
+            return new BadRequestError(
+                $ts`The user of the WebDAV connection needs to be allowed to read the folder at ${url.href}.`,
+                { cause: error }
+            );
         }
-        if (error instanceof CircuitOpenError || error instanceof HttpClientError && error.responseData == undefined) {
+        if (error instanceof CircuitOpenError || (error instanceof HttpClientError && error.responseData == undefined)) {
             return new BadRequestError($ts`The WebDAV server at ${url.origin} cannot be reached.`, { cause: error });
         }
         if (error instanceof HttpClientError) {
             const status: number = error.responseData?.status ?? 0;
-            if (status === HttpStatus.UNAUTHORIZED) {
-                return new BadRequestError($ts`The WebDAV server refused the username or the password.`, { cause: error });
-            }
-            // a server that answers, but with no listing of a folder: a web page, or a WebDAV server that refuses
-            return new BadRequestError($ts`The url of a WebDAV connection needs to be a folder of a WebDAV server, and ${url.href} answered with ${String(status)}.`, { cause: error });
+            // otherwise a server that answers, but with no listing of a folder: a web page, or a WebDAV server that refuses
+            return status === HttpStatus.UNAUTHORIZED
+                ? new BadRequestError($ts`The WebDAV server refused the username or the password.`, { cause: error })
+                : new BadRequestError(
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
+                    $ts`The url of a WebDAV connection needs to be a folder of a WebDAV server, and ${url.href} answered with ${String(status)}.`,
+                    { cause: error }
+                );
         }
         // a redirect to a host that may not be reached, or an answer about another folder
-        if (error instanceof InternalError) {
-            return new BadRequestError($ts`The url of a WebDAV connection needs to be a folder of a WebDAV server, and ${url.href} is none.`, { cause: error });
-        }
-        return error;
+        return error instanceof InternalError
+            ? new BadRequestError(
+                $ts`The url of a WebDAV connection needs to be a folder of a WebDAV server, and ${url.href} is none.`,
+                { cause: error }
+            )
+            : error;
     }
 }

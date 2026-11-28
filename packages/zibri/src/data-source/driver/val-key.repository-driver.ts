@@ -52,6 +52,8 @@ import { UnboundedReturnError } from '../unbounded-return.error';
 import { UniqueConstraintViolationError } from '../unique-constraint-violation.error';
 import { UpsertIdentityUtilities } from '../upsert-identity.utilities';
 import { WriteDataUtilities } from '../write-data.utilities';
+import { IndexLookup } from './index-lookup.model';
+import { IndexLookupUtilities } from './index-lookup.utilities';
 import { RelatedRowsReader } from './related-rows-reader.interface';
 import { RelationResolutionUtilities } from './relation-resolution.utilities';
 import { RemovalReach } from './removal-reach.model';
@@ -155,20 +157,6 @@ export type StoredRowChange = {
      * The row after the write. Undefined for a row the write deleted.
      */
     after: Record<string, string> | undefined
-};
-
-/**
- * The index declaration a filter is answered from, and the entries of it the filter names.
- */
-type IndexLookup = {
-    /**
-     * The properties of the declaration.
-     */
-    group: string[],
-    /**
-     * The keys of the entries holding the ids of the rows the filter can match.
-     */
-    keys: string[]
 };
 
 /**
@@ -587,9 +575,10 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         this.checks = (metadata.checks ?? []).map(check => check.where);
         this.properties = MetadataUtilities.getModelProperties(entityClass);
         this.uniqueGroups = this.resolveUniqueGroups();
-        this.indexGroups = this.resolveIndexGroups(
+        this.indexGroups = IndexLookupUtilities.resolveGroups(
             ModelRegistry.get(this.entityClass).keyDescriptor.indexes,
-            ModelRegistry.get(this.entityClass).keyDescriptor.uniques
+            ModelRegistry.get(this.entityClass).keyDescriptor.uniques,
+            this.properties
         );
     }
 
@@ -2480,47 +2469,6 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
     }
 
     /**
-     * Collects the index declarations a filter can be answered from.
-     *
-     * An index answers a lookup by any leading part of itself, and a unique over every row is kept by
-     * one over its columns in the order they are written. An entry here is the whole combination of a
-     * group's values, so every leading part of each is kept as a group of its own - which is what lets
-     * an entity declare (tenantId, status) and nothing on tenantId alone, as it does on a sql store.
-     * @param indexes - The declarations, a property carrying `index` being a group of one.
-     * @param uniques - The unique declarations, whose leading parts are answered the same way.
-     * @returns The groups, each sorted, without duplicates and without a group naming an encrypted or
-     * hashed property, the longest first so a filter is answered from the one that names most of it.
-     */
-    private resolveIndexGroups(indexes: string[][], uniques: UniqueGroup[]): string[][] {
-        const seen: Set<string> = new Set();
-        const leadingParts: (group: string[], length: number) => string[][] = (group, length) => Array
-            .from({ length }, (_, i) => group.slice(0, i + 1));
-        return [
-            ...indexes.flatMap(group => leadingParts(group, group.length)),
-            // the whole group is answered through the unique's own entries
-            ...uniques.filter(group => coversEveryRow(group.where))
-                .flatMap(group => leadingParts(group.properties, group.properties.length - 1))
-        ]
-            .sort((a, b) => b.length - a.length)
-            .map(group => [...group].sort())
-            .filter(group => group.every(key => !this.isTransformedOnWrite(this.properties[key])))
-            .filter(group => {
-                const id: string = group.join(',');
-                if (seen.has(id)) {
-                    return false;
-                }
-                seen.add(id);
-                return true;
-            });
-    }
-
-    private isTransformedOnWrite(metadata: PropertyMetadata | undefined): boolean {
-        return metadata != undefined
-            && (('encryption' in metadata && metadata.encryption != undefined && metadata.encryption !== false)
-                || ('hash' in metadata && metadata.hash != undefined && metadata.hash !== false));
-    }
-
-    /**
      * The writes that move rows between the entries of every index declaration.
      *
      * Plain set operations, which commute: two rows changing different values never have to be
@@ -2595,58 +2543,21 @@ export class ValKeyRepositoryDriver<T extends BaseEntity> implements RepositoryD
         transaction: ValKeyTransaction | undefined,
         readAlong: number | undefined
     ): Promise<Candidates | undefined> {
-        if (where == undefined || !this.indexGroups.length) {
+        const lookups: IndexLookup[] | undefined = IndexLookupUtilities.findLookups(
+            where,
+            this.indexGroups,
+            (key, value) => this.isPlainValue(value) ? this.encodeFilterValue(key, value) : undefined
+        );
+        if (lookups == undefined) {
             return undefined;
         }
-        const filters: WhereFilter<T>[] = Array.isArray(where) ? where : [where];
-        const named: Set<string> = new Set();
-        const entryKeys: string[] = [];
-        for (const filter of filters) {
-            const lookup: IndexLookup | undefined = this.indexLookupForFilter(filter);
-            if (lookup == undefined) {
-                return undefined;
-            }
-            named.add(`index:${lookup.group.join(',')}`);
-            entryKeys.push(...lookup.keys);
-        }
+        const named: Set<string> = new Set(lookups.map(lookup => `index:${lookup.group.join(',')}`));
+        const entryKeys: string[] = lookups.flatMap(lookup => lookup.entries.map(entry => this.indexKey(lookup.group, entry)));
 
         // whether each index is built, and what it holds, in one round trip
         const read: SetsWithRows = await this.readSetsWithRows([this.builtKey(), ...entryKeys], 1, transaction, readAlong);
         const [built = [], ...entries]: string[][] = read.members;
         return [...named].some(identity => !built.includes(identity)) ? undefined : { ids: [...new Set(entries.flat())], rows: read.rows };
-    }
-
-    /**
-     * Finds the first index declaration a single filter names in full, and the entries it reads.
-     * @param filter - One branch of the where filter.
-     * @returns The declaration and its entry keys, or undefined when no declaration is named by plain
-     * values. A declaration of one property may also be named by a `oneOf` of plain values.
-     */
-    private indexLookupForFilter(filter: WhereFilter<T>): IndexLookup | undefined {
-        const conditions: Record<string, unknown> = filter;
-        for (const group of this.indexGroups) {
-            const [only] = group;
-            const listed: unknown[] | undefined = group.length === 1 && only != undefined
-                ? this.findPlainOneOf(conditions[only])
-                : undefined;
-            if (only != undefined && listed != undefined) {
-                return { group, keys: listed.map(v => this.indexKey(group, `${only}=${this.encodeFilterValue(only, v)}`)) };
-            }
-            if (group.every(key => this.isPlainValue(conditions[key]))) {
-                const values: string = group.map(key => `${key}=${this.encodeFilterValue(key, conditions[key])}`).join(':');
-                return { group, keys: [this.indexKey(group, values)] };
-            }
-        }
-        return undefined;
-    }
-
-    // the values of a `oneOf` that lists plain values only, each of which is one entry
-    private findPlainOneOf(condition: unknown): unknown[] | undefined {
-        if (typeof condition !== 'object' || condition == undefined || !('oneOf' in condition) || !Array.isArray(condition.oneOf)) {
-            return undefined;
-        }
-        const listed: unknown[] = condition.oneOf;
-        return listed.every(v => this.isPlainValue(v)) ? listed : undefined;
     }
 
     private isPlainValue(value: unknown): boolean {

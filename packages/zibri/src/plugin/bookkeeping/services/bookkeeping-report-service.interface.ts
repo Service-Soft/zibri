@@ -4,8 +4,8 @@ import { type BookkeepingLedgerReport } from '../models/bookkeeping-ledger-repor
 import { type BookkeepingRevenueReport } from '../models/bookkeeping-revenue-report.model';
 import { type BookkeepingStatementFormChoices } from '../models/bookkeeping-statement-form-choices.model';
 import { type BookkeepingStatementForms } from '../models/bookkeeping-statement-forms.model';
-import { type BookkeepingStatement } from '../models/bookkeeping-statement.model';
 import { type BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
+import { type BookkeepingStatement } from '../models/bookkeeping-statement.model';
 import { type BookkeepingTrialBalance } from '../models/bookkeeping-trial-balance.model';
 import { type FiscalYearStatement } from '../models/fiscal-year-statement.model';
 import { type FiscalYear } from '../models/fiscal-year.model';

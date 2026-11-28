@@ -2,6 +2,20 @@ import { type EBilanzAccountingStandard } from './e-bilanz-accounting-standard.e
 import { type EBilanzRevisionStatus } from './e-bilanz-revision-status.enum';
 
 /**
+ * The amount of one column of the statement of changes in fixed assets.
+ */
+export type EBilanzFixedAssetValueInputModel = {
+    /**
+     * The name of the column, such as `grossCost.beginning`.
+     */
+    column: string,
+    /**
+     * The amount, as a decimal.
+     */
+    amount: string
+};
+
+/**
  * The figures of the statement of changes in fixed assets of one position the books do not hold, such as the
  * acquisition costs at the start of the year.
  */
@@ -11,9 +25,9 @@ export type EBilanzFixedAssetInputModel = {
      */
     position: string,
     /**
-     * The amount of each column named, by the name of the column, such as `grossCost.beginning`, as a decimal.
+     * The amount of each column named.
      */
-    values: { column: string, amount: string }[]
+    values: EBilanzFixedAssetValueInputModel[]
 };
 
 /**

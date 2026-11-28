@@ -20,7 +20,9 @@ Plugins are listed in the `plugins` option your application is built from:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, ZibriApplicationOptions } from 'zibri';
+import { ZibriInvoicingPlugin } from 'zibri/plugin/invoicing';
+import { ZibriMailingListPlugin } from 'zibri/plugin/mailing-list';
 
 export const baseApplicationOptions: OmitStrict<ZibriApplicationOptions, 'dataSources'> = {
     name: 'Task Tracker',
@@ -40,6 +42,7 @@ Everything a plugin lists is merged into your application, see [writing a custom
 Some plugins need configuration or controllers from you. The page of each built-in plugin says which.
 
 ## Using a built-in plugin
+Each built-in plugin has an entry point of its own, `zibri/plugin/<name>`, such as `zibri/plugin/invoicing`. You import the names of a plugin from it, so your application carries only the plugins it imports.
 
 | Plugin | Page |
 |---|---|

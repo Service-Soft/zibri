@@ -4,8 +4,8 @@ import { InternalError } from '../../error-handling/internal-error.model';
 import { $t } from '../../localization/translate.function';
 import { BigNumber } from '../../utilities/number.utilities';
 import { BookkeepingStatementUtilities } from './bookkeeping-statement.utilities';
-import { BookkeepingStatementType } from './models/bookkeeping-statement-type.enum';
 import { type BookkeepingStatementStructure } from './models/bookkeeping-statement-structure.model';
+import { BookkeepingStatementType } from './models/bookkeeping-statement-type.enum';
 import { HGB_STATEMENT_STRUCTURES } from './statements/hgb-statement-structures.model';
 
 const CASH: BookkeepingStatementStructure = {

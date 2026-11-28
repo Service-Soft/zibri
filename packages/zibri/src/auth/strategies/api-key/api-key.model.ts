@@ -1,10 +1,10 @@
+import { FrameworkColumnRegistry } from '../../../data-source/migration/framework-column.registry';
 import { BaseEntity } from '../../../entity/base-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { OmitClass } from '../../../entity/omit-class.model';
 import type { HashString } from '../../hash/hash.utilities';
 import { Sha256HashStrategy } from '../../hash/strategies/sha256.hash-strategy';
-import { FrameworkColumnRegistry } from '../../../data-source/migration/framework-column.registry';
 import { type UserKind } from '../../models/user-kind.type';
 import { UserKindUtilities } from '../../user/user-kind.utilities';
 import { ApiKeyAuthenticationMethod } from './api-key-authentication-method.enum';
@@ -116,7 +116,12 @@ export class ApiKey extends BaseEntity {
 
 // added by the data source to a table that lacks it, so that the keys of 3.2 take no migration of the application's.
 // Every user of a key stored before users had a kind is a person
-FrameworkColumnRegistry.register({ entity: ApiKey, property: 'userKind', storedValue: () => 'person', meansAbsent: value => value === 'person' });
+FrameworkColumnRegistry.register({
+    entity: ApiKey,
+    property: 'userKind',
+    storedValue: () => 'person',
+    meansAbsent: value => value === 'person'
+});
 
 /**
  * Data for storing a new api key.

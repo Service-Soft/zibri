@@ -69,7 +69,8 @@ export type LocalizeOptions = {
      *
      * `'locale'`, the default, takes the `currencyCode` of the locale the price is formatted in. `'defaultLocale'`
      * takes the one of the `defaultLocale` in every locale, so that a price keeps its currency in every language:
-     * with `en-US` the default and `de` supported, 19.99 formats as `19,99 $` in `de` rather than as `19,99 €`.
+     * with `en-US` the default and `de` supported, 19.99 formats as `19,99 $` in `de`, where `'locale'` formats it as
+     * `19,99 €`.
      */
     readonly priceCurrency?: 'locale' | 'defaultLocale'
 };

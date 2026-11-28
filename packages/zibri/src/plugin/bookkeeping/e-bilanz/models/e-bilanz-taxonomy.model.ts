@@ -4,7 +4,7 @@ import { type EBilanzTaxonomyStatements } from './e-bilanz-taxonomy-statements.m
 
 /**
  * A version of the HGB taxonomy the E-Bilanz is stated in, as data: what a corporation reports in it, the fiscal years
- * it applies to, and the adapter that maps the books to it. Rebuilt from the official zip of XBRL Deutschland e.V. by
+ * it applies to, and the adapter that maps the books to it. Rebuilt from the official zip of XBRL Deutschland e.V. By
  * `scripts/build-e-bilanz-taxonomy.mjs` of the package.
  */
 export type EBilanzTaxonomy = {

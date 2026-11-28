@@ -33,7 +33,7 @@ import { MirroredFile } from './mirrored-file.model';
 
 // what the file mirror sends and how it reads the answers, against a WebDAV server in this process that answers as
 // Nextcloud does, through a connection of each kind. What real servers do is held by
-// file-mirror.service.apache.test.ts and file-mirror.service.nextcloud.test.ts
+// file-mirror.service.container.test.ts and file-mirror.service.nextcloud.test.ts
 
 const webDav: InProcessWebDavServer = new InProcessWebDavServer('ada', 'Lovelace-app-password');
 const tenantId: string = UUIDUtilities.generate();
@@ -108,10 +108,12 @@ beforeAll(async () => {
     await webDav.start();
     webDav.createFolder(root);
     testServer = await startTestServer({
-        dataSources: [createInMemoryDataSource({
-            entities: [...defaultTestServerEntities, TenantWebDavConnection, MirroredFile, FileMirrorRequest, FileMirrorShareLink],
-            repositories: defaultTestServerRepositories
-        })],
+        dataSources: [
+            createInMemoryDataSource({
+                entities: [...defaultTestServerEntities, TenantWebDavConnection, MirroredFile, FileMirrorRequest, FileMirrorShareLink],
+                repositories: defaultTestServerRepositories
+            })
+        ],
         providers: [
             ...defaultTestServerProviders,
             // the server of this process, which a tenant's connection reaches only on a private network
@@ -231,9 +233,7 @@ describe('FileMirrorService, as the requests it sends', () => {
         finally {
             webDav.down = false;
         }
-        expect(await requests.findAll({ where: { path: file.path }, acrossTenants: true })).toEqual([
-            expect.objectContaining({ attempts: 1, nextAttemptAt: expect.any(Date), error: expect.objectContaining({ name: 'HttpClientError' }) })
-        ]);
+        expect(await requests.findAll({ where: { path: file.path }, acrossTenants: true })).toEqual([expect.objectContaining({ attempts: 1, nextAttemptAt: expect.any(Date), error: expect.objectContaining({ name: 'HttpClientError' }) })]);
         expect(webDav.files.has(file.path)).toBe(false);
 
         // as if the minute of the first retry had passed
@@ -268,6 +268,30 @@ describe('FileMirrorService, as the requests it sends', () => {
         expect(webDav.files.get(moved)?.content.toString()).toBe('%PDF-1.7 signed');
         expect(webDav.files.has(file.path)).toBe(false);
         expect(await findMirrored(file)).toMatchObject({ conflict: MirroredFileConflict.CHANGED, currentPath: moved });
+    });
+
+    // Nextcloud names the same ETag for a change in the second of the write before, which the If-Match let through
+    it('leaves a file changed on a Nextcloud in the second it was mirrored in as it is, and reports the conflict', async () => {
+        const file: FileToMirror = createFile(nextcloudConnectionId, '%PDF-1.7 as issued');
+        await mirror(file);
+        webDav.editKeepingEtag(file.path, '%PDF-1.7 signed by the customer');
+
+        await mirror({ ...file, content: '%PDF-1.7 corrected' });
+
+        expect(webDav.files.get(file.path)?.content.toString()).toBe('%PDF-1.7 signed by the customer');
+        expect(await findMirrored(file)).toMatchObject({ conflict: MirroredFileConflict.CHANGED });
+    });
+
+    it('writes a file on a Nextcloud with the checksum of what it holds, and a new version of it nobody changed', async () => {
+        const file: FileToMirror = createFile(nextcloudConnectionId, '%PDF-1.7 version 1');
+        await mirror(file);
+
+        await mirror({ ...file, content: '%PDF-1.7 version 2' });
+
+        expect(webDav.files.get(file.path)?.content.toString()).toBe('%PDF-1.7 version 2');
+        expect(webDav.files.get(file.path)?.checksum).toBe(`SHA256:${createHash('sha256').update('%PDF-1.7 version 2')
+            .digest('hex')}`);
+        expect(await findMirrored(file)).toMatchObject({ conflict: null });
     });
 
     it('writes a file a Nextcloud names another ETag of once it is moved, as long as it holds what was written last', async () => {
@@ -335,8 +359,15 @@ describe('FileMirrorService, resolving a conflict', () => {
 
         await inTenant(async service => await service.resolveConflict(conflicted.id, MirroredFileConflictResolution.OVERWRITE));
 
-        expect(kept).toEqual([expect.objectContaining({ heldForConflict: true, contentHash: createHash('sha256').update('%PDF-1.7 corrected again').digest('hex') })]);
-        expect(webDav.requests.slice(before).filter(request => request.method === 'PUT').map(request => [request.path, request.ifMatch, request.ifNoneMatch]))
+        expect(kept).toEqual([
+            expect.objectContaining({
+                heldForConflict: true,
+                contentHash: createHash('sha256').update('%PDF-1.7 corrected again')
+                    .digest('hex')
+            })
+        ]);
+        expect(webDav.requests.slice(before).filter(request => request.method === 'PUT')
+            .map(request => [request.path, request.ifMatch, request.ifNoneMatch]))
             .toEqual([[file.path, undefined, undefined]]);
         expect(webDav.files.get(file.path)?.content.toString()).toBe('%PDF-1.7 corrected again');
         expect(await findMirrored(file)).toMatchObject({ conflict: null, etag: webDav.files.get(file.path)?.etag });

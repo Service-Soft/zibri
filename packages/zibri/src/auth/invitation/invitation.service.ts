@@ -24,10 +24,10 @@ import { runInLocale } from '../../localization/run-in-locale.function';
 import { $ts } from '../../localization/translate.function';
 import { AuditAction, AuditOutcome } from '../../logging/audit-event.model';
 import { AuditUtilities } from '../../logging/audit.utilities';
-import { type BaseMembership } from '../../tenancy/membership/base-membership.model';
-import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { type PendingRowShare } from '../../sharing/pending-row-share.model';
 import { type RowShareGrant } from '../../sharing/row-share-grant.model';
+import { type BaseMembership } from '../../tenancy/membership/base-membership.model';
+import { type MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { type BaseTenantDefinition } from '../../tenancy/tenant-definition/base-tenant-definition.model';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { TsxUtilities } from '../../tsx/tsx.utilities';
@@ -207,8 +207,12 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
         const { email, tenantId, roles, createOn, declinable, expiresInMs, locale, withoutPassword = false, rowShares = [], ...own } = data;
         return await this.audited(AuditAction.INVITATION_CREATED, tenantId, email, caller.id, transaction, async () => {
             // the account it creates has no other way in than a link
-            if (withoutPassword && !this.authService.authenticators.some(a => a === LoginLinkAuthenticator || a.prototype instanceof LoginLinkAuthenticator)) {
+            if (
+                withoutPassword
+                && !this.authService.authenticators.some(a => a === LoginLinkAuthenticator || a.prototype instanceof LoginLinkAuthenticator)
+            ) {
                 throw new BadRequestError(
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                     $ts`An invitation without a password logs its account in by a link, which needs LoginLinkAuthenticator among the authenticators of the application.`
                 );
             }
@@ -408,16 +412,7 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
     ): Promise<AcceptingUser> {
         const existing: BaseUser<string> | undefined = await this.findAccountToLogInAs(invitation, transaction);
         if (existing != undefined) {
-            // a link forwarded to somebody else adds no account but the one of the email to the tenant
-            if (acceptance.loggedInUserId == undefined) {
-                throw new UnauthorizedError($ts`Log in as the account of the invited email to accept the invitation.`);
-            }
-            if (acceptance.loggedInUserId !== existing.id) {
-                throw new ForbiddenError($ts`The invitation is for another account.`);
-            }
-            if (acceptance.password != undefined) {
-                throw new BadRequestError($ts`The account has a password already, so accepting takes none.`);
-            }
+            this.validateExistingAccountAcceptance(existing, acceptance);
             return { user: existing, logsIn: false };
         }
         const withoutPassword: boolean = invitation.withoutPassword === true;
@@ -449,6 +444,26 @@ export class InvitationService implements InvitationServiceInterface, OnAppInit 
         }
         await setPassword(user.id, { password, requireChange: false }, transaction);
         return { user, logsIn: false };
+    }
+
+    /**
+     * Validates that the account an email has accepts its invitation: logged in as it, and with no password given.
+     * @param existing - The account the email has.
+     * @param acceptance - Who accepts, and with what.
+     * @throws An UnauthorizedError while nobody is logged in, a ForbiddenError while somebody else is, a
+     * BadRequestError for a password given.
+     */
+    private validateExistingAccountAcceptance(existing: BaseUser<string>, acceptance: InvitationAcceptance): void {
+        // a link forwarded to somebody else adds no account but the one of the email to the tenant
+        if (acceptance.loggedInUserId == undefined) {
+            throw new UnauthorizedError($ts`Log in as the account of the invited email to accept the invitation.`);
+        }
+        if (acceptance.loggedInUserId !== existing.id) {
+            throw new ForbiddenError($ts`The invitation is for another account.`);
+        }
+        if (acceptance.password != undefined) {
+            throw new BadRequestError($ts`The account has a password already, so accepting takes none.`);
+        }
     }
 
     /**

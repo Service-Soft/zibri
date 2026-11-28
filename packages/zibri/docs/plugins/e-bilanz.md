@@ -45,11 +45,12 @@ keywords: [e-bilanz, ebilanz, § 5b estg, elster, eric, xbrl, hgb taxonomy, taxo
 `zibri-contract` has the models of the routes for your frontend, such as `EBilanzStateModel`, `EBilanzContentModel`, `EBilanzFilingModel`, `GermanBookkeepingCompanyModel`, `EBilanzPreparationInputModel`, `EBilanzFilingKind` and the permissions.
 
 ## Setting it up
-Add `new ZibriEBilanzPlugin()` beside the bookkeeping plugin, see [setting it up](./bookkeeping-plugin.md#setting-it-up), and `EBilanzSettings`, `EBilanzAccountMapping` and `EBilanzFiling` to the data source of the books. List `EBilanzConformanceService` among the conformances of the books, beside those of the HGB:
+Add `new ZibriEBilanzPlugin()` beside the bookkeeping plugin, see [setting it up](./bookkeeping-plugin.md#setting-it-up), and `EBilanzSettings`, `EBilanzAccountMapping` and `EBilanzFiling` to the data source of the books. You import the names of the E-Bilanz from `zibri/plugin/bookkeeping`, like those of the bookkeeping plugin. List `EBilanzConformanceService` among the conformances of the books, beside those of the HGB:
 
 ```ts
 // src/e-bilanz-conformances.provider.ts
-import { DiProvider, EBilanzConformanceService, HgbCorporationConformanceService, inject, UgConformanceService, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { DiProvider, inject } from 'zibri';
+import { EBilanzConformanceService, HgbCorporationConformanceService, UgConformanceService, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export const eBilanzConformances: DiProvider<unknown> = {
     token: ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.BOOKKEEPING_CONFORMANCE_SERVICES,
@@ -61,7 +62,8 @@ The application refuses to start with the plugin and without the conformance, as
 
 ```ts
 // src/company-model.provider.ts
-import { BookkeepingCompany, DiProvider, GermanBookkeepingCompany, Newable, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri';
+import { DiProvider, Newable } from 'zibri';
+import { BookkeepingCompany, GermanBookkeepingCompany, ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 export const companyModel: DiProvider<Newable<BookkeepingCompany>> = {
     token: ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.COMPANY_MODEL,
@@ -73,7 +75,8 @@ The application refuses to start with the plugin and another company model, as t
 
 ```ts
 // src/controllers/e-bilanz.controller.ts
-import { Controller, EBilanzController } from 'zibri';
+import { Controller } from 'zibri';
+import { EBilanzController } from 'zibri/plugin/bookkeeping';
 
 @Controller('/e-bilanz', { versions: 'all' })
 export class AppEBilanzController extends EBilanzController {}
@@ -236,7 +239,8 @@ An exporter writes the latest preparation as a file of one format, which a perso
 
 ```ts
 // src/e-bilanz/json.e-bilanz-exporter.ts
-import { EBilanzContent, EBilanzExporterInterface, MimeType } from 'zibri';
+import { MimeType } from 'zibri';
+import { EBilanzContent, EBilanzExporterInterface } from 'zibri/plugin/bookkeeping';
 
 export class JsonEBilanzExporter implements EBilanzExporterInterface {
     readonly name: string = 'json';
@@ -251,7 +255,8 @@ export class JsonEBilanzExporter implements EBilanzExporterInterface {
 
 ```ts
 // src/e-bilanz-exporter.provider.ts
-import { DiProvider, E_BILANZ_EXPORTER_DI_VARIANT, InjectionToken } from 'zibri';
+import { DiProvider, InjectionToken } from 'zibri';
+import { E_BILANZ_EXPORTER_DI_VARIANT } from 'zibri/plugin/bookkeeping';
 
 import { JsonEBilanzExporter } from './e-bilanz/json.e-bilanz-exporter';
 
@@ -267,7 +272,8 @@ XBRL is the format the tax administration takes the E-Bilanz in: an instance doc
 
 ```ts
 // src/xbrl-e-bilanz-exporter.provider.ts
-import { DiProvider, E_BILANZ_EXPORTER_DI_VARIANT, InjectionToken, XbrlEBilanzExporter } from 'zibri';
+import { DiProvider, InjectionToken } from 'zibri';
+import { E_BILANZ_EXPORTER_DI_VARIANT, XbrlEBilanzExporter } from 'zibri/plugin/bookkeeping';
 
 export const xbrlEBilanzExporter: DiProvider<XbrlEBilanzExporter> = {
     token: new InjectionToken<XbrlEBilanzExporter>('app.e_bilanz.xbrl_exporter'),
@@ -303,7 +309,7 @@ A transmitter sends the E-Bilanz to the tax administration, such as through ERiC
 
 ```ts
 // src/e-bilanz/office.e-bilanz-transmitter.ts
-import { EBilanzContent, EBilanzNotSentError, EBilanzTransmission, EBilanzTransmissionOptions, EBilanzTransmitterInterface } from 'zibri';
+import { EBilanzContent, EBilanzNotSentError, EBilanzTransmission, EBilanzTransmissionOptions, EBilanzTransmitterInterface } from 'zibri/plugin/bookkeeping';
 
 export class OfficeEBilanzTransmitter implements EBilanzTransmitterInterface {
     readonly name: string = 'office';
@@ -321,7 +327,8 @@ export class OfficeEBilanzTransmitter implements EBilanzTransmitterInterface {
 
 ```ts
 // src/e-bilanz-transmitter.provider.ts
-import { DiProvider, E_BILANZ_TRANSMITTER_DI_VARIANT, InjectionToken } from 'zibri';
+import { DiProvider, InjectionToken } from 'zibri';
+import { E_BILANZ_TRANSMITTER_DI_VARIANT } from 'zibri/plugin/bookkeeping';
 
 import { OfficeEBilanzTransmitter } from './e-bilanz/office.e-bilanz-transmitter';
 
@@ -438,7 +445,8 @@ A fiscal year is stated in the version mandatory for the fiscal years starting i
 
 ```ts
 // src/e-bilanz-taxonomies.provider.ts
-import { DiProvider, E_BILANZ_TAXONOMIES, EBilanzTaxonomy, EBilanzTaxonomyUtilities, HGB_TAXONOMY_6_10, ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS } from 'zibri';
+import { DiProvider } from 'zibri';
+import { E_BILANZ_TAXONOMIES, EBilanzTaxonomy, EBilanzTaxonomyUtilities, HGB_TAXONOMY_6_10, ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS } from 'zibri/plugin/bookkeeping';
 
 // the file the script writes for a version, here stated by what it changes of 6.10
 const HGB_TAXONOMY_6_11: EBilanzTaxonomy = EBilanzTaxonomyUtilities.resolveChanged(HGB_TAXONOMY_6_10, {

@@ -75,7 +75,7 @@ export class TenantBooksWriteObserver implements EntityWriteObserver, AfterAppIn
         if (this.options.tenantsWithoutBooks !== 'never' || !this.isCreating(write)) {
             return;
         }
-        const existing: Set<unknown> = new Set(write.before.map(row => Reflect.get(row, 'id')));
+        const existing: Set<unknown> = new Set(write.before.map((row): unknown => Reflect.get(row, 'id')));
         const created: BaseTenantDefinition[] = write.after.flatMap(row => this.isTenant(row) && !existing.has(row.id) ? [row] : []);
         if (!created.length) {
             return;
@@ -83,9 +83,14 @@ export class TenantBooksWriteObserver implements EntityWriteObserver, AfterAppIn
         const transaction: RepositoryTransaction | undefined = write.transaction;
         // every write creating a tenant has one, since requiresTransaction has the driver start it for one without
         if (transaction == undefined) {
-            throw new InternalError('The bookkeeping settings of a tenant are created in the transaction of its write, and the write has none.');
+            throw new InternalError(
+                'The bookkeeping settings of a tenant are created in the transaction of its write, and the write has none.'
+            );
         }
-        TransactionUtilities.validateNotSpanning(transaction, 'The bookkeeping settings of a tenant are created in the transaction of the tenant');
+        TransactionUtilities.validateNotSpanning(
+            transaction,
+            'The bookkeeping settings of a tenant are created in the transaction of the tenant'
+        );
         const tenantService: TenantServiceInterface = inject(ZIBRI_DI_TOKENS.TENANT_SERVICE);
         // one after the other, as the writes of one transaction run over one connection
         for (const tenant of created) {

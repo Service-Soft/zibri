@@ -123,7 +123,7 @@ describe('the columns a schema of 3.2 lacks', () => {
 
         expect(schema.getTable(Invoice).columns.map(c => c.property)).not.toContain('issuedAt');
         expect(() => schema.getColumn(Invoice, 'issuedAt')).toThrow(MissingFrameworkColumnError);
-        expect(() => schema.getColumn(Invoice, 'issuedAt')).toThrow(`ADD COLUMN "issuedAt"`);
+        expect(() => schema.getColumn(Invoice, 'issuedAt')).toThrow('ADD COLUMN "issuedAt"');
         expect(schema.getColumn(Invoice, 'number').name).toBe('number');
     });
 });

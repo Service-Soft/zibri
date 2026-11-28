@@ -24,8 +24,10 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { Ms } from '../../utilities/ms';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { WebsocketController } from '../../websocket/decorators/websocket-controller.decorator';
+import { type BaseWebsocketConnection } from '../../websocket/models/connection/base-websocket-connection.model';
 import { WebsocketChannel } from '../../websocket/models/websocket-channel.model';
 import { type WebsocketMessage } from '../../websocket/models/websocket-message.model';
+import { type WebsocketServiceInterface } from '../../websocket/services/websocket-service.interface';
 import { PROJECT_BOARD_WEBSOCKET_EVENT, type ProjectBoardMessage } from './models/project-board-message.model';
 import { ProjectBoardWebsocketController } from './project-board.websocket-controller';
 import { Permissions, PlatformPermissions, projectsOptions, projectsTestEntities, projectsTestRoles, TenantRoles, TestProjectsController } from './projects.cases';
@@ -87,11 +89,13 @@ const sockets: Socket[] = [];
 describe('ProjectBoardWebsocketController', () => {
     beforeAll(async () => {
         server = await startTestServer({
-            dataSources: [createInMemoryDataSource({
+            dataSources: [
+                createInMemoryDataSource({
                 // without the invitations, which nothing here sends
-                entities: [...defaultTestServerEntities, ...projectsTestEntities.filter(entity => entity !== TestInvitation)],
-                repositories: defaultTestServerRepositories
-            })],
+                    entities: [...defaultTestServerEntities, ...projectsTestEntities.filter(entity => entity !== TestInvitation)],
+                    repositories: defaultTestServerRepositories
+                })
+            ],
             authStrategies: [JwtAuthStrategy],
             authenticators: [PasswordAuthenticator],
             controllers: [TestProjectsController],
@@ -153,7 +157,10 @@ describe('ProjectBoardWebsocketController', () => {
             socket.once('connect_error', reject);
             socket.connect();
         });
-        await waitUntil(async () => (await inject(ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE).getConnections()).some(c => c.id === socket.id));
+        const websockets: WebsocketServiceInterface<BaseWebsocketConnection> = inject<WebsocketServiceInterface<BaseWebsocketConnection>>(
+            ZIBRI_DI_TOKENS.WEBSOCKET_SERVICE
+        );
+        await waitUntil(async () => (await websockets.getConnections()).some(c => c.id === socket.id));
         return { user, accessToken, socket, received };
     }
 

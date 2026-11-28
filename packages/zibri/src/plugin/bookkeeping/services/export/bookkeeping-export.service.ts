@@ -56,6 +56,16 @@ const CHUNK_SIZE: number = 500;
 const MAX_DOCUMENT_NAME_LENGTH: number = 100;
 
 /**
+ * The name of the table of the fiscal years.
+ */
+const FISCAL_YEARS_TABLE: string = 'fiscal-years';
+
+/**
+ * The name of the table of the journal entries.
+ */
+const JOURNAL_ENTRIES_TABLE: string = 'journal-entries';
+
+/**
  * A document of the export, read from the archive once every table is written.
  */
 type ExportedDocument = {
@@ -223,19 +233,32 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
     protected resolveFiscalYearTable(fiscalYear: FiscalYear, settings: BookkeepingSettings): BookkeepingExportTable {
         return {
             kind: 'table',
-            name: 'fiscal-years',
+            name: FISCAL_YEARS_TABLE,
             description: $ts`The fiscal year exported.`,
             columns: [
                 this.resolveIdColumn(),
                 this.resolveColumn('start', $ts`The first day of the fiscal year.`, BookkeepingExportColumnType.DAY),
                 this.resolveColumn('end', $ts`The last day of the fiscal year.`, BookkeepingExportColumnType.DAY),
                 this.resolveColumn('closedAt', $ts`When the fiscal year was closed, in UTC, or empty for an open one.`),
-                this.resolveColumn('reopenings', $ts`How often the fiscal year was reopened after a closing to correct its books.`, BookkeepingExportColumnType.NUMBER),
+                this.resolveColumn(
+                    'reopenings',
+                    $ts`How often the fiscal year was reopened after a closing to correct its books.`,
+                    BookkeepingExportColumnType.NUMBER
+                ),
                 this.resolveColumn('currency', $ts`The currency the books are kept in.`)
             ],
             primaryKey: 'id',
             foreignKeys: [],
-            rows: this.resolveRowsOf([[fiscalYear.id, fiscalYear.start, fiscalYear.end, this.formatMoment(fiscalYear.closedAt), fiscalYear.reopenings, settings.currency]])
+            rows: this.resolveRowsOf([
+                [
+                    fiscalYear.id,
+                    fiscalYear.start,
+                    fiscalYear.end,
+                    this.formatMoment(fiscalYear.closedAt),
+                    fiscalYear.reopenings,
+                    settings.currency
+                ]
+            ])
         };
     }
 
@@ -254,7 +277,10 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
                 this.resolveColumn('number', $ts`The number of the account.`),
                 this.resolveColumn('name', $ts`The name of the account.`),
                 this.resolveColumn('type', $ts`What the account holds: ASSET, LIABILITY, EQUITY, REVENUE or EXPENSE.`),
-                this.resolveColumn('statementPosition', $ts`The position of the balance sheet or the income statement the account is reported in.`),
+                this.resolveColumn(
+                    'statementPosition',
+                    $ts`The position of the balance sheet or the income statement the account is reported in.`
+                ),
                 this.resolveColumn('creditStatementPosition', $ts`The position the account is reported in while its balance is a credit.`),
                 this.resolveColumn('closedAt', $ts`When the account was closed, in UTC, or empty for an open one.`)
             ],
@@ -294,26 +320,37 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
     protected resolveEntryTable(fiscalYear: FiscalYear, state: ExportState): BookkeepingExportTable {
         return {
             kind: 'table',
-            name: 'journal-entries',
+            name: JOURNAL_ENTRIES_TABLE,
+            // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
             description: $ts`The journal entries posted into the fiscal year, each once, by their sequence. An entry is never changed: a wrong one is reversed by another entry.`,
             columns: [
                 this.resolveIdColumn(),
                 this.resolveColumn('fiscalYearId', $ts`The id of the fiscal year.`),
-                this.resolveColumn('sequence', $ts`The number of the entry in its fiscal year, counting from 1 without a gap.`, BookkeepingExportColumnType.NUMBER),
+                this.resolveColumn(
+                    'sequence',
+                    $ts`The number of the entry in its fiscal year, counting from 1 without a gap.`,
+                    BookkeepingExportColumnType.NUMBER
+                ),
                 this.resolveColumn('documentDate', $ts`The day of the document the entry is booked from.`, BookkeepingExportColumnType.DAY),
                 this.resolveColumn('postingDate', $ts`The day the entry is booked on.`, BookkeepingExportColumnType.DAY),
                 this.resolveColumn('documentReference', $ts`The number of the document.`),
                 this.resolveColumn('text', $ts`What was booked.`),
                 this.resolveColumn('createdBy', $ts`The id of the user who posted the entry, or empty when no user did.`),
                 this.resolveColumn('reversesEntryId', $ts`The id of the entry this one reverses.`),
-                this.resolveColumn('sourceType', $ts`What kind of thing created the entry, such as invoicing.invoice, or empty for an entry posted by hand.`),
+                this.resolveColumn(
+                    'sourceType',
+                    $ts`What kind of thing created the entry, such as invoicing.invoice, or empty for an entry posted by hand.`
+                ),
                 this.resolveColumn('sourceId', $ts`The id of what created the entry.`),
                 this.resolveColumn('postedAt', $ts`When the entry was posted, in UTC.`),
                 this.resolveChainSequenceColumn(),
                 this.resolveChainHashColumn()
             ],
             primaryKey: 'id',
-            foreignKeys: [{ column: 'fiscalYearId', table: 'fiscal-years' }, { column: 'reversesEntryId', table: 'journal-entries' }],
+            foreignKeys: [
+                { column: 'fiscalYearId', table: FISCAL_YEARS_TABLE },
+                { column: 'reversesEntryId', table: JOURNAL_ENTRIES_TABLE }
+            ],
             rows: this.resolveEntryRows(fiscalYear, state)
         };
     }
@@ -381,12 +418,16 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
                     BookkeepingExportColumnType.NUMBER,
                     decimals
                 ),
-                this.resolveColumn('role', $ts`What the line does beyond its amount: result for the line of the closing carrying the result of the year into equity, or empty.`),
+                this.resolveColumn(
+                    'role',
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
+                    $ts`What the line does beyond its amount: result for the line of the closing carrying the result of the year into equity, or empty.`
+                ),
                 this.resolveChainSequenceColumn(),
                 this.resolveChainHashColumn()
             ],
             primaryKey: 'id',
-            foreignKeys: [{ column: 'entryId', table: 'journal-entries' }, { column: 'accountId', table: 'accounts' }],
+            foreignKeys: [{ column: 'entryId', table: JOURNAL_ENTRIES_TABLE }, { column: 'accountId', table: 'accounts' }],
             rows: this.resolveLineRows(fiscalYear, state)
         };
     }
@@ -438,15 +479,22 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
                 this.resolveColumn('performanceDate', $ts`The day of the performance.`, BookkeepingExportColumnType.DAY),
                 this.resolveColumn('dueDate', $ts`The day the invoice is due.`, BookkeepingExportColumnType.DAY),
                 this.resolveColumn('customer', $ts`The name of the customer.`),
-                this.resolveColumn('precedingInvoices', $ts`The numbers of the invoices this one references, such as the one a credit note corrects.`),
+                this.resolveColumn(
+                    'precedingInvoices',
+                    $ts`The numbers of the invoices this one references, such as the one a credit note corrects.`
+                ),
                 this.resolveCurrencyColumn(),
                 this.resolveColumn('net', $ts`The total before tax.`, BookkeepingExportColumnType.NUMBER, decimals),
                 this.resolveColumn('tax', $ts`The total tax.`, BookkeepingExportColumnType.NUMBER, decimals),
                 this.resolveColumn('gross', $ts`The total after tax.`, BookkeepingExportColumnType.NUMBER, decimals),
                 this.resolveColumn('issuedAt', $ts`When the invoice was issued, in UTC.`),
-                this.resolveColumn('pdf', $ts`The path of the pdf archived at the issue of the invoice in the export, or empty when it is not in it.`),
+                this.resolveColumn(
+                    'pdf',
+                    $ts`The path of the pdf archived at the issue of the invoice in the export, or empty when it is not in it.`
+                ),
                 this.resolveColumn(
                     'electronicInvoice',
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                     $ts`The path of the xml of the electronic invoice archived at the issue of the invoice in the export, or empty when it is not in it.`
                 )
             ],
@@ -465,10 +513,17 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
      */
     protected async* resolveInvoiceRows(documents: boolean, state: ExportState): AsyncGenerator<BookkeepingExportValue[]> {
         const repository: Repository<Invoice> = inject(repositoryTokenFor(Invoice));
-        const calc: InvoiceCalcServiceInterface<Invoice> = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE);
-        const ids: string[] = [PostingSourceType.INVOICE, PostingSourceType.CREDIT_NOTE].flatMap(type => [...state.sources.get(type) ?? []]);
+        const calc: InvoiceCalcServiceInterface<Invoice> = inject<InvoiceCalcServiceInterface<Invoice>>(
+            ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE
+        );
+        const ids: string[] = [PostingSourceType.INVOICE, PostingSourceType.CREDIT_NOTE]
+            .flatMap(type => [...state.sources.get(type) ?? []]);
         for (const chunk of this.resolveChunks(ids)) {
-            const invoices: Invoice[] = await repository.findAll({ where: { id: { oneOf: chunk } }, order: { number: 'ASC' }, limit: 'all' });
+            const invoices: Invoice[] = await repository.findAll({
+                where: { id: { oneOf: chunk } },
+                order: { number: 'ASC' },
+                limit: 'all'
+            });
             // the documents of the invoices issued while the invoicing plugin archived them
             const archived: InvoiceDocument[] = documents && this.declared.has(InvoiceDocument)
                 ? await inject<Repository<InvoiceDocument>>(repositoryTokenFor(InvoiceDocument)).findAll({
@@ -536,7 +591,7 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
             primaryKey: 'id',
             foreignKeys: [
                 { column: 'accountId', table: 'accounts' },
-                { column: 'postedEntryId', table: 'journal-entries' },
+                { column: 'postedEntryId', table: JOURNAL_ENTRIES_TABLE },
                 { column: 'correctsExpenseId', table: 'expenses' }
             ],
             rows: this.resolveExpenseRows(documents, state)
@@ -553,7 +608,11 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
         const repository: Repository<Expense> = inject(repositoryTokenFor(Expense));
         const receiptRepository: Repository<ExpenseReceipt> = inject(repositoryTokenFor(ExpenseReceipt));
         for (const chunk of this.resolveChunks([...state.sources.get(PostingSourceType.EXPENSE) ?? []])) {
-            const expenses: Expense[] = await repository.findAll({ where: { id: { oneOf: chunk } }, order: { documentDate: 'ASC' }, limit: 'all' });
+            const expenses: Expense[] = await repository.findAll({
+                where: { id: { oneOf: chunk } },
+                order: { documentDate: 'ASC' },
+                limit: 'all'
+            });
             const receiptIds: string[] = expenses.flatMap(e => e.receiptId == undefined ? [] : [e.receiptId]);
             const receipts: ExpenseReceipt[] = documents && receiptIds.length
                 ? await receiptRepository.findAll({ where: { id: { oneOf: receiptIds } }, limit: 'all' })
@@ -597,7 +656,12 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
                 this.resolveColumn('transactionId', $ts`The id of the bank transaction.`),
                 this.resolveColumn('statementId', $ts`The id of the bank statement of the transaction.`),
                 this.resolveColumn('bookingDate', $ts`The day the transaction was booked.`, BookkeepingExportColumnType.DAY),
-                this.resolveColumn('transactionAmount', $ts`The amount of the transaction, negative for money paid.`, BookkeepingExportColumnType.NUMBER, decimals),
+                this.resolveColumn(
+                    'transactionAmount',
+                    $ts`The amount of the transaction, negative for money paid.`,
+                    BookkeepingExportColumnType.NUMBER,
+                    decimals
+                ),
                 this.resolveColumn('counterpartyName', $ts`The name of the counterparty.`),
                 this.resolveColumn('counterpartyIban', $ts`The IBAN of the counterparty.`),
                 this.resolveColumn('remittanceInformation', $ts`The remittance information.`),
@@ -630,7 +694,11 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
         const repository: Repository<BankMatch> = inject(repositoryTokenFor(BankMatch));
         const transactionRepository: Repository<BankTransaction> = inject(repositoryTokenFor(BankTransaction));
         for (const chunk of this.resolveChunks([...state.sources.get(PostingSourceType.BANK_MATCH) ?? []])) {
-            const matches: BankMatch[] = await repository.findAll({ where: { id: { oneOf: chunk } }, order: { confirmedAt: 'ASC' }, limit: 'all' });
+            const matches: BankMatch[] = await repository.findAll({
+                where: { id: { oneOf: chunk } },
+                order: { confirmedAt: 'ASC' },
+                limit: 'all'
+            });
             const transactions: Map<string, BankTransaction> = new Map((await transactionRepository.findAll({
                 where: { id: { oneOf: [...new Set(matches.map(m => m.transactionId))] } },
                 limit: 'all'
@@ -667,7 +735,12 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
      * @param state - What the export learns.
      * @returns The table.
      */
-    protected resolveBankStatementTable(fiscalYear: FiscalYear, decimals: number, documents: boolean, state: ExportState): BookkeepingExportTable {
+    protected resolveBankStatementTable(
+        fiscalYear: FiscalYear,
+        decimals: number,
+        documents: boolean,
+        state: ExportState
+    ): BookkeepingExportTable {
         return {
             kind: 'table',
             name: 'bank-statements',
@@ -692,7 +765,10 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
                     decimals
                 ),
                 this.resolveCurrencyColumn(),
-                this.resolveColumn('file', $ts`The path of the original file of the statement in the export, or empty when it is not in it.`)
+                this.resolveColumn(
+                    'file',
+                    $ts`The path of the original file of the statement in the export, or empty when it is not in it.`
+                )
             ],
             primaryKey: 'id',
             foreignKeys: [],
@@ -707,7 +783,11 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
      * @param state - What the export learns.
      * @yields A row per statement, by the start of its period.
      */
-    protected async* resolveBankStatementRows(fiscalYear: FiscalYear, documents: boolean, state: ExportState): AsyncGenerator<BookkeepingExportValue[]> {
+    protected async* resolveBankStatementRows(
+        fiscalYear: FiscalYear,
+        documents: boolean,
+        state: ExportState
+    ): AsyncGenerator<BookkeepingExportValue[]> {
         const repository: Repository<BankStatement> = inject(repositoryTokenFor(BankStatement));
         // a day around the fiscal year, whose moments may fall on the day before or after it in UTC: which day a
         // moment is in decides the zone the books are posted in, below
@@ -723,7 +803,7 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
             && this.resolveDay(s.periodEnd) >= fiscalYear.start);
         const paths: Map<string, string> = documents
             ? await this.resolveDocuments('bank-statements', inYear, s => s.file, state)
-            : new Map();
+            : new Map<string, string>();
         for (const statement of inYear) {
             yield [
                 statement.id,
@@ -757,6 +837,7 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
                 this.resolveColumn('fiscalYearId', $ts`The id of the fiscal year.`),
                 this.resolveColumn(
                     'closing',
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                     $ts`The closing of the fiscal year the statement was archived at, 1 for the first. Those of the closing after the last reopening count.`,
                     BookkeepingExportColumnType.NUMBER
                 ),
@@ -767,7 +848,7 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
                 this.resolveColumn('file', $ts`The path of the pdf of the statement in the export, or empty when it is not in it.`)
             ],
             primaryKey: 'id',
-            foreignKeys: [{ column: 'fiscalYearId', table: 'fiscal-years' }],
+            foreignKeys: [{ column: 'fiscalYearId', table: FISCAL_YEARS_TABLE }],
             rows: this.resolveStatementRows(fiscalYear, documents, state)
         };
     }
@@ -779,7 +860,11 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
      * @param state - What the export learns.
      * @yields A row per statement, by form.
      */
-    protected async* resolveStatementRows(fiscalYear: FiscalYear, documents: boolean, state: ExportState): AsyncGenerator<BookkeepingExportValue[]> {
+    protected async* resolveStatementRows(
+        fiscalYear: FiscalYear,
+        documents: boolean,
+        state: ExportState
+    ): AsyncGenerator<BookkeepingExportValue[]> {
         const repository: Repository<FiscalYearStatement> = inject(repositoryTokenFor(FiscalYearStatement));
         // those of an earlier closing as well, which a reopening kept
         const statements: FiscalYearStatement[] = await repository.findAll({
@@ -789,7 +874,7 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
         });
         const paths: Map<string, string> = documents
             ? await this.resolveDocuments('fiscal-year-statements', statements, s => s.file, state)
-            : new Map();
+            : new Map<string, string>();
         for (const statement of statements) {
             yield [
                 statement.id,
@@ -811,16 +896,25 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
      * @param state - What the export learns.
      * @returns The table, of one row.
      */
-    protected resolveVerificationTable(verification: BookkeepingVerification, exportedAt: Date, state: ExportState): BookkeepingExportTable {
+    protected resolveVerificationTable(
+        verification: BookkeepingVerification,
+        exportedAt: Date,
+        state: ExportState
+    ): BookkeepingExportTable {
         return {
             kind: 'table',
             name: 'verification',
             description: verification.intact
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 ? $ts`What checking the books found: the chains of the journal entries and of their lines hold, and every entry balances. Checking covers every fiscal year of the books, as a chain holds only as a whole.`
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 : $ts`What checking the books found: the chains of the journal entries and of their lines, or the balance of an entry, do not hold, see verification-problems. Checking covers every fiscal year of the books, as a chain holds only as a whole.`,
             columns: [
                 this.resolveColumn('checkedAt', $ts`When the books were checked, in UTC.`),
-                this.resolveColumn('intact', $ts`Whether the chains of the journal entries and of their lines hold, and every entry balances: true or false.`),
+                this.resolveColumn(
+                    'intact',
+                    $ts`Whether the chains of the journal entries and of their lines hold, and every entry balances: true or false.`
+                ),
                 this.resolveColumn(
                     'newestEntrySequence',
                     $ts`The place of the newest entry in its chain, or empty for a chain that is broken.`,
@@ -858,16 +952,18 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
         exportedAt: Date,
         state: ExportState
     ): AsyncGenerator<BookkeepingExportValue[]> {
-        yield* this.resolveRowsOf([[
-            exportedAt.toISOString(),
-            String(verification.intact),
-            verification.newestEntrySequence,
-            verification.newestEntryHash,
-            verification.newestLineSequence,
-            verification.newestLineHash,
-            verification.problems.length,
-            state.problems.length
-        ]]);
+        yield* this.resolveRowsOf([
+            [
+                exportedAt.toISOString(),
+                String(verification.intact),
+                verification.newestEntrySequence,
+                verification.newestEntryHash,
+                verification.newestLineSequence,
+                verification.newestLineHash,
+                verification.problems.length,
+                state.problems.length
+            ]
+        ]);
     }
 
     /**
@@ -881,6 +977,7 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
         return {
             kind: 'table',
             name: 'verification-problems',
+            // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
             description: $ts`Each problem checking the books found, naming its entry or line, and each document that could not be read unchanged. None for intact books.`,
             columns: [
                 this.resolveColumn('entryId', $ts`The id of the journal entry the problem is of.`),
@@ -1014,11 +1111,18 @@ export class BookkeepingExportService implements BookkeepingExportServiceInterfa
     }
 
     private resolveChainSequenceColumn(): BookkeepingExportColumn {
-        return this.resolveColumn('chainSequence', $ts`The place of the row in the hash chain of its table.`, BookkeepingExportColumnType.NUMBER);
+        return this.resolveColumn(
+            'chainSequence',
+            $ts`The place of the row in the hash chain of its table.`,
+            BookkeepingExportColumnType.NUMBER
+        );
     }
 
     private resolveChainHashColumn(): BookkeepingExportColumn {
-        return this.resolveColumn('chainHash', $ts`The hash of the row in the hash chain of its table, over the row and the hash before it.`);
+        return this.resolveColumn(
+            'chainHash',
+            $ts`The hash of the row in the hash chain of its table, over the row and the hash before it.`
+        );
     }
 
     private resolveChunks(ids: string[]): string[][] {

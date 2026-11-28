@@ -61,7 +61,7 @@ describe('EventService across tenants', () => {
         await server?.shutdown();
     }, TestTimeouts.inMemory.shutdown);
 
-    // for the reason event.service.test.ts gives: a registration outlives its subscription
+    // for the reason event.service.container.test.ts gives: a registration outlives its subscription
     beforeEach(async () => {
         await registrationRepo.deleteAll({});
     });

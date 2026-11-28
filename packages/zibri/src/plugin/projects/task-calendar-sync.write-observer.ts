@@ -207,10 +207,11 @@ export class TaskCalendarSyncWriteObserver implements OnAppInit {
      * @returns Whether they are.
      */
     private isSameSetting(a: unknown, b: unknown): boolean {
-        if (a == undefined || b == undefined) {
-            return a == undefined && b == undefined;
-        }
-        return typeof a === 'object' && typeof b === 'object' && this.isSameTarget(this.findTarget({ calendarSync: a }), this.findTarget({ calendarSync: b }));
+        return a == undefined || b == undefined
+            ? a == undefined && b == undefined
+            : typeof a === 'object'
+                && typeof b === 'object'
+                && this.isSameTarget(this.findTarget({ calendarSync: a }), this.findTarget({ calendarSync: b }));
     }
 
     /**
@@ -221,10 +222,10 @@ export class TaskCalendarSyncWriteObserver implements OnAppInit {
      * @returns Whether they are.
      */
     private isSameTarget(a: object | undefined, b: object | undefined): boolean {
-        if (a == undefined || b == undefined) {
-            return a == undefined && b == undefined;
-        }
-        return Reflect.get(a, 'connectionId') === Reflect.get(b, 'connectionId') && Reflect.get(a, 'calendarPath') === Reflect.get(b, 'calendarPath');
+        return a == undefined || b == undefined
+            ? a == undefined && b == undefined
+            : Reflect.get(a, 'connectionId') === Reflect.get(b, 'connectionId')
+                && Reflect.get(a, 'calendarPath') === Reflect.get(b, 'calendarPath');
     }
 
     /**
@@ -234,7 +235,9 @@ export class TaskCalendarSyncWriteObserver implements OnAppInit {
      */
     private findTarget(row: object | undefined): object | undefined {
         const calendarSync: unknown = row == undefined ? undefined : Reflect.get(row, 'calendarSync');
-        const target: unknown = calendarSync != undefined && typeof calendarSync === 'object' ? Reflect.get(calendarSync, 'target') : undefined;
+        const target: unknown = calendarSync != undefined && typeof calendarSync === 'object'
+            ? Reflect.get(calendarSync, 'target')
+            : undefined;
         return target != undefined && typeof target === 'object' ? target : undefined;
     }
 

@@ -6,14 +6,12 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../../
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { FsUtilities } from '../../utilities/fs.utilities';
-import {
-    bookkeepingTestConformances,
+import { bookkeepingTestConformances,
     bookkeepingTestEntities,
     bookkeepingTestOptions,
     describeBookkeeping,
     ReceiptsFileStore,
-    receiptsFolder
-} from './bookkeeping.cases';
+    receiptsFolder } from './bookkeeping.cases';
 import { ZibriBookkeepingPlugin } from './bookkeeping.plugin';
 
 let server: StartedTestServer | undefined;

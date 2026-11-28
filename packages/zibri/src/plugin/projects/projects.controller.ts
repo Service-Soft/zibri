@@ -3,6 +3,7 @@ import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { PaginationResult } from '../../data-source/models/pagination-result.model';
 import { inject } from '../../di/inject.function';
 import { Response } from '../../open-api/decorators/response.decorator';
+import { type Route } from '../../routing/controller-route-configuration.model';
 import { Body } from '../../routing/decorators/body.decorator';
 import { Delete } from '../../routing/decorators/delete.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
@@ -52,6 +53,21 @@ import { type WorkingCalendarServiceInterface } from './services/working-calenda
  * The most rows a page of the list routes holds.
  */
 const MAX_LIMIT: number = 100;
+
+/**
+ * The route of one task.
+ */
+const TASK_ROUTE: Route = '/tasks/:taskId';
+
+/**
+ * The route of one project.
+ */
+const PROJECT_ROUTE: Route = '/:projectId';
+
+/**
+ * The route of one recurring task.
+ */
+const RECURRING_TASK_ROUTE: Route = '/recurring-tasks/:recurringTaskId';
 
 /**
  * The routes of the projects of the tenant of the request, below the path of the controller that extends it: the
@@ -137,7 +153,7 @@ export class ProjectsController {
 
     @Auth.isLoggedIn()
     @Response.object(Task)
-    @Get('/tasks/:taskId')
+    @Get(TASK_ROUTE)
     async findTask(
         @Param.path('taskId', { type: 'string', format: 'uuid' })
         taskId: string
@@ -147,7 +163,7 @@ export class ProjectsController {
 
     @Auth.isLoggedIn()
     @Response.object(Task)
-    @Patch('/tasks/:taskId')
+    @Patch(TASK_ROUTE)
     async updateTask(
         @Param.path('taskId', { type: 'string', format: 'uuid' })
         taskId: string,
@@ -171,7 +187,7 @@ export class ProjectsController {
 
     @Auth.isLoggedIn()
     @Response.empty()
-    @Delete('/tasks/:taskId')
+    @Delete(TASK_ROUTE)
     async deleteTask(
         @Param.path('taskId', { type: 'string', format: 'uuid' })
         taskId: string
@@ -285,7 +301,7 @@ export class ProjectsController {
 
     @Auth.isLoggedIn()
     @Response.object(ProjectWithAccess)
-    @Get('/:projectId')
+    @Get(PROJECT_ROUTE)
     async findProject(
         @Param.path('projectId', { type: 'string', format: 'uuid' })
         projectId: string
@@ -296,7 +312,7 @@ export class ProjectsController {
 
     @Auth.hasAnyLevelPermission(ProjectsAccess.WRITE)
     @Response.object(Project)
-    @Patch('/:projectId')
+    @Patch(PROJECT_ROUTE)
     async updateProject(
         @Param.path('projectId', { type: 'string', format: 'uuid' })
         projectId: string,
@@ -308,7 +324,7 @@ export class ProjectsController {
 
     @Auth.hasAnyLevelPermission(ProjectsAccess.MANAGE)
     @Response.empty()
-    @Delete('/:projectId')
+    @Delete(PROJECT_ROUTE)
     async deleteProject(
         @Param.path('projectId', { type: 'string', format: 'uuid' })
         projectId: string
@@ -505,7 +521,7 @@ export class ProjectsController {
 
     @Auth.isLoggedIn()
     @Response.object(RecurringTask)
-    @Get('/recurring-tasks/:recurringTaskId')
+    @Get(RECURRING_TASK_ROUTE)
     async findRecurringTask(
         @Param.path('recurringTaskId', { type: 'string', format: 'uuid' })
         recurringTaskId: string
@@ -515,7 +531,7 @@ export class ProjectsController {
 
     @Auth.isLoggedIn()
     @Response.object(RecurringTask)
-    @Patch('/recurring-tasks/:recurringTaskId')
+    @Patch(RECURRING_TASK_ROUTE)
     async updateRecurringTask(
         @Param.path('recurringTaskId', { type: 'string', format: 'uuid' })
         recurringTaskId: string,
@@ -527,7 +543,7 @@ export class ProjectsController {
 
     @Auth.isLoggedIn()
     @Response.empty()
-    @Delete('/recurring-tasks/:recurringTaskId')
+    @Delete(RECURRING_TASK_ROUTE)
     async deleteRecurringTask(
         @Param.path('recurringTaskId', { type: 'string', format: 'uuid' })
         recurringTaskId: string

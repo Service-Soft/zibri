@@ -1,6 +1,6 @@
 import { InternalError, LoggerInterface, Transaction, TransactionAlreadyFinishedError, TransactionSerializationError } from 'zibri';
 
-import { InMemoryScope, InMemoryStore, StoredRow, StoredRowChange } from './in-memory-store';
+import { InMemoryIndex, InMemoryScope, InMemoryStore, StoredRow, StoredRowChange } from './in-memory-store';
 
 /**
  * A transaction of an in memory data source.
@@ -195,6 +195,14 @@ export class InMemoryTransaction implements Transaction, InMemoryScope {
             res.add(id);
         }
         return [...res];
+    }
+
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    findCandidateIds(tableName: string, index: InMemoryIndex, entries: string[]): string[] {
+        // every row the transaction wrote, whatever it holds now: the store's entries describe the
+        // rows as they are stored, and the caller judges each row as the transaction reads it
+        const stored: string[] = this.resolveReadSource().findCandidateIds(tableName, index, entries);
+        return [...new Set([...stored, ...this.rowOverlay.get(tableName)?.keys() ?? []])];
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

@@ -25,6 +25,7 @@ side.
 | `PostgresPooler`, `PostgresTransactionPooler`, `PostgresDirectConnection` | type, type, type | What stands between a Postgres data source and its server, a pooler in transaction mode, and where the server itself is behind one. Required |
 | `SchemaManagement` | type | Who makes the database match the entities of a SQL data source: `'synchronize'`, `'migrations'` or `'external'`. Required |
 | `MissingFrameworkColumnError`, `MissingFrameworkColumn`, `FrameworkColumnUtilities` | class, type, class | What needs a column of the framework a schema with `'external'` lacks throws, the column with the statements that add it, and the check whether a table has one, see [the columns of the framework in a schema of your own](#the-columns-of-the-framework-in-a-schema-of-your-own) |
+| `MissingUniqueError`, `MissingUnique` | class, type | What an upsert by a unique a schema with `'external'` lacks throws, and the unique with the statements that create it, see [the columns of the framework in a schema of your own](#the-columns-of-the-framework-in-a-schema-of-your-own) |
 | `ValKeyDataSource` | class | Predefined data source for Valkey, extend from this instead of implementing `DataSourceInterface` directly |
 | `ValKeyOptions` | interface | Connection/config options for `ValKeyDataSource` |
 | `RepositoryDriverInterface` | interface | The storage specific part of a repository, implemented once per data source type |
@@ -248,6 +249,12 @@ such as creating a service account, changing the locale of a user, a credit note
 `replyTo` or a filter on the column, and so does a write storing a value only the column can hold.
 A start finding the columns uses them, and warns no more. `FrameworkColumnUtilities.hasColumns`
 tells code of your own whether a table has them.
+
+The uniques the entities declare are looked up the same way, under the names the data source gives
+them. A start finding one missing warns once, listing it by table with the statements that create it.
+Nothing keeps the values it covers apart, and an upsert identifying its rows by it throws a
+`MissingUniqueError` naming it and the statements. A unique over a column the database lacks comes
+with the statements of the column instead.
 
 `pooler` says what stands between a Postgres data source and its server, see
 [connecting through a pooler](#connecting-through-a-pooler). `'none'` when it connects to the server
@@ -719,8 +726,6 @@ A repository always exposes the methods:
 - upsertAll
 - deleteAll
 - deleteById
-
-The full, detailed definition can be found under {@link Repository | the repository's reference}.
 
 `findOne` and `findById` throw a `NotFoundError` when nothing matches. When a missing row is an
 answer, such as when you check whether a name is taken, pass `required: false` and get `undefined`
@@ -1478,6 +1483,11 @@ find it, because no value is not `'a'`, `{ notLike: 'a%' }` finds it, because no
 nothing, and `{ oneOf: ['a'] }` does not. Name `null` to say otherwise:
 `{ oneOf: ['a', null] }` finds it as well, and `{ not: null }` or `{ notOneOf: ['a', null] }` leave it
 out. A list under `oneOf` or `notOneOf` can be as long as you need.
+
+A property or an operator whose value is `undefined` asks nothing, inside an object property too. A
+range with an optional end can be written as it comes:
+`{ postingDate: { afterOrOn: from, beforeOrOn: until } }` finds everything from `from` on when
+`until` is `undefined`.
 
 Text is ordered by the application's default locale, so `after` and `before` sort alphabetically,
 and a filter agrees with an `order` over the same property. [Localization](../templates/localization.md)

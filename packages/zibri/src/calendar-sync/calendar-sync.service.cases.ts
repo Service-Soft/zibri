@@ -65,7 +65,10 @@ export function describeCalendarSync(name: string, resolveServer: () => Calendar
          * @returns What it resolves to.
          */
         async function inTenant<T>(call: (service: CalendarSyncServiceInterface) => Promise<T>): Promise<T> {
-            return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(server.tenantId, async () => await call(inject(ZIBRI_DI_TOKENS.CALENDAR_SYNC_SERVICE)));
+            return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+                server.tenantId,
+                async () => await call(inject(ZIBRI_DI_TOKENS.CALENDAR_SYNC_SERVICE))
+            );
         }
 
         beforeEach(async () => {
@@ -103,7 +106,8 @@ export function describeCalendarSync(name: string, resolveServer: () => Calendar
                 `URL:https://app.example.com/tasks/${entry.source.id}`
             ]));
             expect((await server.calendarApp.findEntry(link.href))?.etag).toBe(link.etag);
-            expect(await inTenant(async service => await service.findLinks(entry.source))).toEqual([expect.objectContaining({ id: link.id })]);
+            expect(await inTenant(async service => await service.findLinks(entry.source)))
+                .toEqual([expect.objectContaining({ id: link.id })]);
         });
 
         it('updates the event when the entry changes, an all day one ending on the next day', async () => {
@@ -173,7 +177,8 @@ export function describeCalendarSync(name: string, resolveServer: () => Calendar
 
             await inTenant(async service => await service.removeEntry(entry.source, target));
 
-            expect(await inTenant(async service => await service.findLinks(entry.source))).toEqual([expect.objectContaining({ calendarPath: other.calendarPath })]);
+            expect(await inTenant(async service => await service.findLinks(entry.source)))
+                .toEqual([expect.objectContaining({ calendarPath: other.calendarPath })]);
             expect(await server.calendarApp.findEntry(inOther.href)).toMatchObject({ kind: 'file' });
         });
     });

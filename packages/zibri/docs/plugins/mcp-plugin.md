@@ -26,11 +26,12 @@ keywords: [mcp, model context protocol, ai assistant, llm, tools, agent, claude,
 | `McpToolSummary` | class | A tool as that route answers it: its `name`, `title`, `description`, `kind` and `permission` |
 
 ## Setting it up
-Extend `McpController` with a `@Controller` of your own, at the path the clients are given:
+You import the names of the plugin from `zibri/plugin/mcp`. Extend `McpController` with a `@Controller` of your own, at the path the clients are given:
 
 ```ts
 // src/controllers/mcp.controller.ts
-import { Controller, McpController } from 'zibri';
+import { Controller } from 'zibri';
+import { McpController } from 'zibri/plugin/mcp';
 
 @Controller('/mcp', { versions: 'all' })
 export class AppMcpController extends McpController {}
@@ -40,7 +41,9 @@ Add it and `new ZibriMcpPlugin()` with its options to your application, beside `
 
 ```ts
 // src/application-options.base.ts
-import { ApiKeyAuthStrategy, JwtAuthStrategy, Ms, OmitStrict, RateLimitStoreFailurePolicy, ZibriApplicationOptions, ZibriApprovalPlugin, ZibriMcpPlugin } from 'zibri';
+import { ApiKeyAuthStrategy, JwtAuthStrategy, Ms, OmitStrict, RateLimitStoreFailurePolicy, ZibriApplicationOptions } from 'zibri';
+import { ZibriApprovalPlugin } from 'zibri/plugin/approval';
+import { ZibriMcpPlugin } from 'zibri/plugin/mcp';
 
 import { AppMcpController } from './controllers/mcp.controller';
 
@@ -78,7 +81,8 @@ A tool that reads names the model of its arguments, the model of what it answers
 
 ```ts
 // src/mcp/find-tasks.mcp-tool.ts
-import { inject, McpReadTool, Property, Repository, repositoryTokenFor } from 'zibri';
+import { inject, Property, Repository, repositoryTokenFor } from 'zibri';
+import { McpReadTool } from 'zibri/plugin/mcp';
 
 import { Permissions, Task } from '../models';
 
@@ -125,7 +129,7 @@ A tool that writes names an [approval action](./approval-plugin.md#declaring-an-
 
 ```ts
 // src/mcp/close-task.mcp-tool.ts
-import { McpWriteTool } from 'zibri';
+import { McpWriteTool } from 'zibri/plugin/mcp';
 
 import { closeTaskAction } from '../approvals/close-task.approval-action';
 
@@ -141,7 +145,9 @@ Register every tool with `provideMcpTool`, and the action of a write tool with `
 
 ```ts
 // src/providers.ts
-import { DiProvider, provideApprovalAction, provideMcpTool } from 'zibri';
+import { DiProvider } from 'zibri';
+import { provideApprovalAction } from 'zibri/plugin/approval';
+import { provideMcpTool } from 'zibri/plugin/mcp';
 
 import { closeTaskAction } from './approvals/close-task.approval-action';
 import { closeTaskTool } from './mcp/close-task.mcp-tool';
@@ -204,7 +210,8 @@ Extend `ServiceAccountMcpToolController` with a `@Controller` of your own, besid
 
 ```ts
 // src/controllers/service-account-tool.controller.ts
-import { Controller, ServiceAccountMcpToolController } from 'zibri';
+import { Controller } from 'zibri';
+import { ServiceAccountMcpToolController } from 'zibri/plugin/mcp';
 
 @Controller('/service-account-tools')
 export class AppServiceAccountToolController extends ServiceAccountMcpToolController {}

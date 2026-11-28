@@ -11,7 +11,10 @@ import { EBilanzTransmissionSummary } from './e-bilanz-transmission-summary.mode
  * The E-Bilanz of a fiscal year: its latest preparation, what it needs now, the records of its filing and its
  * transmissions, its deadline, and how it can be filed.
  */
-export class EBilanzState implements Omit<EBilanzStateModel, 'deadline' | 'content' | 'findings' | 'filings' | 'transmissions' | 'exporters'> {
+export class EBilanzState implements Omit<
+    EBilanzStateModel,
+    'deadline' | 'content' | 'findings' | 'filings' | 'transmissions' | 'exporters'
+> {
     /**
      * The id of the fiscal year.
      */

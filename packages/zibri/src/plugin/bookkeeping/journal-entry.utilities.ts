@@ -1,28 +1,23 @@
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
 import { $ts } from '../../localization/translate.function';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
+import { type BookedJournalEntryLine } from './models/booked-journal-entry-line.model';
 import { type BookkeepingAccountBalance } from './models/bookkeeping-account-balance.model';
 import { BookkeepingAccountType } from './models/bookkeeping-account-type.enum';
 import { type BookkeepingAccount } from './models/bookkeeping-account.model';
 import { BookkeepingLimits } from './models/bookkeeping-limits.model';
+import { type ClosingJournalEntryLine } from './models/closing-journal-entry-line.model';
 import { JournalEntryLineRole } from './models/journal-entry-line-role.enum';
-import { type JournalEntryLine } from './models/journal-entry-line.model';
 import { type NewJournalEntryLine } from './models/new-journal-entry-line.model';
-
-/**
- * A line as it is booked: an account, and the amounts on its debit and its credit side.
- */
-type BookedLine = Pick<NewJournalEntryLine, 'accountId' | 'debit' | 'credit'>;
-
-/**
- * A line of the entry closing a fiscal year: a line as it is booked, and its role.
- */
-type ClosingLine = BookedLine & Pick<JournalEntryLine, 'role'>;
 
 /**
  * The account types of the balance sheet, whose balances a fiscal year carries into the next one.
  */
-const BALANCE_SHEET_TYPES: BookkeepingAccountType[] = [BookkeepingAccountType.ASSET, BookkeepingAccountType.LIABILITY, BookkeepingAccountType.EQUITY];
+const BALANCE_SHEET_TYPES: BookkeepingAccountType[] = [
+    BookkeepingAccountType.ASSET,
+    BookkeepingAccountType.LIABILITY,
+    BookkeepingAccountType.EQUITY
+];
 
 /**
  * The account types of the income statement, which closing a fiscal year carries into equity.
@@ -42,7 +37,7 @@ export abstract class JournalEntryUtilities {
      * @param currency - The currency, for the messages.
      * @throws A BadRequestError saying what the first line that does not hold needs to be.
      */
-    static validateLines(lines: BookedLine[], minorUnits: number, currency: string): void {
+    static validateLines(lines: BookedJournalEntryLine[], minorUnits: number, currency: string): void {
         if (lines.length < 2) {
             throw new BadRequestError($ts`A journal entry needs to have at least 2 lines.`);
         }
@@ -78,7 +73,7 @@ export abstract class JournalEntryUtilities {
      * @param lines - The lines.
      * @returns The sum.
      */
-    static resolveDebitTotal(lines: BookedLine[]): BigNumber {
+    static resolveDebitTotal(lines: BookedJournalEntryLine[]): BigNumber {
         return lines.reduce((sum, line) => line.debit == undefined ? sum : NumberUtilities.add(sum, line.debit), new BigNumber(0));
     }
 
@@ -87,7 +82,7 @@ export abstract class JournalEntryUtilities {
      * @param lines - The lines.
      * @returns The sum.
      */
-    static resolveCreditTotal(lines: BookedLine[]): BigNumber {
+    static resolveCreditTotal(lines: BookedJournalEntryLine[]): BigNumber {
         return lines.reduce((sum, line) => line.credit == undefined ? sum : NumberUtilities.add(sum, line.credit), new BigNumber(0));
     }
 
@@ -109,7 +104,7 @@ export abstract class JournalEntryUtilities {
      */
     static resolveBalancesAfter(
         balances: BookkeepingAccountBalance[],
-        lines: BookedLine[],
+        lines: BookedJournalEntryLine[],
         accounts: Map<string, BookkeepingAccount>
     ): BookkeepingAccountBalance[] {
         const res: Map<string, BookkeepingAccountBalance> = new Map(balances.map(balance => [balance.account.id, { ...balance }]));
@@ -118,7 +113,8 @@ export abstract class JournalEntryUtilities {
             if (account == undefined) {
                 continue;
             }
-            const balance: BookkeepingAccountBalance = res.get(account.id) ?? { account, debit: new BigNumber(0), credit: new BigNumber(0) };
+            const balance: BookkeepingAccountBalance = res.get(account.id)
+                ?? { account, debit: new BigNumber(0), credit: new BigNumber(0) };
             res.set(account.id, {
                 account,
                 debit: line.debit == undefined ? balance.debit : NumberUtilities.add(balance.debit, line.debit),
@@ -148,8 +144,14 @@ export abstract class JournalEntryUtilities {
      * `equity-and-liabilities.A.V`.
      * @returns The lines, none for a year without revenue, expenses or an account appropriating the result.
      */
-    static resolveClosingLines(balances: BookkeepingAccountBalance[], resultAccountId: string, resultPositions: readonly string[]): ClosingLine[] {
-        const res: ClosingLine[] = this.resolveLinesToZero(balances.filter(b => INCOME_STATEMENT_TYPES.includes(b.account.type)));
+    static resolveClosingLines(
+        balances: BookkeepingAccountBalance[],
+        resultAccountId: string,
+        resultPositions: readonly string[]
+    ): ClosingJournalEntryLine[] {
+        const res: ClosingJournalEntryLine[] = this.resolveLinesToZero(
+            balances.filter(b => INCOME_STATEMENT_TYPES.includes(b.account.type))
+        );
         // what the income statement accounts leave on the debit side: a loss, on the credit side: a profit
         const result: BigNumber = NumberUtilities.subtract(this.resolveCreditTotal(res), this.resolveDebitTotal(res));
         if (!result.isZero()) {
@@ -161,7 +163,10 @@ export abstract class JournalEntryUtilities {
         const appropriating: NewJournalEntryLine[] = this.resolveLinesToZero(balances.filter(b => b.account.id !== resultAccountId
             && BALANCE_SHEET_TYPES.includes(b.account.type)
             && [b.account.statementPosition, b.account.creditStatementPosition].some(p => p != undefined && resultPositions.includes(p))));
-        const appropriated: BigNumber = NumberUtilities.subtract(this.resolveCreditTotal(appropriating), this.resolveDebitTotal(appropriating));
+        const appropriated: BigNumber = NumberUtilities.subtract(
+            this.resolveCreditTotal(appropriating),
+            this.resolveDebitTotal(appropriating)
+        );
         if (appropriating.length) {
             res.push(...appropriating, ...appropriated.isZero() ? [] : [this.resolveLine(resultAccountId, appropriated)]);
         }
@@ -211,10 +216,7 @@ export abstract class JournalEntryUtilities {
      * @param line - The line.
      * @returns The amount, or undefined for a line with both or neither.
      */
-    private static findAmount(line: BookedLine): BigNumber | undefined {
-        if ((line.debit == undefined) === (line.credit == undefined)) {
-            return undefined;
-        }
-        return line.debit ?? line.credit ?? undefined;
+    private static findAmount(line: BookedJournalEntryLine): BigNumber | undefined {
+        return (line.debit == undefined) === (line.credit == undefined) ? undefined : line.debit ?? line.credit ?? undefined;
     }
 }

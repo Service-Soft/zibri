@@ -105,6 +105,7 @@ export abstract class ZipUtilities {
             // read from while it is fed: what the deflate stream holds is what it is behind, never the whole file
             const fed: Promise<void> = pipeline(counted, deflate);
             // awaited below, or surfaced by the reading, which fails with what failed the feeding
+            // eslint-disable-next-line promise/prefer-await-to-then -- marks the rejection handled while the reading runs, as it is awaited only after
             fed.catch(() => undefined);
             for await (const piece of deflate) {
                 const compressed: Buffer = Buffer.isBuffer(piece) ? piece : Buffer.from(String(piece));

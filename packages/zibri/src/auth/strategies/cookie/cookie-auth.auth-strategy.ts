@@ -262,7 +262,9 @@ export class CookieAuthStrategy<
         // the one the rotation just replaced, and it carries the same login time as its successor
         const refreshSession: CookieAuthRefreshSession | undefined = (await this.resolveRefreshSession(context, undefined))?.refreshSession;
         // a login that does not count as a recent one says no time, as a strategy that cannot tell does
-        return !refreshSession || new Date(refreshSession.expirationDate).getTime() <= Date.now() || refreshSession.countsAsRecentLogin === false
+        return !refreshSession
+            || new Date(refreshSession.expirationDate).getTime() <= Date.now()
+            || refreshSession.countsAsRecentLogin === false
             ? undefined
             : new Date(refreshSession.authenticatedAt);
     }

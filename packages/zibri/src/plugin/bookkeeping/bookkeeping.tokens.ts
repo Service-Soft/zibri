@@ -2,9 +2,9 @@
 import { type KeptRowCheckInterface } from '../../backup/kept-row-check.interface';
 import { TokenRecord } from '../../di/models/di-token.model';
 import { InjectionToken } from '../../di/models/injection-token.model';
+import { type Newable } from '../../types/newable.type';
 import { type BankMatchPostingInterface } from '../bank/services/bank-match-posting.interface';
 import { type BankMatcherInterface } from '../bank/services/bank-matcher.interface';
-import { type Newable } from '../../types/newable.type';
 import { type InvoicePostingInterface } from '../invoicing/services/invoice-posting.interface';
 import { type BookkeepingCompany } from './models/bookkeeping-company.model';
 import { BookkeepingPluginOptionsInput } from './models/bookkeeping-plugin-options-input.model';

@@ -23,6 +23,7 @@ import { readNumber } from '../../../utilities/read-number.function';
 import { literalToSql } from '../../literal-to-sql.function';
 import { MissingFrameworkColumnError } from '../../migration/missing-framework-column.error';
 import { type MissingFrameworkColumn } from '../../migration/missing-framework-column.model';
+import { type MissingUnique } from '../../migration/missing-unique.model';
 import { PostgresColumn, PostgresForeignKey, PostgresKey, PostgresReferentialAction, PostgresRelationJoin, PostgresTable } from './postgres-table.model';
 
 /**
@@ -79,6 +80,8 @@ export class PostgresSchema {
     private readonly joins: Map<Newable<BaseEntity>, Map<string, PostgresRelationJoin>> = new Map();
 
     private readonly missingColumns: Map<Newable<BaseEntity>, MissingFrameworkColumn[]> = new Map();
+
+    private missingUniques: Map<string, MissingUnique> = new Map();
 
     /**
      * Every table, those of the entities and their join tables.
@@ -171,6 +174,23 @@ export class PostgresSchema {
      */
     getMissingColumns(entityClass: Newable<BaseEntity>): readonly MissingFrameworkColumn[] {
         return this.missingColumns.get(entityClass) ?? [];
+    }
+
+    /**
+     * Records the uniques the database lacks, for a schema the data source does not manage.
+     * @param missing - The uniques.
+     */
+    setMissingUniques(missing: readonly MissingUnique[]): void {
+        this.missingUniques = new Map(missing.map(unique => [unique.name, unique]));
+    }
+
+    /**
+     * Finds a unique the database lacks, which {@link setMissingUniques} recorded.
+     * @param name - The name the data source gives it.
+     * @returns It, or undefined when the database has it.
+     */
+    findMissingUnique(name: string): MissingUnique | undefined {
+        return this.missingUniques.get(name);
     }
 
     /**

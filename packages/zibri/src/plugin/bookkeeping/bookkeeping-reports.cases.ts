@@ -1,4 +1,5 @@
 /* eslint-disable cspell/spellchecker */
+/* eslint-disable sonar/no-duplicate-string -- the days, amounts and position ids are the figures of the cases */
 import { type Readable } from 'node:stream';
 import { buffer } from 'node:stream/consumers';
 
@@ -19,8 +20,8 @@ import { ObjectUtilities } from '../../utilities/object.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing/invoicing.tokens';
 import { type Invoice } from '../invoicing/models/invoice.model';
-import {
-    createPostingBooks,
+import { type InvoiceCancellationServiceInterface } from '../invoicing/services/invoice-cancellation-service.interface';
+import { createPostingBooks,
     createTransaction,
     issueInvoice,
     itemOf,
@@ -28,8 +29,7 @@ import {
     type PostingBooks,
     postingTestProviders,
     rentOf,
-    suggest
-} from './bookkeeping-postings.cases';
+    suggest } from './bookkeeping-postings.cases';
 import { day, inTenant, journal, testCompany } from './bookkeeping.cases';
 import { ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from './bookkeeping.tokens';
 import { BookkeepingAccountType } from './models/bookkeeping-account-type.enum';
@@ -54,8 +54,8 @@ import { type PostingRules } from './models/posting-rules.model';
 import { type BookkeepingReportPdfServiceInterface } from './services/bookkeeping-report-pdf-service.interface';
 import { type BookkeepingReportServiceInterface } from './services/bookkeeping-report-service.interface';
 import { HgbCorporationConformanceService } from './services/conformance/hgb/hgb-corporation-conformance.service';
-import { type ExpenseServiceInterface } from './services/expense-service.interface';
 import { HgbSizeClass } from './services/conformance/hgb/hgb-size-class.enum';
+import { type ExpenseServiceInterface } from './services/expense-service.interface';
 import { HGB_BALANCE_SHEET } from './statements/hgb-balance-sheet.model';
 import { HGB_INCOME_STATEMENT } from './statements/hgb-income-statement.model';
 import { HGB_MICRO_BALANCE_SHEET } from './statements/hgb-micro-balance-sheet.model';
@@ -103,7 +103,8 @@ const POSITIONS: Record<PostingAccountName, Pick<BookkeepingAccount, 'statementP
 /**
  * The accounts of the books the cases post by hand, by what they are called in them.
  */
-type HandAccountName = 'bank' | 'vat' | 'suspense' | 'reserve' | 'capital' | 'carried' | 'allocation' | 'rent' | 'revenue' | 'unmappedRevenue';
+type HandAccountName = 'bank' | 'vat' | 'suspense' | 'reserve' | 'capital' | 'carried' | 'allocation' | 'rent' | 'revenue'
+    | 'unmappedRevenue';
 
 const HAND_ACCOUNTS: Record<HandAccountName, BookkeepingAccountCreateData> = {
     bank: {
@@ -120,7 +121,13 @@ const HAND_ACCOUNTS: Record<HandAccountName, BookkeepingAccountCreateData> = {
         statementPosition: 'assets.B.II.4',
         creditStatementPosition: 'equity-and-liabilities.C.8'
     },
-    suspense: { number: '1590', name: 'Suspense', type: BookkeepingAccountType.ASSET, statementPosition: null, creditStatementPosition: null },
+    suspense: {
+        number: '1590',
+        name: 'Suspense',
+        type: BookkeepingAccountType.ASSET,
+        statementPosition: null,
+        creditStatementPosition: null
+    },
     reserve: {
         number: '0846',
         name: 'Legal reserve',
@@ -149,7 +156,13 @@ const HAND_ACCOUNTS: Record<HandAccountName, BookkeepingAccountCreateData> = {
         statementPosition: 'equity-and-liabilities.A.V',
         creditStatementPosition: null
     },
-    rent: { number: '4210', name: 'Rent', type: BookkeepingAccountType.EXPENSE, statementPosition: 'income-statement.8', creditStatementPosition: null },
+    rent: {
+        number: '4210',
+        name: 'Rent',
+        type: BookkeepingAccountType.EXPENSE,
+        statementPosition: 'income-statement.8',
+        creditStatementPosition: null
+    },
     revenue: {
         number: '8400',
         name: 'Revenue 19 %',
@@ -157,18 +170,24 @@ const HAND_ACCOUNTS: Record<HandAccountName, BookkeepingAccountCreateData> = {
         statementPosition: 'income-statement.1',
         creditStatementPosition: null
     },
-    unmappedRevenue: { number: '8999', name: 'Revenue to map', type: BookkeepingAccountType.REVENUE, statementPosition: null, creditStatementPosition: null }
+    unmappedRevenue: {
+        number: '8999',
+        name: 'Revenue to map',
+        type: BookkeepingAccountType.REVENUE,
+        statementPosition: null,
+        creditStatementPosition: null
+    }
 };
 
 /**
  * Books of a tenant of its own, posted by hand.
  */
 type HandBooks = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     tenantId: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     settings: BookkeepingSettings,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     accounts: Record<HandAccountName, BookkeepingAccount>,
     /**
      * The first fiscal year.
@@ -228,6 +247,17 @@ async function createHandBooks(legalForms: BookkeepingLegalForm[], fiscalYear: N
 }
 
 /**
+ * Posting rules naming no account.
+ */
+const EMPTY_RULES: PostingRules = {
+    revenueAccounts: [],
+    outputTaxAccounts: [],
+    inputTaxAccounts: [],
+    paymentDifferenceAccounts: [],
+    bankAccounts: []
+};
+
+/**
  * Adds the posting rules of a fiscal year naming the accounts of the legal reserve, which the books of a UG need.
  * @param books - The books.
  * @param fiscalYear - The fiscal year.
@@ -244,17 +274,6 @@ async function createReserveRules(books: HandBooks, fiscalYear: FiscalYear): Pro
 }
 
 /**
- * Posting rules naming no account.
- */
-const EMPTY_RULES: PostingRules = {
-    revenueAccounts: [],
-    outputTaxAccounts: [],
-    inputTaxAccounts: [],
-    paymentDifferenceAccounts: [],
-    bankAccounts: []
-};
-
-/**
  * Posts an entry of one amount from an account to another.
  * @param books - The books.
  * @param postingDate - The day, such as `2026-03-01`.
@@ -263,7 +282,13 @@ const EMPTY_RULES: PostingRules = {
  * @param amount - The amount.
  * @returns The entry.
  */
-async function book(books: HandBooks, postingDate: string, debit: HandAccountName, credit: HandAccountName, amount: string): Promise<JournalEntryDetails> {
+async function book(
+    books: HandBooks,
+    postingDate: string,
+    debit: HandAccountName,
+    credit: HandAccountName,
+    amount: string
+): Promise<JournalEntryDetails> {
     return await inTenant(books.tenantId, async () => await journal().post({
         documentDate: day(postingDate),
         postingDate: day(postingDate),
@@ -309,8 +334,12 @@ export async function createSeededBooks(): Promise<PostingBooks> {
     }));
     await issueInvoice(books, '2026-SIEMEN-0001', [itemOf(1000)]);
     const second: Invoice = await issueInvoice(books, '2026-SIEMEN-0002', [itemOf(500)]);
-    await inTenant(books.tenantId, async () => await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE)
-        .createCreditNote(second.id, [itemOf(200)], { date: new Date('2026-04-01T12:00:00.000Z') }));
+    await inTenant(books.tenantId, async () => {
+        const cancellations: InvoiceCancellationServiceInterface<Invoice> = inject<InvoiceCancellationServiceInterface<Invoice>>(
+            ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE
+        );
+        await cancellations.createCreditNote(second.id, [itemOf(200)], { date: new Date('2026-04-01T12:00:00.000Z') });
+    });
     await inTenant(books.tenantId, async () => {
         const expenses: ExpenseServiceInterface = inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.EXPENSE_SERVICE);
         await expenses.recordExpense((await expenses.createExpense(rentOf(books))).id);
@@ -326,16 +355,17 @@ export async function createSeededBooks(): Promise<PostingBooks> {
         remittanceInformation: 'R-77'
     }));
     await inTenant(books.tenantId, async () => {
-        const rent: (postingDate: string, amount: string) => Promise<JournalEntryDetails> = async (postingDate, amount) => await journal().post({
-            documentDate: day(postingDate),
-            postingDate: day(postingDate),
-            documentReference: 'L-2026-05',
-            text: 'Rent May',
-            lines: [
-                { accountId: books.accounts.rent.id, debit: new BigNumber(amount), credit: null },
-                { accountId: books.accounts.bank.id, debit: null, credit: new BigNumber(amount) }
-            ]
-        });
+        const rent: (postingDate: string, amount: string) => Promise<JournalEntryDetails> = async (postingDate, amount) => await journal()
+            .post({
+                documentDate: day(postingDate),
+                postingDate: day(postingDate),
+                documentReference: 'L-2026-05',
+                text: 'Rent May',
+                lines: [
+                    { accountId: books.accounts.rent.id, debit: new BigNumber(amount), credit: null },
+                    { accountId: books.accounts.bank.id, debit: null, credit: new BigNumber(amount) }
+                ]
+            });
         const wrong: JournalEntryDetails = await rent('2026-05-01', '300.00');
         await journal().reverse(wrong.entry.id, { postingDate: day('2026-05-02'), text: 'Wrong amount' });
         await rent('2026-05-03', '250.00');
@@ -372,7 +402,9 @@ function rolledUpAmountsOf(structure: BookkeepingStatementStructure, full: Bookk
         }
         return amount;
     };
-    structure.positions.forEach(visit);
+    for (const position of structure.positions) {
+        visit(position);
+    }
     return res;
 }
 
@@ -416,28 +448,36 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                     const ledger: BookkeepingLedgerReport = await reports()
                         .resolveLedger(books.accounts.bank.id, day('2026-03-01'), day('2026-05-31'));
                     expect(ledger.openingBalance.toFixed(2)).toBe('25000.00');
-                    expect(ledger.lines.map(l => [l.postingDate.toISOString().slice(0, 10), l.debit?.toFixed(2) ?? null, l.credit?.toFixed(2) ?? null, l.balance.toFixed(2)])).toEqual([
+                    expect(ledger.lines.map(l => [
+                        l.postingDate.toISOString().slice(0, 10),
+                        l.debit?.toFixed(2) ?? null,
+                        l.credit?.toFixed(2) ?? null,
+                        l.balance.toFixed(2)
+                    ])).toEqual([
                         ['2026-03-20', '1190.00', null, '26190.00'],
                         ['2026-03-20', null, '119.00', '26071.00'],
                         ['2026-05-01', null, '300.00', '25771.00'],
                         ['2026-05-02', '300.00', null, '26071.00'],
                         ['2026-05-03', null, '250.00', '25821.00']
                     ]);
-                    expect([ledger.debit.toFixed(2), ledger.credit.toFixed(2), ledger.closingBalance.toFixed(2)]).toEqual(['1490.00', '669.00', '25821.00']);
+                    expect([ledger.debit.toFixed(2), ledger.credit.toFixed(2), ledger.closingBalance.toFixed(2)])
+                        .toEqual(['1490.00', '669.00', '25821.00']);
 
                     const trialBalance: BookkeepingTrialBalance = await reports()
                         .resolveTrialBalance(books.fiscalYear.id, undefined);
-                    expect(trialBalance.rows.map(r => [r.account.number, r.debit.toFixed(2), r.credit.toFixed(2), r.balance.toFixed(2)])).toEqual([
-                        ['1200', '26490.00', '669.00', '25821.00'],
-                        ['1400', '1785.00', '1428.00', '357.00'],
-                        ['1576', '19.00', '0.00', '19.00'],
-                        ['1600', '119.00', '119.00', '0.00'],
-                        ['1776', '38.00', '285.00', '-247.00'],
-                        ['2900', '0.00', '25000.00', '-25000.00'],
-                        ['4210', '650.00', '300.00', '350.00'],
-                        ['8400', '200.00', '1500.00', '-1300.00']
-                    ]);
-                    expect([trialBalance.debit, trialBalance.credit, trialBalance.debitBalances, trialBalance.creditBalances].map(a => a.toFixed(2)))
+                    expect(trialBalance.rows.map(r => [r.account.number, r.debit.toFixed(2), r.credit.toFixed(2), r.balance.toFixed(2)]))
+                        .toEqual([
+                            ['1200', '26490.00', '669.00', '25821.00'],
+                            ['1400', '1785.00', '1428.00', '357.00'],
+                            ['1576', '19.00', '0.00', '19.00'],
+                            ['1600', '119.00', '119.00', '0.00'],
+                            ['1776', '38.00', '285.00', '-247.00'],
+                            ['2900', '0.00', '25000.00', '-25000.00'],
+                            ['4210', '650.00', '300.00', '350.00'],
+                            ['8400', '200.00', '1500.00', '-1300.00']
+                        ]);
+                    expect([trialBalance.debit, trialBalance.credit, trialBalance.debitBalances, trialBalance.creditBalances]
+                        .map(a => a.toFixed(2)))
                         .toEqual(['29301.00', '29301.00', '26547.00', '26547.00']);
                     const march: BookkeepingTrialBalance = await reports()
                         .resolveTrialBalance(books.fiscalYear.id, day('2026-03-31'));
@@ -456,9 +496,10 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                 const books: PostingBooks = await createSeededBooks();
 
                 await inTenant(books.tenantId, async () => {
-                    const balanceSheet: BookkeepingStatement = await reports().resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id);
+                    const balanceSheet: BookkeepingStatement = await reports()
+                        .resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id);
                     expect(amountsOf(balanceSheet)).toEqual({
-                        'assets': '26197.00',
+                        assets: '26197.00',
                         'assets.B': '26197.00',
                         'assets.B.II': '376.00',
                         'assets.B.II.1': '357.00',
@@ -471,15 +512,23 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                         'equity-and-liabilities.C': '247.00',
                         'equity-and-liabilities.C.8': '247.00'
                     });
-                    expect(balanceSheet).toMatchObject({ type: 'BALANCE_SHEET', form: 'hgb.balance-sheet', label: 'Balance sheet', closed: false, unmapped: [] });
+                    expect(balanceSheet).toMatchObject({
+                        type: 'BALANCE_SHEET',
+                        form: 'hgb.balance-sheet',
+                        label: 'Balance sheet',
+                        closed: false,
+                        unmapped: []
+                    });
                     expect(balanceSheet.result.toFixed(2)).toBe('950.00');
                     // the input tax on the left by its debit, the output tax on the right by its credit
-                    expect(balanceSheet.positions.find(p => p.id === 'equity-and-liabilities.C.8')?.accounts.map(a => [a.number, a.amount.toFixed(2)]))
+                    expect(balanceSheet.positions.find(p => p.id === 'equity-and-liabilities.C.8')?.accounts
+                        .map(a => [a.number, a.amount.toFixed(2)]))
                         .toEqual([['1776', '247.00']]);
                     expect(balanceSheet.positions.find(p => p.id === 'assets.B.II.4')?.accounts.map(a => [a.number, a.amount.toFixed(2)]))
                         .toEqual([['1576', '19.00']]);
 
-                    const incomeStatement: BookkeepingStatement = await reports().resolveIncomeStatement(books.fiscalYear.id, HGB_INCOME_STATEMENT.id);
+                    const incomeStatement: BookkeepingStatement = await reports()
+                        .resolveIncomeStatement(books.fiscalYear.id, HGB_INCOME_STATEMENT.id);
                     expect(amountsOf(incomeStatement)).toEqual({
                         'income-statement.1': '1300.00',
                         'income-statement.8': '-350.00',
@@ -492,7 +541,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                         const shortened: BookkeepingStatement = await reports().resolveBalanceSheet(books.fiscalYear.id, structure.id);
                         expect(amountsOf(shortened)).toEqual(rolledUpAmountsOf(structure, balanceSheet));
                     }
-                    const micro: BookkeepingStatement = await reports().resolveIncomeStatement(books.fiscalYear.id, HGB_MICRO_INCOME_STATEMENT.id);
+                    const micro: BookkeepingStatement = await reports()
+                        .resolveIncomeStatement(books.fiscalYear.id, HGB_MICRO_INCOME_STATEMENT.id);
                     expect(amountsOf(micro)).toEqual({
                         'micro-income-statement.1': '1300.00',
                         'micro-income-statement.6': '-350.00',
@@ -504,9 +554,11 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                         'equity-and-liabilities.A.V': '950.00'
                     });
 
-                    await expect(reports().resolveBalanceSheet(books.fiscalYear.id, HGB_INCOME_STATEMENT.id)).rejects.toThrow(BadRequestError);
+                    await expect(reports().resolveBalanceSheet(books.fiscalYear.id, HGB_INCOME_STATEMENT.id))
+                        .rejects.toThrow(BadRequestError);
                     await expect(reports().resolveIncomeStatement(books.fiscalYear.id, 'hgb.unknown'))
-                        .rejects.toThrow('The form "hgb.unknown" needs to be a statement structure of the type INCOME_STATEMENT in ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.STATEMENT_STRUCTURES.');
+                        .rejects.toThrow('The form "hgb.unknown" needs to be a statement structure of the type INCOME_STATEMENT in '
+                            + 'ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.STATEMENT_STRUCTURES.');
                 });
             });
 
@@ -520,7 +572,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                         await reports().resolveIncomeStatement(books.fiscalYear.id, HGB_INCOME_STATEMENT.id)
                     ];
 
-                    const next: FiscalYear = (await journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.result.id })).nextFiscalYear;
+                    const next: FiscalYear = (await journal()
+                        .closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.result.id })).nextFiscalYear;
 
                     const closed: () => Promise<unknown[]> = async () => [
                         await reports().resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id),
@@ -542,7 +595,7 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                         'equity-and-liabilities.A': '25950.00',
                         'equity-and-liabilities.A.I': '25000.00',
                         'equity-and-liabilities.A.IV': '950.00',
-                        'assets': '26197.00'
+                        assets: '26197.00'
                     });
                     // the equity grew by the share capital paid in and by the result of the income statement
                     const equity: (statement: BookkeepingStatement) => BigNumber = statement => statement.positions
@@ -554,7 +607,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                 });
             });
 
-            it('answer a closed year from its archive, whatever the accounts are mapped to since, with the figures of the year before', async () => {
+            it('answer a closed year from its archive, whatever the accounts are mapped to since, '
+                + 'with the figures of the year before', async () => {
                 const books: PostingBooks = await createSeededBooks();
 
                 await inTenant(books.tenantId, async () => {
@@ -564,10 +618,12 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                     expect(open).toMatchObject({ previousFiscalYearId: null, previousEnd: null });
                     expect(open.positions.every(p => p.previousAmount === null)).toBe(true);
 
-                    const next: FiscalYear = (await journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.result.id })).nextFiscalYear;
+                    const next: FiscalYear = (await journal()
+                        .closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.result.id })).nextFiscalYear;
 
-                    const archived: FiscalYearStatement[] = await inject<Repository<FiscalYearStatement>>(repositoryTokenFor(FiscalYearStatement))
-                        .findAll({ where: { fiscalYearId: books.fiscalYear.id }, limit: 'all' });
+                    const archived: FiscalYearStatement[] = await inject<Repository<FiscalYearStatement>>(
+                        repositoryTokenFor(FiscalYearStatement)
+                    ).findAll({ where: { fiscalYearId: books.fiscalYear.id }, limit: 'all' });
                     expect(archived.map(s => [s.type, s.form, s.applies]).sort()).toEqual([
                         [BookkeepingStatementType.BALANCE_SHEET, HGB_BALANCE_SHEET.id, false],
                         [BookkeepingStatementType.BALANCE_SHEET, HGB_MICRO_BALANCE_SHEET.id, true],
@@ -578,7 +634,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                     // the receivables mapped to another position once the year is closed
                     await accounts().updateById(books.accounts.receivables.id, { statementPosition: 'assets.B.II.4' });
 
-                    expect(await reports().resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id)).toEqual({ ...open, closed: true });
+                    expect(await reports().resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id))
+                        .toEqual({ ...open, closed: true });
                     // a form not archived adds up the archived full one
                     expect(amountsOf(await reports().resolveBalanceSheet(books.fiscalYear.id, HGB_SMALL_BALANCE_SHEET.id)))
                         .toEqual(rolledUpAmountsOf(HGB_SMALL_BALANCE_SHEET, open));
@@ -595,8 +652,10 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                     expect(income.positions.find(p => p.id === 'micro-income-statement.8')?.previousAmount?.toFixed(2)).toBe('950.00');
 
                     // the pdf archived at the closing is the one served
-                    const closedYear: FiscalYear = await inject<Repository<FiscalYear>>(repositoryTokenFor(FiscalYear)).findById(books.fiscalYear.id);
-                    const row: FiscalYearStatement | undefined = await reports().findArchivedStatement(closedYear, BookkeepingStatementType.BALANCE_SHEET, undefined);
+                    const closedYear: FiscalYear = await inject<Repository<FiscalYear>>(repositoryTokenFor(FiscalYear))
+                        .findById(books.fiscalYear.id);
+                    const row: FiscalYearStatement | undefined = await reports()
+                        .findArchivedStatement(closedYear, BookkeepingStatementType.BALANCE_SHEET, undefined);
                     if (row == undefined) {
                         throw new Error('The balance sheet is not archived.');
                     }
@@ -619,16 +678,22 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                 expect(mine?.[0].entries.map(e => e.entry.tenantId)).toEqual(Array.from({ length: 10 }, () => books.tenantId));
                 expect(theirs?.[0].entries.every(e => e.entry.tenantId === other.tenantId)).toBe(true);
                 expect(mine?.[1].debit.toFixed(2)).toBe('29301.00');
-                await expect(inTenant(books.tenantId, async () => await reports().resolveLedger(other.accounts.bank.id, day('2026-01-01'), day('2026-12-31'))))
-                    .rejects.toThrow(NotFoundError);
+                await expect(inTenant(
+                    books.tenantId,
+                    async () => await reports().resolveLedger(other.accounts.bank.id, day('2026-01-01'), day('2026-12-31'))
+                )).rejects.toThrow(NotFoundError);
                 await expect(inTenant(books.tenantId, async () => await reports().resolveBalanceSheet(other.fiscalYear.id, undefined)))
                     .rejects.toThrow(NotFoundError);
             });
         });
 
         describe('mapping accounts to positions', () => {
-            it('report an account with a balance and no position as unmapped, and an account in the position of the side of its balance', async () => {
-                const books: HandBooks = await createHandBooks([{ legalForm: 'GmbH', validFrom: day('2020-01-01') }], { start: day('2026-01-01') });
+            it('report an account with a balance and no position as unmapped, '
+                + 'and an account in the position of the side of its balance', async () => {
+                const books: HandBooks = await createHandBooks(
+                    [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
+                    { start: day('2026-01-01') }
+                );
                 await book(books, '2026-01-02', 'bank', 'capital', '1000.00');
                 await book(books, '2026-02-01', 'rent', 'bank', '3000.00');
                 await book(books, '2026-02-02', 'vat', 'bank', '50.00');
@@ -645,7 +710,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                     });
                     expect(amountsOf(overdrawn)['assets.B.IV']).toBeUndefined();
                     expect(overdrawn.unmapped.map(a => [a.number, a.amount.toFixed(2)])).toEqual([['1590', '200.00']]);
-                    const incomeStatement: BookkeepingStatement = await reports().resolveIncomeStatement(books.fiscalYear.id, HGB_INCOME_STATEMENT.id);
+                    const incomeStatement: BookkeepingStatement = await reports()
+                        .resolveIncomeStatement(books.fiscalYear.id, HGB_INCOME_STATEMENT.id);
                     expect(incomeStatement.unmapped.map(a => [a.number, a.amount.toFixed(2)])).toEqual([['8999', '500.00']]);
                     // the result counts the revenue without a position all the same
                     expect(incomeStatement.result.toFixed(2)).toBe('-2500.00');
@@ -655,7 +721,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                 await book(books, '2026-03-02', 'bank', 'vat', '80.00');
 
                 await inTenant(books.tenantId, async () => {
-                    const balanceSheet: BookkeepingStatement = await reports().resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id);
+                    const balanceSheet: BookkeepingStatement = await reports()
+                        .resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id);
                     expect(amountsOf(balanceSheet)).toMatchObject({ 'assets.B.IV': '3330.00', 'equity-and-liabilities.C.8': '30.00' });
                     expect(amountsOf(balanceSheet)['equity-and-liabilities.C.2']).toBeUndefined();
                     expect(amountsOf(balanceSheet)['assets.B.II.4']).toBeUndefined();
@@ -663,7 +730,10 @@ export function describeBookkeepingReports(dataSourceName: string): void {
             });
 
             it('refuse a position no full structure has, one with positions below it or one of the other statement', async () => {
-                const books: HandBooks = await createHandBooks([{ legalForm: 'GmbH', validFrom: day('2020-01-01') }], { start: day('2026-01-01') });
+                const books: HandBooks = await createHandBooks(
+                    [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
+                    { start: day('2026-01-01') }
+                );
                 const create: (data: Partial<BookkeepingAccountCreateData>) => Promise<BookkeepingAccount> = async data => await inTenant(
                     books.tenantId,
                     async () => await accounts().create({
@@ -678,18 +748,27 @@ export function describeBookkeepingReports(dataSourceName: string): void {
 
                 await expect(create({ statementPosition: 'assets.Z' })).rejects.toThrow(BadRequestError);
                 await expect(create({ statementPosition: 'assets.Z' }))
-                    .rejects.toThrow('The statementPosition "assets.Z" needs to be a position of a full statement without positions below it, such as assets.B.IV.');
+                    .rejects.toThrow('The statementPosition "assets.Z" needs to be a position of a full statement '
+                        + 'without positions below it, such as assets.B.IV.');
                 await expect(create({ statementPosition: 'assets.B.II' })).rejects.toThrow(BadRequestError);
-                await expect(create({ statementPosition: 'micro-income-statement.1', type: BookkeepingAccountType.REVENUE })).rejects.toThrow(BadRequestError);
-                await expect(create({ statementPosition: 'income-statement.15', type: BookkeepingAccountType.REVENUE })).rejects.toThrow(BadRequestError);
+                await expect(create({ statementPosition: 'micro-income-statement.1', type: BookkeepingAccountType.REVENUE }))
+                    .rejects.toThrow(BadRequestError);
+                await expect(create({ statementPosition: 'income-statement.15', type: BookkeepingAccountType.REVENUE }))
+                    .rejects.toThrow(BadRequestError);
                 await expect(create({ statementPosition: 'income-statement.1' }))
-                    .rejects.toThrow('The statementPosition "income-statement.1" of an asset, liability or equity account needs to be a position of a balance sheet.');
+                    .rejects.toThrow('The statementPosition "income-statement.1" of an asset, liability or equity account '
+                        + 'needs to be a position of a balance sheet.');
                 await expect(create({ type: BookkeepingAccountType.EXPENSE, creditStatementPosition: 'assets.B.IV' }))
-                    .rejects.toThrow('The creditStatementPosition "assets.B.IV" of a revenue or expense account needs to be a position of an income statement.');
-                await expect(inTenant(books.tenantId, async () => await accounts().updateById(books.accounts.suspense.id, { statementPosition: 'assets.B' })))
-                    .rejects.toThrow(BadRequestError);
-                await expect(inTenant(books.tenantId, async () => await accounts().updateById(books.accounts.rent.id, { type: BookkeepingAccountType.ASSET })))
-                    .rejects.toThrow(BadRequestError);
+                    .rejects.toThrow('The creditStatementPosition "assets.B.IV" of a revenue or expense account '
+                        + 'needs to be a position of an income statement.');
+                await expect(inTenant(
+                    books.tenantId,
+                    async () => await accounts().updateById(books.accounts.suspense.id, { statementPosition: 'assets.B' })
+                )).rejects.toThrow(BadRequestError);
+                await expect(inTenant(
+                    books.tenantId,
+                    async () => await accounts().updateById(books.accounts.rent.id, { type: BookkeepingAccountType.ASSET })
+                )).rejects.toThrow(BadRequestError);
 
                 const cash: BookkeepingAccount = await create({ statementPosition: 'assets.B.IV' });
                 expect(cash.statementPosition).toBe('assets.B.IV');
@@ -713,19 +792,26 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                     .toEqual({ balanceSheet: HGB_MICRO_BALANCE_SHEET.id, incomeStatement: HGB_MICRO_INCOME_STATEMENT.id });
                 expect(await inTenant(small.tenantId, async () => await reports().resolveStatementForms(small.fiscalYear.id)))
                     .toEqual({ balanceSheet: HGB_SMALL_BALANCE_SHEET.id, incomeStatement: HGB_INCOME_STATEMENT.id });
-                const microSheet: BookkeepingStatement = await inTenant(micro.tenantId, async () => await reports().resolveBalanceSheet(micro.fiscalYear.id, undefined));
+                const microSheet: BookkeepingStatement = await inTenant(
+                    micro.tenantId,
+                    async () => await reports().resolveBalanceSheet(micro.fiscalYear.id, undefined)
+                );
                 expect(microSheet.form).toBe(HGB_MICRO_BALANCE_SHEET.id);
                 expect(amountsOf(microSheet)).toEqual({
-                    'assets': '100000.00',
+                    assets: '100000.00',
                     'assets.B': '100000.00',
                     'equity-and-liabilities': '100000.00',
                     'equity-and-liabilities.A': '100000.00'
                 });
-                expect((await inTenant(small.tenantId, async () => await reports().resolveIncomeStatement(small.fiscalYear.id, undefined))).form)
-                    .toBe(HGB_INCOME_STATEMENT.id);
+                const smallStatement: BookkeepingStatement = await inTenant(
+                    small.tenantId,
+                    async () => await reports().resolveIncomeStatement(small.fiscalYear.id, undefined)
+                );
+                expect(smallStatement.form).toBe(HGB_INCOME_STATEMENT.id);
             });
 
-            it('lists every form a fiscal year can be shown in, with the one that applies, and the archived one once it is closed', async () => {
+            it('lists every form a fiscal year can be shown in, with the one that applies, '
+                + 'and the archived one once it is closed', async () => {
                 const small: HandBooks = await createHandBooks(
                     [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
                     { start: day('2026-01-01'), averageEmployees: 11 }
@@ -785,23 +871,30 @@ export function describeBookkeepingReports(dataSourceName: string): void {
             });
 
             it('refuses the size class of a fiscal year without its average number of employees, and its closing', async () => {
-                const books: HandBooks = await createHandBooks([{ legalForm: 'GmbH', validFrom: day('2020-01-01') }], { start: day('2026-01-01') });
+                const books: HandBooks = await createHandBooks(
+                    [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
+                    { start: day('2026-01-01') }
+                );
                 await book(books, '2026-03-01', 'bank', 'revenue', '1000.00');
 
                 await inTenant(books.tenantId, async () => {
-                    const message: string = 'The fiscal year from 2026-01-01 to 2026-12-31 needs its averageEmployees, the average number of employees the size class of § 267 HGB is resolved by.';
+                    const message: string = 'The fiscal year from 2026-01-01 to 2026-12-31 needs its averageEmployees, '
+                        + 'the average number of employees the size class of § 267 HGB is resolved by.';
                     await expect(reports().resolveStatementForms(books.fiscalYear.id)).rejects.toThrow(ConflictError);
                     await expect(reports().resolveBalanceSheet(books.fiscalYear.id, undefined)).rejects.toThrow(message);
-                    await expect(journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.carried.id })).rejects.toThrow(message);
+                    await expect(journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.carried.id }))
+                        .rejects.toThrow(message);
                     // a form named is answered without it
-                    expect((await reports().resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id)).form).toBe(HGB_BALANCE_SHEET.id);
+                    expect((await reports().resolveBalanceSheet(books.fiscalYear.id, HGB_BALANCE_SHEET.id)).form)
+                        .toBe(HGB_BALANCE_SHEET.id);
 
                     await journal().updateFiscalYear(books.fiscalYear.id, { averageEmployees: 0 });
                     expect((await reports().resolveStatementForms(books.fiscalYear.id)).balanceSheet).toBe(HGB_MICRO_BALANCE_SHEET.id);
                 });
             });
 
-            it('classifies the first fiscal year of the books by the size class before it, or as founded, and refuses it without either', async () => {
+            it('classifies the first fiscal year of the books by the size class before it, or as founded, '
+                + 'and refuses it without either', async () => {
                 const books: HandBooks = await createHandBooks(
                     [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
                     { start: day('2026-01-01'), averageEmployees: 1, founded: null }
@@ -809,9 +902,11 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                 await book(books, '2026-03-01', 'bank', 'revenue', '1000.00');
 
                 await inTenant(books.tenantId, async () => {
-                    const message: string = 'The first fiscal year of the books, from 2026-01-01 to 2026-12-31, needs either founded, when the company was founded in it, or its previousSizeClass, one of MICRO, SMALL, MEDIUM, LARGE.';
+                    const message: string = 'The first fiscal year of the books, from 2026-01-01 to 2026-12-31, needs either founded, '
+                        + 'when the company was founded in it, or its previousSizeClass, one of MICRO, SMALL, MEDIUM, LARGE.';
                     await expect(reports().resolveStatementForms(books.fiscalYear.id)).rejects.toThrow(message);
-                    await expect(journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.carried.id })).rejects.toThrow(message);
+                    await expect(journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.carried.id }))
+                        .rejects.toThrow(message);
 
                     // the figures of a micro corporation, after a balance sheet date of a small one: a change takes two
                     await journal().updateFiscalYear(books.fiscalYear.id, { previousSizeClass: HgbSizeClass.SMALL });
@@ -828,51 +923,74 @@ export function describeBookkeepingReports(dataSourceName: string): void {
         });
 
         describe('what the conformances of a corporation need', () => {
-            it('refuse the settings of a corporation without its company and register, and take those of another legal form without', async () => {
+            it('refuse the settings of a corporation without its company and register, '
+                + 'and take those of another legal form without', async () => {
                 const tenantId: string = UUIDUtilities.generate();
 
                 await inTenant(tenantId, async () => {
-                    await expect(journal().createSettings({ currency: 'EUR', legalForms: [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }] }))
-                        .rejects.toThrow('The bookkeeping settings of a GmbH need the name, seat, registerCourt, registerNumber of its company, § 264 (1a) HGB.');
+                    await expect(journal().createSettings({
+                        currency: 'EUR',
+                        legalForms: [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }]
+                    })).rejects.toThrow('The bookkeeping settings of a GmbH need the name, seat, registerCourt, registerNumber '
+                        + 'of its company, § 264 (1a) HGB.');
                     await expect(journal().createSettings({
                         currency: 'EUR',
                         legalForms: [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
                         company: { name: 'Acme GmbH', seat: 'Berlin' }
                     })).rejects.toThrow(BadRequestError);
-                    const settings: BookkeepingSettings = await journal().createSettings({ currency: 'EUR', legalForms: [{ legalForm: 'e.K.', validFrom: day('2020-01-01') }] });
+                    const settings: BookkeepingSettings = await journal().createSettings({
+                        currency: 'EUR',
+                        legalForms: [{ legalForm: 'e.K.', validFrom: day('2020-01-01') }]
+                    });
                     expect(settings.company).toBeNull();
 
                     // a UG from 2027, whose register is needed from then
                     await expect(journal().updateSettings({ legalForm: { legalForm: 'UG', validFrom: day('2027-01-01') } }))
-                        .rejects.toThrow('The bookkeeping settings of a UG need the name, seat, registerCourt, registerNumber of its company, § 264 (1a) HGB.');
+                        .rejects.toThrow('The bookkeeping settings of a UG need the name, seat, registerCourt, registerNumber '
+                            + 'of its company, § 264 (1a) HGB.');
                     await journal().updateSettings({ company: testCompany });
-                    const changed: BookkeepingSettings = await journal().updateSettings({ legalForm: { legalForm: 'UG', validFrom: day('2027-01-01') } });
+                    const changed: BookkeepingSettings = await journal()
+                        .updateSettings({ legalForm: { legalForm: 'UG', validFrom: day('2027-01-01') } });
                     expect(changed.company).toEqual(testCompany);
                     await expect(journal().updateSettings({ company: null })).rejects.toThrow(BadRequestError);
                 });
             });
 
-            it('refuse posting rules of a UG without the accounts of its legal reserve, and a UG from within an open year whose rules lack them', async () => {
-                const ug: HandBooks = await createHandBooks([{ legalForm: 'UG', validFrom: day('2020-01-01') }], { start: day('2026-01-01') });
-                const gmbh: HandBooks = await createHandBooks([{ legalForm: 'GmbH', validFrom: day('2020-01-01') }], { start: day('2026-01-01') });
-                const message: string = 'The posting rules of the fiscal year from 2026-01-01 to 2026-12-31 need to name the legalReserveAccountId and the reserveAllocationAccountId of the legal reserve of § 5a (3) GmbHG.';
+            it('refuse posting rules of a UG without the accounts of its legal reserve, '
+                + 'and a UG from within an open year whose rules lack them', async () => {
+                const ug: HandBooks = await createHandBooks(
+                    [{ legalForm: 'UG', validFrom: day('2020-01-01') }],
+                    { start: day('2026-01-01') }
+                );
+                const gmbh: HandBooks = await createHandBooks(
+                    [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
+                    { start: day('2026-01-01') }
+                );
+                const message: string = 'The posting rules of the fiscal year from 2026-01-01 to 2026-12-31 need to name the '
+                    + 'legalReserveAccountId and the reserveAllocationAccountId of the legal reserve of § 5a (3) GmbHG.';
 
-                await expect(inTenant(ug.tenantId, async () => await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_RULE_SERVICE).createRuleSet({
-                    fiscalYearId: ug.fiscalYear.id,
-                    rules: EMPTY_RULES
-                }))).rejects.toThrow(message);
+                await expect(inTenant(
+                    ug.tenantId,
+                    async () => await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_RULE_SERVICE).createRuleSet({
+                        fiscalYearId: ug.fiscalYear.id,
+                        rules: EMPTY_RULES
+                    })
+                )).rejects.toThrow(message);
                 await createReserveRules(ug, ug.fiscalYear);
 
                 await inTenant(gmbh.tenantId, async () => {
-                    await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_RULE_SERVICE).createRuleSet({ fiscalYearId: gmbh.fiscalYear.id, rules: EMPTY_RULES });
-                    await expect(journal().updateSettings({ legalForm: { legalForm: 'UG', validFrom: day('2026-06-01') } })).rejects.toThrow(message);
+                    await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_RULE_SERVICE)
+                        .createRuleSet({ fiscalYearId: gmbh.fiscalYear.id, rules: EMPTY_RULES });
+                    await expect(journal().updateSettings({ legalForm: { legalForm: 'UG', validFrom: day('2026-06-01') } }))
+                        .rejects.toThrow(message);
                     expect((await journal().findSettings())?.legalForms.map(f => f.legalForm)).toEqual(['GmbH']);
                 });
             });
         });
 
         describe('the legal reserve of a UG', () => {
-            it('is proposed as a quarter of the net income less the loss carried forward, and the closing is refused until it is posted', async () => {
+            it('is proposed as a quarter of the net income less the loss carried forward, '
+                + 'and the closing is refused until it is posted', async () => {
                 const books: HandBooks = await createHandBooks(
                     [{ legalForm: 'UG', validFrom: day('2020-01-01') }],
                     { start: day('2025-01-01'), averageEmployees: 1 }
@@ -883,7 +1001,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                 const next: FiscalYear = await inTenant(books.tenantId, async () => {
                     // a loss: nothing to reserve
                     expect(await journal().resolveClosingProposals(books.fiscalYear.id)).toEqual([]);
-                    const closed: FiscalYear = (await journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.carried.id })).nextFiscalYear;
+                    const closed: FiscalYear = (await journal()
+                        .closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.carried.id })).nextFiscalYear;
                     return await journal().updateFiscalYear(closed.id, { averageEmployees: 1 });
                 });
                 await book(books, '2026-03-01', 'bank', 'revenue', '10000.10');
@@ -895,13 +1014,16 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                     expect(proposals).toHaveLength(1);
                     expect(proposals[0]?.conformance).toBe('ug-legal-reserve');
                     expect(proposals[0]?.entry).toMatchObject({ postingDate: day('2026-12-31'), text: 'Legal reserve of § 5a (3) GmbHG' });
-                    expect(proposals[0]?.entry.lines.map(l => [l.accountId, l.debit?.toFixed(2) ?? null, l.credit?.toFixed(2) ?? null])).toEqual([
-                        [books.accounts.allocation.id, '2000.03', null],
-                        [books.accounts.reserve.id, null, '2000.03']
-                    ]);
-                    await expect(journal().closeFiscalYear(next.id, { resultAccountId: books.accounts.carried.id })).rejects.toThrow(ConflictError);
+                    expect(proposals[0]?.entry.lines.map(l => [l.accountId, l.debit?.toFixed(2) ?? null, l.credit?.toFixed(2) ?? null]))
+                        .toEqual([
+                            [books.accounts.allocation.id, '2000.03', null],
+                            [books.accounts.reserve.id, null, '2000.03']
+                        ]);
                     await expect(journal().closeFiscalYear(next.id, { resultAccountId: books.accounts.carried.id }))
-                        .rejects.toThrow('The legal reserve of § 5a (3) GmbHG needs 2000.03 EUR more on the account 0846 before the fiscal year is closed.');
+                        .rejects.toThrow(ConflictError);
+                    await expect(journal().closeFiscalYear(next.id, { resultAccountId: books.accounts.carried.id }))
+                        .rejects.toThrow('The legal reserve of § 5a (3) GmbHG needs 2000.03 EUR more on the account 0846 '
+                            + 'before the fiscal year is closed.');
 
                     const entry: BookkeepingClosingProposal['entry'] | undefined = proposals[0]?.entry;
                     if (entry != undefined) {
@@ -915,7 +1037,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                         'equity-and-liabilities.A.IV': '-2000.00',
                         'equity-and-liabilities.A.V': '8000.07'
                     });
-                    expect((await journal().closeFiscalYear(next.id, { resultAccountId: books.accounts.carried.id })).fiscalYear.closedAt).toBeInstanceOf(Date);
+                    expect((await journal().closeFiscalYear(next.id, { resultAccountId: books.accounts.carried.id })).fiscalYear.closedAt)
+                        .toBeInstanceOf(Date);
                 });
             });
 
@@ -940,7 +1063,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                         { maxAttempts: 1 }
                     );
 
-                    const closedYear: FiscalYear = await inject<Repository<FiscalYear>>(repositoryTokenFor(FiscalYear)).findById(books.fiscalYear.id);
+                    const closedYear: FiscalYear = await inject<Repository<FiscalYear>>(repositoryTokenFor(FiscalYear))
+                        .findById(books.fiscalYear.id);
                     const archived: FiscalYearStatement | undefined = await reports().findArchivedStatement(
                         closedYear,
                         BookkeepingStatementType.BALANCE_SHEET,
@@ -968,7 +1092,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
 
                 await inTenant(books.tenantId, async () => {
                     expect(await journal().resolveClosingProposals(books.fiscalYear.id)).toEqual([]);
-                    expect((await journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.carried.id })).fiscalYear.closedAt)
+                    expect((await journal()
+                        .closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.carried.id })).fiscalYear.closedAt)
                         .toBeInstanceOf(Date);
                 });
             });
@@ -995,7 +1120,8 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                 expect(headers).toEqual(Array.from({ length: 8 }, () => '%PDF-'));
             });
 
-            it('add the note of the fiscal year below the balance sheet of a micro corporation, and none below another or without one', async () => {
+            it('add the note of the fiscal year below the balance sheet of a micro corporation, '
+                + 'and none below another or without one', async () => {
                 const books: HandBooks = await createHandBooks(
                     [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }],
                     { start: day('2026-01-01'), averageEmployees: 1 }
@@ -1006,22 +1132,33 @@ export function describeBookkeepingReports(dataSourceName: string): void {
                     { balanceSheetNote: MICRO_NOTE }
                 ));
 
-                const contentOf: (fiscalYear: FiscalYear, form: string) => Promise<PdfDocumentDefinition['content']> = async (fiscalYear, form) => await inTenant(
+                const contentOf: (fiscalYear: FiscalYear, form: string) => Promise<PdfDocumentDefinition['content']> = async (
+                    fiscalYear,
+                    form
+                ) => await inTenant(
                     books.tenantId,
                     async () => {
                         const statement: BookkeepingStatement = await reports().resolveBalanceSheet(books.fiscalYear.id, form);
                         const definition: PdfDocumentDefinition = { attachments: [], content: [{ text: 'Balance sheet' }] };
-                        inject(HgbCorporationConformanceService).updateReportDefinition(statement, definition, { settings: books.settings, fiscalYear, legalForm: 'GmbH' });
+                        inject(HgbCorporationConformanceService).updateReportDefinition(
+                            statement,
+                            definition,
+                            { settings: books.settings, fiscalYear, legalForm: 'GmbH' }
+                        );
                         return definition.content;
                     }
                 );
 
-                expect(await contentOf(noted, HGB_MICRO_BALANCE_SHEET.id)).toEqual([{ text: 'Balance sheet' }, { text: MICRO_NOTE, margin: [0, 20, 0, 0] }]);
+                expect(await contentOf(noted, HGB_MICRO_BALANCE_SHEET.id))
+                    .toEqual([{ text: 'Balance sheet' }, { text: MICRO_NOTE, margin: [0, 20, 0, 0] }]);
                 expect(await contentOf(noted, HGB_BALANCE_SHEET.id)).toEqual([{ text: 'Balance sheet' }]);
                 // nothing to state
                 expect(await contentOf(books.fiscalYear, HGB_MICRO_BALANCE_SHEET.id)).toEqual([{ text: 'Balance sheet' }]);
-                expect(await readHeader(await inTenant(books.tenantId, async () => await reportPdfs().resolveBalanceSheetPdf(books.fiscalYear.id, undefined))))
-                    .toBe('%PDF-');
+                const pdf: Readable = await inTenant(
+                    books.tenantId,
+                    async () => await reportPdfs().resolveBalanceSheetPdf(books.fiscalYear.id, undefined)
+                );
+                expect(await readHeader(pdf)).toBe('%PDF-');
             });
         });
     });

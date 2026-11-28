@@ -69,10 +69,10 @@ beforeAll(async () => {
 }, Ms.MINUTE * 6);
 
 afterAll(async () => {
-    await server?.container.stop();
+    await server?.stop();
 });
 
-describeWebDavClient('Nextcloud', createClient);
+describeWebDavClient('Nextcloud', createClient, 'per-second');
 
 describe('WebDavClient against what only Nextcloud does', () => {
     it('names the same ETag for a put, a get and a listing, and a new one for a change', async () => {
@@ -84,6 +84,8 @@ describe('WebDavClient against what only Nextcloud does', () => {
         const read: WebDavDownload = await client.get(`${folder}/2026-001.pdf`);
         await read.content.toArray();
         const listed: WebDavEntry | undefined = (await client.findEntries(folder))[0];
+        // Nextcloud names the same ETag for a change in the second of the write before
+        await new Promise(resolve => setTimeout(resolve, 1000 - (Date.now() % 1000) + 50));
         const changed: string | undefined = await client.put(`${folder}/2026-001.pdf`, '%PDF-1.7 b', { contentType: 'application/pdf', ifMatch: written ?? '' });
 
         expect(written).toEqual(expect.stringMatching(/^"[^"]+"$/));
@@ -121,20 +123,18 @@ describe('WebDavClient against what only Nextcloud does', () => {
             location: { namespace: NEXTCLOUD_NAMESPACE, name: 'trashbin-original-location' }
         });
         expect(await client.findEntry(`${folder}/${name}`)).toBeUndefined();
-        expect(trashed.filter(entry => entry.properties.filename === name)).toEqual([
-            expect.objectContaining({ kind: 'file', size: 17, properties: { filename: name, location: `${folder}/${name}` } })
-        ]);
+        expect(trashed.filter(entry => entry.properties.filename === name)).toEqual([expect.objectContaining({ kind: 'file', size: 17, properties: { filename: name, location: `${folder}/${name}` } })]);
     });
 
     it('replaces the destination of a move only when told to', async () => {
         const client: WebDavClient = createClient();
         const folder: string = `move-${UUIDUtilities.generate()}`;
         await client.createFolder(folder);
-        await client.put(`${folder}/.chunk.part`, 'new', { contentType: 'application/octet-stream', overwrite: true });
+        await client.put(`${folder}/.chunk.upload`, 'new', { contentType: 'application/octet-stream', overwrite: true });
         await client.put(`${folder}/chunk`, 'old', { contentType: 'application/octet-stream', overwrite: true });
 
-        const refused: unknown = await failureOf(client.move(`${folder}/.chunk.part`, `${folder}/chunk`, { overwrite: false }));
-        await client.move(`${folder}/.chunk.part`, `${folder}/chunk`, { overwrite: true });
+        const refused: unknown = await failureOf(client.move(`${folder}/.chunk.upload`, `${folder}/chunk`, { overwrite: false }));
+        await client.move(`${folder}/.chunk.upload`, `${folder}/chunk`, { overwrite: true });
         const read: WebDavDownload = await client.get(`${folder}/chunk`);
 
         expect(refused).toBeInstanceOf(WebDavPreconditionFailedError);

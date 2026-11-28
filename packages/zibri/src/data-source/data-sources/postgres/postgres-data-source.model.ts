@@ -36,6 +36,7 @@ import { MigrationEntity } from '../../migration/migration-entity.model';
 import { MigrationRevertTarget } from '../../migration/migration-revert-target.model';
 import { Migration } from '../../migration/migration.model';
 import { type MissingFrameworkColumn } from '../../migration/missing-framework-column.model';
+import { type MissingUnique } from '../../migration/missing-unique.model';
 import { RecordedMigration } from '../../migration/recorded-migration.model';
 import { isMigratedAsOf, recordKeyReconciliation, revertMigrationsAfter, runMigrations, runMigrationsAfterRestore } from '../../migration/run-migrations.function';
 import { AddPropertyToEntityInput } from '../../models/add-property-to-entity-input.model';
@@ -778,9 +779,30 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
             `The database of "${this.constructor.name}" lacks columns the framework added to its entities, and adds none`
             + ' with schemaManagement: \'external\'. Its rows are read and written without them, and the features that need'
             + ' them refuse with an error naming them:',
-            ...tables.map(table => `  - ${table}: ${missing.filter(c => c.table === table).map(c => c.column).join(', ')}`),
+            ...tables.map(table => `  - ${table}: ${missing.filter(c => c.table === table).map(c => c.column)
+                .join(', ')}`),
             'Add them, and start the application again:',
             ...missing.flatMap(c => c.statements.map(statement => `  ${statement};`))
+        ].join('\n'));
+    }
+
+    /**
+     * Records the uniques the entities declare that the database lacks, and warns of them, for a schema the data
+     * source does not manage: nothing keeps their values apart, and an upsert by one is refused, naming it.
+     */
+    private async recordMissingUniques(): Promise<void> {
+        const missing: MissingUnique[] = await this.onSession(async run => await this.getManager().findMissingUniques(run));
+        this.getSchema().setMissingUniques(missing);
+        if (!missing.length) {
+            return;
+        }
+        this.logger.warn([
+            `The database of "${this.constructor.name}" lacks uniques its entities declare, and adds none with`
+            + ' schemaManagement: \'external\'. Nothing keeps the values they cover apart, and an upsert identifying its rows'
+            + ' by one refuses with an error naming it:',
+            ...missing.map(u => `  - ${u.table}: ${u.properties.join(', ')}, as "${u.name}"`),
+            'Add them, and start the application again:',
+            ...missing.flatMap(u => u.statements.map(statement => `  ${statement};`))
         ].join('\n'));
     }
 
@@ -795,6 +817,7 @@ export abstract class PostgresDataSource implements SqlDataSourceInterface, PubS
     private async reconcileSchema(leaveIndexes: boolean): Promise<boolean> {
         if (this.schemaManagement === 'external') {
             await this.leaveOutMissingFrameworkColumns();
+            await this.recordMissingUniques();
             return false;
         }
         const manager: PostgresSchemaManager = this.getManager();

@@ -7,10 +7,12 @@ import { describeProjects, projectsTestEntities } from './projects.cases';
 
 describeProjects(
     'the in memory data source',
-    [createInMemoryDataSource({
-        entities: [...defaultTestServerEntities, ...projectsTestEntities],
-        repositories: [...defaultTestServerRepositories, TestServerInvitationRepository]
-    })],
+    [
+        createInMemoryDataSource({
+            entities: [...defaultTestServerEntities, ...projectsTestEntities],
+            repositories: [...defaultTestServerRepositories, TestServerInvitationRepository]
+        })
+    ],
     TestTimeouts.inMemory.start,
     TestTimeouts.inMemory.shutdown
 );

@@ -27,7 +27,7 @@ export class WebDavBackupTransport extends BaseBackupTransport {
      * Creates the transport keeping the backups in a folder of the given server.
      * @param name - The name of the transport.
      * @param options - The server, who logs in, the folder the backups are kept in, and how requests are sent.
-     * @throws {InternalError} When the url of the connection is no http or https url, or a segment of the folder is
+     * @throws InternalError when the url of the connection is no http or https url, or a segment of the folder is
      * empty, `.` or `..`.
      */
     constructor(readonly name: string, private readonly options: WebDavBackupTransportOptions) {

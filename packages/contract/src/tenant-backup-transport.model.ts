@@ -1,3 +1,6 @@
+import { type ZIBRI_BACKUP_TRANSPORT_KINDS } from './backup-transport-kinds.model';
+import { type TenantS3TransportSettingsModel } from './tenant-s3-transport-settings.model';
+
 /**
  * Storage a tenant keeps its backups on, such as a bucket or an SFTP server, as the routes of the backup transports
  * answer it. Its secret is never answered.

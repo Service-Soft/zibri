@@ -1,3 +1,4 @@
+/* eslint-disable sonar/no-duplicate-string -- the due dates are the data of each case */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
@@ -28,9 +29,9 @@ import { Controller } from '../../routing/decorators/controller.decorator';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Newable } from '../../types/newable.type';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
+import { type TenantWebDavConnectionTest } from '../../web-dav/tenant-web-dav-connection-test.model';
 import { type TenantWebDavConnectionUsageCleanerInterface } from '../../web-dav/tenant-web-dav-connection-usage-cleaner.interface';
 import { TenantWebDavConnectionController } from '../../web-dav/tenant-web-dav-connection.controller';
-import { type TenantWebDavConnectionTest } from '../../web-dav/tenant-web-dav-connection-test.model';
 import { TenantWebDavConnection } from '../../web-dav/tenant-web-dav-connection.model';
 import { WebDavConnectionKind } from '../../web-dav/web-dav-connection-kind.enum';
 import { TaskCalendarSyncRequest } from './models/task-calendar-sync-request.model';
@@ -57,6 +58,11 @@ export const projectsCalendarSyncTestEntities: Newable<BaseEntity>[] = [
     CalendarEntryLink,
     TaskCalendarSyncRequest
 ];
+
+/**
+ * The password the CalDAV server of the cases takes.
+ */
+const CALDAV_PASSWORD: string = 'Lovelace-app-password';
 
 /**
  * Who calls the routes: the headers of their requests.
@@ -138,6 +144,10 @@ type ErrorBody = {
 @Controller('/web-dav-connections', { allowOrphan: true })
 export class TestWebDavConnectionsController extends TenantWebDavConnectionController {}
 
+function webDavConnections(): Repository<TenantWebDavConnection> {
+    return inject(repositoryTokenFor(TenantWebDavConnection));
+}
+
 /**
  * A usage cleaner that, while armed, deletes the connection itself in the transaction of its deletion, so that the
  * deletion which follows finds no connection and fails.
@@ -148,10 +158,9 @@ class ConnectionDeletingUsageCleaner implements TenantWebDavConnectionUsageClean
      */
     armed: boolean = false;
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     async removeUsages(connection: TenantWebDavConnection, transaction: RepositoryTransaction): Promise<void> {
         if (this.armed) {
-            await inject<Repository<TenantWebDavConnection>>(repositoryTokenFor(TenantWebDavConnection)).deleteById(connection.id, { transaction });
+            await webDavConnections().deleteById(connection.id, { transaction });
         }
     }
 }
@@ -210,7 +219,7 @@ export function describeProjectsCalendarSync(
     shutdownTimeoutInMs: number
 ): void {
     describe(`the calendar sync of the projects plugin, on ${dataSourceName}`, () => {
-        const calDav: InProcessWebDavServer = new InProcessWebDavServer('ada', 'Lovelace-app-password');
+        const calDav: InProcessWebDavServer = new InProcessWebDavServer('ada', CALDAV_PASSWORD);
         const tenantId: string = UUIDUtilities.generate();
         let server: StartedTestServer | undefined;
         let baseUrl: string;
@@ -264,6 +273,17 @@ export function describeProjectsCalendarSync(
         }
 
         /**
+         * Creates a task in the open column of a board.
+         * @param board - The board.
+         * @param title - The title of the task.
+         * @param dueOn - Its due date, such as `2026-12-01`.
+         * @returns The task.
+         */
+        async function createTask(board: Board, title: string, dueOn: string): Promise<RowWithId> {
+            return await create(`/${board.projectId}/tasks`, { columnId: board.openColumnId, title, dueOn });
+        }
+
+        /**
          * Creates a calendar of its own on the server.
          * @returns Its path below the connection.
          */
@@ -303,19 +323,32 @@ export function describeProjectsCalendarSync(
         async function createCaller(role: string): Promise<Caller> {
             const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
                 .create({ email: `${UUIDUtilities.generate().slice(0, 8)}@calendar-sync.test`, roles: [Roles.USER] });
-            await tenants().runAs(tenantId, async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId: user.id, roles: [role] }));
+            await tenants().runAs(
+                tenantId,
+                async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId, userId: user.id, roles: [role] })
+            );
             const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
             const permissions: (Permission | PlatformPermission)[] = await authService.resolveUserPermissions(user, undefined);
             const key: CreatedApiKey = await authService.createApiKey(
                 user.id,
-                { name: 'cases', permissions, expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+                {
+                    name: 'cases',
+                    permissions,
+                    expiresAt: undefined,
+                    tenantId: undefined,
+                    clientAuthentication: undefined,
+                    requireDpop: false
+                },
                 undefined
             );
             return { headers: { 'x-api-key': key.key, 'x-tenant-id': tenantId } };
         }
 
         async function findLinks(taskId: string): Promise<CalendarEntryLink[]> {
-            return await tenants().runAs(tenantId, async () => await inject(ZIBRI_DI_TOKENS.CALENDAR_SYNC_SERVICE).findLinks({ type: 'task', id: taskId }));
+            return await tenants().runAs(
+                tenantId,
+                async () => await inject(ZIBRI_DI_TOKENS.CALENDAR_SYNC_SERVICE).findLinks({ type: 'task', id: taskId })
+            );
         }
 
         beforeAll(async () => {
@@ -340,8 +373,15 @@ export function describeProjectsCalendarSync(
                         }
                     }),
                     // the server of this process, which a tenant's connection reaches only on a private network
-                    defineProvider({ token: ZIBRI_DI_TOKENS.WEB_DAV_TENANT_CONNECTION_OPTIONS, useValue: { allowedHosts: ['127.0.0.1'], allowPrivateNetworks: true } }),
-                    defineProvider({ token: ConnectionDeletingUsageCleaner, useClass: ConnectionDeletingUsageCleaner, variants: [DiVariants.WEB_DAV_CONNECTION_USAGE_CLEANER] })
+                    defineProvider({
+                        token: ZIBRI_DI_TOKENS.WEB_DAV_TENANT_CONNECTION_OPTIONS,
+                        useValue: { allowedHosts: ['127.0.0.1'], allowPrivateNetworks: true }
+                    }),
+                    defineProvider({
+                        token: ConnectionDeletingUsageCleaner,
+                        useClass: ConnectionDeletingUsageCleaner,
+                        variants: [DiVariants.WEB_DAV_CONNECTION_USAGE_CLEANER]
+                    })
                 ]
             });
             baseUrl = await server.start();
@@ -380,7 +420,8 @@ export function describeProjectsCalendarSync(
             expect(findEvent(calendarPath, task.id)).toContain(
                 `DESCRIPTION:Check the texts\\; then go.\\n\\nhttps://app.example.com/projects/${board.projectId}/tasks/${task.id}\r\n`
             );
-            expect(await findLinks(task.id)).toEqual([expect.objectContaining({ connectionId, calendarPath, href: `${calendarPath}/task-${task.id}.ics` })]);
+            expect(await findLinks(task.id))
+                .toEqual([expect.objectContaining({ connectionId, calendarPath, href: `${calendarPath}/task-${task.id}.ics` })]);
 
             await patch(`/tasks/${task.id}`, { title: 'Launch', dueOn: '2026-12-31' });
             await settle();
@@ -401,10 +442,11 @@ export function describeProjectsCalendarSync(
             const calendarPath: string = createCalendar();
             const board: Board = await createBoard('Accounting');
             await patch(`/${board.projectId}/calendar`, { calendarSync: { target: { connectionId, calendarPath } } });
-            const undated: RowWithId = await create(`/${board.projectId}/tasks`, { columnId: board.openColumnId, title: 'Prepare', dueOn: '2026-12-05' });
-            const deleted: RowWithId = await create(`/${board.projectId}/tasks`, { columnId: board.openColumnId, title: 'File', dueOn: '2026-12-06' });
+            const undated: RowWithId = await createTask(board, 'Prepare', '2026-12-05');
+            const deleted: RowWithId = await createTask(board, 'File', '2026-12-06');
             await settle();
-            expect(calDav.findFilePaths(calendarPath)).toEqual([`${calendarPath}/task-${undated.id}.ics`, `${calendarPath}/task-${deleted.id}.ics`].sort());
+            expect(calDav.findFilePaths(calendarPath))
+                .toEqual([`${calendarPath}/task-${undated.id}.ics`, `${calendarPath}/task-${deleted.id}.ics`].sort());
 
             await patch(`/tasks/${undated.id}`, { dueOn: null });
             expect((await call(manager, 'DELETE', `/tasks/${deleted.id}`)).status).toBe(204);
@@ -423,12 +465,15 @@ export function describeProjectsCalendarSync(
                 const customer: Board = await createBoard('Customer AG');
                 const website: Board = await createBoard('Website', customer.projectId);
                 const secret: Board = await createBoard('Secret', customer.projectId);
-                await patch(`/${customer.projectId}/calendar`, { calendarSync: { target: { connectionId, calendarPath: customerCalendar } } });
+                await patch(
+                    `/${customer.projectId}/calendar`,
+                    { calendarSync: { target: { connectionId, calendarPath: customerCalendar } } }
+                );
                 await patch(`/${secret.projectId}/calendar`, { calendarSync: { target: null } });
 
-                const inInternal: RowWithId = await create(`/${internal.projectId}/tasks`, { columnId: internal.openColumnId, title: 'Party', dueOn: '2026-12-18' });
-                const inWebsite: RowWithId = await create(`/${website.projectId}/tasks`, { columnId: website.openColumnId, title: 'Go live', dueOn: '2026-12-10' });
-                const inSecret: RowWithId = await create(`/${secret.projectId}/tasks`, { columnId: secret.openColumnId, title: 'Hush', dueOn: '2026-12-11' });
+                const inInternal: RowWithId = await createTask(internal, 'Party', '2026-12-18');
+                const inWebsite: RowWithId = await createTask(website, 'Go live', '2026-12-10');
+                const inSecret: RowWithId = await createTask(secret, 'Hush', '2026-12-11');
                 await settle();
 
                 expect(calDav.findFilePaths(tenantCalendar)).toEqual([`${tenantCalendar}/task-${inInternal.id}.ics`]);
@@ -454,9 +499,9 @@ export function describeProjectsCalendarSync(
             const own: Board = await createBoard('Own calendar', customer.projectId);
             await patch(`/${customer.projectId}/calendar`, { calendarSync: { target: { connectionId, calendarPath: oldCalendar } } });
             await patch(`/${own.projectId}/calendar`, { calendarSync: { target: { connectionId, calendarPath: ownCalendar } } });
-            const inCustomer: RowWithId = await create(`/${customer.projectId}/tasks`, { columnId: customer.openColumnId, title: 'Kickoff', dueOn: '2026-12-01' });
-            const inWebsite: RowWithId = await create(`/${website.projectId}/tasks`, { columnId: website.openColumnId, title: 'Go live', dueOn: '2026-12-10' });
-            const inOwn: RowWithId = await create(`/${own.projectId}/tasks`, { columnId: own.openColumnId, title: 'Mine', dueOn: '2026-12-12' });
+            const inCustomer: RowWithId = await createTask(customer, 'Kickoff', '2026-12-01');
+            const inWebsite: RowWithId = await createTask(website, 'Go live', '2026-12-10');
+            const inOwn: RowWithId = await createTask(own, 'Mine', '2026-12-12');
             await settle();
             expect(calDav.findFilePaths(oldCalendar).length).toBe(2);
 
@@ -464,7 +509,8 @@ export function describeProjectsCalendarSync(
             await settle();
 
             expect(calDav.findFilePaths(oldCalendar)).toEqual([]);
-            expect(calDav.findFilePaths(newCalendar)).toEqual([`${newCalendar}/task-${inCustomer.id}.ics`, `${newCalendar}/task-${inWebsite.id}.ics`].sort());
+            expect(calDav.findFilePaths(newCalendar))
+                .toEqual([`${newCalendar}/task-${inCustomer.id}.ics`, `${newCalendar}/task-${inWebsite.id}.ics`].sort());
             expect(calDav.findFilePaths(ownCalendar)).toEqual([`${ownCalendar}/task-${inOwn.id}.ics`]);
 
             // moved below a project of none, its tasks leave the calendar
@@ -494,7 +540,7 @@ export function describeProjectsCalendarSync(
             const calendarPath: string = createCalendar();
             const board: Board = await createBoard('Temporary');
             await patch(`/${board.projectId}/calendar`, { calendarSync: { target: { connectionId, calendarPath } } });
-            const task: RowWithId = await create(`/${board.projectId}/tasks`, { columnId: board.openColumnId, title: 'Soon gone', dueOn: '2026-12-01' });
+            const task: RowWithId = await createTask(board, 'Soon gone', '2026-12-01');
             await settle();
             expect(findEvent(calendarPath, task.id)).toBeDefined();
 
@@ -509,9 +555,12 @@ export function describeProjectsCalendarSync(
             const calendarPath: string = createCalendar();
             const board: Board = await createBoard('Overwrite');
             await patch(`/${board.projectId}/calendar`, { calendarSync: { target: { connectionId, calendarPath } } });
-            const task: RowWithId = await create(`/${board.projectId}/tasks`, { columnId: board.openColumnId, title: 'Review', dueOn: '2026-12-01' });
+            const task: RowWithId = await createTask(board, 'Review', '2026-12-01');
             await settle();
-            calDav.edit(`${calendarPath}/task-${task.id}.ics`, findEvent(calendarPath, task.id)?.replace('SUMMARY:Review', 'SUMMARY:Moved in the calendar') ?? '');
+            calDav.edit(
+                `${calendarPath}/task-${task.id}.ics`,
+                findEvent(calendarPath, task.id)?.replace('SUMMARY:Review', 'SUMMARY:Moved in the calendar') ?? ''
+            );
 
             await patch(`/tasks/${task.id}`, { description: 'With Ada' });
             await settle();
@@ -539,10 +588,13 @@ export function describeProjectsCalendarSync(
             };
 
             const written: Task = await tenants().runAs(tenantId, async () => await tasks.create(row, { unscoped: true }));
-            const rolledBack: Error | undefined = await tenants().runAs(tenantId, async () => await tasks.dataSource.runInTransaction(async (transaction: Transaction) => {
-                await tasks.create({ ...row, title: 'Never written', position: 2 }, { transaction, unscoped: true });
-                throw new Error('rolled back');
-            }, { maxAttempts: 1 }).then(() => undefined, (error: unknown) => error instanceof Error ? error : undefined));
+            const rolledBack: Error | undefined = await tenants().runAs(
+                tenantId,
+                async () => await tasks.dataSource.runInTransaction(async (transaction: Transaction) => {
+                    await tasks.create({ ...row, title: 'Never written', position: 2 }, { transaction, unscoped: true });
+                    throw new Error('rolled back');
+                }, { maxAttempts: 1 }).then(() => undefined, (error: unknown) => error instanceof Error ? error : undefined)
+            );
             await settle();
 
             expect(rolledBack?.message).toBe('rolled back');
@@ -559,7 +611,7 @@ export function describeProjectsCalendarSync(
             calDav.down = true;
             let task: RowWithId;
             try {
-                task = await create(`/${board.projectId}/tasks`, { columnId: board.openColumnId, title: 'During the outage', dueOn: '2026-12-04' });
+                task = await createTask(board, 'During the outage', '2026-12-04');
                 await waitUntil(async () => {
                     await inject(ZIBRI_PROJECTS_PLUGIN_DI_TOKENS.TASK_CALENDAR_SYNC_SERVICE).syncDueRequests();
                     return await requests.exists({ where: { scopeId: task.id, attempts: 1 }, acrossTenants: true });
@@ -569,7 +621,13 @@ export function describeProjectsCalendarSync(
                 calDav.down = false;
             }
             const failed: TaskCalendarSyncRequest[] = await requests.findAll({ where: { scopeId: task.id }, acrossTenants: true });
-            expect(failed).toEqual([expect.objectContaining({ attempts: 1, nextAttemptAt: expect.any(Date), error: expect.objectContaining({ name: 'HttpClientError' }) })]);
+            expect(failed).toEqual([
+                expect.objectContaining({
+                    attempts: 1,
+                    nextAttemptAt: expect.any(Date),
+                    error: expect.objectContaining({ name: 'HttpClientError' })
+                })
+            ]);
             expect(findEvent(calendarPath, task.id)).toBeUndefined();
 
             // as if the minute of the first retry had passed
@@ -588,9 +646,12 @@ export function describeProjectsCalendarSync(
             expect((await call(manager, 'PATCH', `/${board.projectId}/calendar`, {
                 calendarSync: { target: { connectionId: UUIDUtilities.generate(), calendarPath: 'calendars/ada/projects' } }
             })).status).toBe(400);
-            expect((await call(manager, 'PATCH', `/${board.projectId}/calendar`, { calendarSync: { target: { connectionId, calendarPath: 'calendars/../files' } } })).status)
-                .toBe(400);
-            expect((await call(manager, 'PATCH', `/${board.projectId}/calendar`, { calendarSync: { target: { connectionId, calendarPath: '' } } })).status).toBe(400);
+            expect((await call(manager, 'PATCH', `/${board.projectId}/calendar`, {
+                calendarSync: { target: { connectionId, calendarPath: 'calendars/../files' } }
+            })).status).toBe(400);
+            expect((await call(manager, 'PATCH', `/${board.projectId}/calendar`, {
+                calendarSync: { target: { connectionId, calendarPath: '' } }
+            })).status).toBe(400);
         });
 
         describe('the routes of the WebDAV connections', () => {
@@ -606,30 +667,49 @@ export function describeProjectsCalendarSync(
             }
 
             async function addConnection(name: string): Promise<ConnectionRow> {
-                const res: Answer<ConnectionRow> = await callConnections<ConnectionRow>(manager, 'POST', '/', { name, ...tenantConnection() });
+                const res: Answer<ConnectionRow>
+                    = await callConnections<ConnectionRow>(manager, 'POST', '/', { name, ...tenantConnection() });
                 expect(res.status).toBe(200);
                 return res.body;
             }
 
             async function findStoredPassword(id: string): Promise<string> {
-                return await tenants().runAs(tenantId, async () => (await inject<Repository<TenantWebDavConnection>>(repositoryTokenFor(TenantWebDavConnection))
-                    .findById(id)).password);
+                return await tenants().runAs(tenantId, async () => (await webDavConnections().findById(id)).password);
             }
 
             it('adds a connection once a request to its folder succeeds, and never answers its password', async () => {
                 const added: ConnectionRow = await addConnection('Office cloud');
 
-                expect(added).toEqual({ id: expect.any(String), tenantId, name: 'Office cloud', kind: WebDavConnectionKind.WEB_DAV, url: calDav.connection.url, username: 'ada' });
+                expect(added).toEqual({
+                    id: expect.any(String),
+                    tenantId,
+                    name: 'Office cloud',
+                    kind: WebDavConnectionKind.WEB_DAV,
+                    url: calDav.connection.url,
+                    username: 'ada'
+                });
                 const listed: Answer<ConnectionRow[]> = await callConnections<ConnectionRow[]>(manager, 'GET', '/');
                 expect(listed.body.find(connection => connection.id === added.id)).toEqual(added);
                 expect(listed.body.every(connection => !('password' in connection))).toBe(true);
-                expect(await findStoredPassword(added.id)).toBe('Lovelace-app-password');
+                expect(await findStoredPassword(added.id)).toBe(CALDAV_PASSWORD);
             });
 
             it('refuses a connection whose request fails, saying why, a name taken, and a caller without the permission', async () => {
-                const wrongPassword: Answer<ErrorBody> = await callConnections(manager, 'POST', '/', { ...tenantConnection(), name: 'Wrong', password: 'guessed' });
-                const nothing: Answer<ErrorBody> = await callConnections(manager, 'POST', '/', { ...tenantConnection(), name: 'Nowhere', url: `${calDav.connection.url}nowhere/` });
-                const notAUrl: Answer<ErrorBody> = await callConnections(manager, 'POST', '/', { ...tenantConnection(), name: 'No url', url: 'cloud.example.com' });
+                const wrongPassword: Answer<ErrorBody> = await callConnections(manager, 'POST', '/', {
+                    ...tenantConnection(),
+                    name: 'Wrong',
+                    password: 'guessed'
+                });
+                const nothing: Answer<ErrorBody> = await callConnections(manager, 'POST', '/', {
+                    ...tenantConnection(),
+                    name: 'Nowhere',
+                    url: `${calDav.connection.url}nowhere/`
+                });
+                const notAUrl: Answer<ErrorBody> = await callConnections(manager, 'POST', '/', {
+                    ...tenantConnection(),
+                    name: 'No url',
+                    url: 'cloud.example.com'
+                });
 
                 expect(wrongPassword.status).toBe(400);
                 expect(wrongPassword.body.message).toBe('The WebDAV server refused the username or the password.');
@@ -648,15 +728,17 @@ export function describeProjectsCalendarSync(
                 // a new name sends nothing to the server, which is down
                 calDav.down = true;
                 try {
-                    expect((await callConnections<ConnectionRow>(manager, 'PATCH', `/${added.id}`, { name: 'Shared files' })).body.name).toBe('Shared files');
+                    expect((await callConnections<ConnectionRow>(manager, 'PATCH', `/${added.id}`, { name: 'Shared files' })).body.name)
+                        .toBe('Shared files');
                 }
                 finally {
                     calDav.down = false;
                 }
                 const refused: Answer<ErrorBody> = await callConnections(manager, 'PATCH', `/${added.id}`, { password: 'guessed' });
                 expect(refused.status).toBe(400);
-                expect(await findStoredPassword(added.id)).toBe('Lovelace-app-password');
-                const changed: Answer<ConnectionRow> = await callConnections<ConnectionRow>(manager, 'PATCH', `/${added.id}`, { password: 'Lovelace-app-password' });
+                expect(await findStoredPassword(added.id)).toBe(CALDAV_PASSWORD);
+                const changed: Answer<ConnectionRow>
+                    = await callConnections<ConnectionRow>(manager, 'PATCH', `/${added.id}`, { password: CALDAV_PASSWORD });
                 expect(changed.status).toBe(200);
                 expect('password' in changed.body).toBe(false);
             });
@@ -671,7 +753,7 @@ export function describeProjectsCalendarSync(
                 const added: ConnectionRow = await addConnection(name);
                 const board: Board = await createBoard(name);
                 await patch(`/${board.projectId}/calendar`, { calendarSync: { target: { connectionId: added.id, calendarPath } } });
-                const task: RowWithId = await create(`/${board.projectId}/tasks`, { columnId: board.openColumnId, title: `Launch ${name}`, dueOn: '2027-02-01' });
+                const task: RowWithId = await createTask(board, `Launch ${name}`, '2027-02-01');
                 await settle();
                 expect(await findLinks(task.id)).toHaveLength(1);
                 return { added, board, calendarPath, task };
@@ -692,8 +774,8 @@ export function describeProjectsCalendarSync(
                 }
             }
 
-            async function isListed(connectionId: string): Promise<boolean> {
-                return (await callConnections<ConnectionRow[]>(manager, 'GET', '/')).body.some(connection => connection.id === connectionId);
+            async function isListed(id: string): Promise<boolean> {
+                return (await callConnections<ConnectionRow[]>(manager, 'GET', '/')).body.some(connection => connection.id === id);
             }
 
             it('refuses to delete a connection a calendar names, and deletes nothing', async () => {
@@ -706,7 +788,8 @@ export function describeProjectsCalendarSync(
                 expect(await findLinks(task.id)).toHaveLength(1);
                 await patch('/calendar', { calendarSync: { target: { connectionId: added.id, calendarPath: createCalendar() } } });
                 try {
-                    expect((await callConnections<ErrorBody>(manager, 'DELETE', `/${added.id}`)).body.paragraphs.join(' ')).toContain('every project that sets none');
+                    expect((await callConnections<ErrorBody>(manager, 'DELETE', `/${added.id}`)).body.paragraphs.join(' '))
+                        .toContain('every project that sets none');
                 }
                 finally {
                     await patch('/calendar', { calendarSync: null });

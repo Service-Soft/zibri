@@ -22,8 +22,17 @@ import { type EBilanzExporterInterface } from './e-bilanz-exporter.interface';
  * or the elements inside it. An empty text is written as an empty element.
  */
 type XbrlElement = {
+    /**
+     * The qualified name, such as `xbrli:context`.
+     */
     readonly name: string,
+    /**
+     * The attributes, in the order they are written.
+     */
     readonly attributes: readonly (readonly [name: string, value: string])[],
+    /**
+     * The text, or the elements inside it.
+     */
     readonly content: string | readonly XbrlElement[]
 };
 
@@ -80,7 +89,13 @@ const DURATION: string = 'duration';
 const INSTANT: string = 'instant';
 const EUR: string = 'EUR';
 const SHARE_DIVIDE_KEY: string = 'genInfo.company.id.shareholder.ShareDivideKey';
-const COMPANY_LEGAL_STATUS: ReadonlyMap<string, string> = new Map([['GmbH', 'GMBH'], ['UG', 'UG'], ['AG', 'AG'], ['KGaA', 'KGAA'], ['SE', 'SE']]);
+const COMPANY_LEGAL_STATUS: ReadonlyMap<string, string> = new Map([
+    ['GmbH', 'GMBH'],
+    ['UG', 'UG'],
+    ['AG', 'AG'],
+    ['KGaA', 'KGAA'],
+    ['SE', 'SE']
+]);
 const REPORT_ELEMENTS: readonly string[] = ['B', 'GuV', 'GuVMicroBilG', 'BAL', 'STU', 'EB', 'EV', 'KS', 'BVV'];
 
 /**
@@ -105,40 +120,61 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
 
     // the values the adapter of the versions 6.x states for the fields that are a choice, by the field
     private readonly choices: ReadonlyMap<string, XbrlChoice> = new Map<string, XbrlChoice>([
-        ['genInfo.report.id.reportStatus', { item: 'genInfo.report.id.reportStatus.reportStatus', tokens: new Map([['final', 'E']]), unknown: 'error' }],
+        [
+            'genInfo.report.id.reportStatus',
+            { item: 'genInfo.report.id.reportStatus.reportStatus', tokens: new Map([['final', 'E']]), unknown: 'error' }
+        ],
         // erstmalig, or how it corrects the E-Bilanz filed before
-        ['genInfo.report.id.revisionStatus', {
-            item: 'genInfo.report.id.revisionStatus.revisionStatus',
-            tokens: new Map<string, string>([
-                [EBilanzRevisionStatus.ORIGINAL, 'E'],
-                [EBilanzRevisionStatus.CORRECTED, 'B'],
-                [EBilanzRevisionStatus.CHANGED, 'G'],
-                [EBilanzRevisionStatus.CORRECTED_AND_CHANGED, 'BG'],
-                [EBilanzRevisionStatus.MORE_DETAIL, 'I'],
-                [EBilanzRevisionStatus.OTHER_CORRECTION, 'sK']
-            ]),
-            unknown: 'error'
-        }],
+        [
+            'genInfo.report.id.revisionStatus', {
+                item: 'genInfo.report.id.revisionStatus.revisionStatus',
+                tokens: new Map<string, string>([
+                    [EBilanzRevisionStatus.ORIGINAL, 'E'],
+                    [EBilanzRevisionStatus.CORRECTED, 'B'],
+                    [EBilanzRevisionStatus.CHANGED, 'G'],
+                    [EBilanzRevisionStatus.CORRECTED_AND_CHANGED, 'BG'],
+                    [EBilanzRevisionStatus.MORE_DETAIL, 'I'],
+                    [EBilanzRevisionStatus.OTHER_CORRECTION, 'sK']
+                ]),
+                unknown: 'error'
+            }
+        ],
         // a Jahresabschluss
-        ['genInfo.report.id.statementType', { item: 'genInfo.report.id.statementType.statementType', tokens: new Map([['single', 'E']]), unknown: 'error' }],
+        [
+            'genInfo.report.id.statementType',
+            { item: 'genInfo.report.id.statementType.statementType', tokens: new Map([['single', 'E']]), unknown: 'error' }
+        ],
         // the Einheitsbilanz, or the tax balance sheet of deutsches Steuerrecht, B.13 of the guide
         [
             'genInfo.report.id.accountingStandard',
-            { item: 'genInfo.report.id.accountingStandard.accountingStandard', tokens: new Map([['unified', 'HAOE'], ['tax', 'AO']]), unknown: 'error' }
+            {
+                item: 'genInfo.report.id.accountingStandard.accountingStandard',
+                tokens: new Map([['unified', 'HAOE'], ['tax', 'AO']]),
+                unknown: 'error'
+            }
         ],
-        ['genInfo.report.id.specialAccountingStandard', { item: 'genInfo.report.id.specialAccountingStandard', tokens: new Map([['core', 'K']]), unknown: 'error' }],
+        [
+            'genInfo.report.id.specialAccountingStandard',
+            { item: 'genInfo.report.id.specialAccountingStandard', tokens: new Map([['core', 'K']]), unknown: 'error' }
+        ],
         [
             'genInfo.report.id.incomeStatementFormat',
             { item: 'genInfo.report.id.incomeStatementFormat.incomeStatementFormat', tokens: new Map([['GKV', 'GKV']]), unknown: 'error' }
         ],
         // nicht konsolidiert / Einzelabschluss
-        ['genInfo.report.id.consolidationRange', { item: 'genInfo.report.id.consolidationRange.consolidationRange', tokens: new Map([['single', 'EA']]), unknown: 'error' }],
+        [
+            'genInfo.report.id.consolidationRange',
+            { item: 'genInfo.report.id.consolidationRange.consolidationRange', tokens: new Map([['single', 'EA']]), unknown: 'error' }
+        ],
         [
             'genInfo.report.id.reportElement',
             { item: 'genInfo.report.id.reportElement.reportElements', tokens: new Map(REPORT_ELEMENTS.map(e => [e, e])), unknown: 'error' }
         ],
         // the legal forms of a corporation by the names the books use, any other as the GCD module names it
-        ['genInfo.company.id.legalStatus', { item: 'genInfo.company.id.legalStatus.legalStatus', tokens: COMPANY_LEGAL_STATUS, unknown: 'as-is' }],
+        [
+            'genInfo.company.id.legalStatus',
+            { item: 'genInfo.company.id.legalStatus.legalStatus', tokens: COMPANY_LEGAL_STATUS, unknown: 'as-is' }
+        ],
         // a company without a special case of the determination of its profit, and no branch of a foreign one: NIL
         [
             'genInfo.company.id.entityWithTaxablePurposeBusiness',
@@ -148,7 +184,10 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
             'genInfo.company.id.domesticBranchOfForeignCompany',
             { item: 'genInfo.company.id.domesticBranchOfForeignCompany', tokens: new Map([['false', null]]), unknown: 'error' }
         ],
-        ['genInfo.company.id.incomeClassification', { item: 'genInfo.company.id.incomeClassification', tokens: new Map([['trade', 'trade']]), unknown: 'error' }],
+        [
+            'genInfo.company.id.incomeClassification',
+            { item: 'genInfo.company.id.incomeClassification', tokens: new Map([['trade', 'trade']]), unknown: 'error' }
+        ],
         // a shareholder without a legal form is a person holding the share privately; a legal form of its own is a
         // corporation or a partnership, and one the module has no kind for is NIL
         [
@@ -206,15 +245,29 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
         const notPossible: boolean = !this.versionsWithoutAccountNotPossible.has(taxonomy.version);
         const facts: XbrlElement[] = [
             ...this.resolveGcdFacts(eBilanz.fields),
-            ...eBilanz.positions.map(p => this.resolveMonetaryFact(this.gaap(p.name), p.statement === 'balanceSheet' ? INSTANT : DURATION, p.amount)),
+            ...eBilanz.positions.map(p => this.resolveMonetaryFact(
+                this.gaap(p.name),
+                p.statement === 'balanceSheet' ? INSTANT : DURATION,
+                p.amount
+            )),
             ...eBilanz.fixedAssets.flatMap(f => this.resolveFixedAssetFacts(f, taxonomy)),
-            ...eBilanz.positions.flatMap(p => this.resolveAccountFacts(p, notPossible, EBilanzTaxonomyUtilities.resolvePositions(taxonomy).get(p.name)))
+            ...eBilanz.positions.flatMap(p => this.resolveAccountFacts(
+                p,
+                notPossible,
+                EBilanzTaxonomyUtilities.resolvePositions(taxonomy).get(p.name)
+            ))
         ];
         // a context or unit no fact references is refused (B.14.7 of the guide)
         const referenced: Set<string> = new Set(facts.flatMap(f => this.findReferences(f)));
         const contexts: XbrlElement[] = this.resolveContexts(eBilanz).filter(c => referenced.has(c.attributes[0]?.[1] ?? ''));
         const units: XbrlElement[] = referenced.has(EUR)
-            ? [{ name: 'xbrli:unit', attributes: [['id', EUR]], content: [{ name: 'xbrli:measure', attributes: [], content: 'iso4217:EUR' }] }]
+            ? [
+                {
+                    name: 'xbrli:unit',
+                    attributes: [['id', EUR]],
+                    content: [{ name: 'xbrli:measure', attributes: [], content: 'iso4217:EUR' }]
+                }
+            ]
             : [];
         const root: XbrlElement = {
             name: 'xbrli:xbrl',
@@ -237,12 +290,16 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
     private resolveTaxonomy(version: string): EBilanzTaxonomy {
         const taxonomy: EBilanzTaxonomy | undefined = inject(ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMIES).find(t => t.version === version);
         if (taxonomy == undefined) {
-            throw new InternalError(`The E-Bilanz is stated in the taxonomy ${version}, which is not registered in ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMIES.`);
+            throw new InternalError(
+                `The E-Bilanz is stated in the taxonomy ${version}, which is not registered in ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMIES.`
+            );
         }
         // the structure of the instance is that of the versions 6.x: a version of another structure, such as 7.0, needs
         // an exporter of its own
         if (taxonomy.adapter !== 'hgb-6') {
-            throw new InternalError(`${this.constructor.name} writes the versions of the adapter hgb-6, and the taxonomy ${version} names ${taxonomy.adapter}.`);
+            throw new InternalError(
+                `${this.constructor.name} writes the versions of the adapter hgb-6, and the taxonomy ${version} names ${taxonomy.adapter}.`
+            );
         }
         return taxonomy;
     }
@@ -282,15 +339,27 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
                 {
                     name: 'xbrli:entity',
                     attributes: [],
-                    content: [{ name: 'xbrli:identifier', attributes: [['scheme', this.identifierScheme]], content: eBilanz.company.taxNumber }]
+                    content: [
+                        {
+                            name: 'xbrli:identifier',
+                            attributes: [['scheme', this.identifierScheme]],
+                            content: eBilanz.company.taxNumber
+                        }
+                    ]
                 },
                 { name: 'xbrli:period', attributes: [], content: period },
                 ...members.length
-                    ? [{
-                        name: 'xbrli:scenario',
-                        attributes: [],
-                        content: members.map(([dimension, member]) => ({ name: 'xbrldi:explicitMember', attributes: [['dimension', dimension]] as const, content: member }))
-                    }]
+                    ? [
+                        {
+                            name: 'xbrli:scenario',
+                            attributes: [],
+                            content: members.map(([dimension, member]) => ({
+                                name: 'xbrldi:explicitMember',
+                                attributes: [['dimension', dimension]] as const,
+                                content: member
+                            }))
+                        }
+                    ]
                     : []
             ]
         });
@@ -316,7 +385,8 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
         for (const field of fields) {
             byName.set(field.name, [...byName.get(field.name) ?? [], field]);
         }
-        const choiceItems: Set<string> = new Set([...this.choices.values()].flatMap(c => [...c.tokens.values()].map(token => `${c.item}.${token}`)));
+        const choiceItems: Set<string> = new Set([...this.choices.values()]
+            .flatMap(c => [...c.tokens.values()].map(token => `${c.item}.${token}`)));
         const written: Set<string> = new Set();
         return [...byName.entries()].flatMap(([name, occurrences]) => {
             if (written.has(name) || choiceItems.has(name)) {
@@ -341,7 +411,10 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
      */
     private resolveTupleFacts(tuple: XbrlTuple, fields: ReadonlyMap<string, readonly EBilanzField[]>): XbrlElement[] {
         const members: string[] = tuple.members.filter(m => fields.has(m));
-        const count: number = Math.max(0, ...members.flatMap(m => (fields.get(m) ?? []).filter(f => f.value != undefined).map(f => f.occurrence + 1)));
+        const count: number = Math.max(
+            0,
+            ...members.flatMap(m => (fields.get(m) ?? []).filter(f => f.value != undefined).map(f => f.occurrence + 1))
+        );
         if (count === 0) {
             return [this.resolveNil(this.gcd(tuple.name), [])];
         }
@@ -365,7 +438,11 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
             return token == undefined
                 ? this.resolveNil(this.gcd(name), [])
                 // the item chosen is empty, its name says it all (B.14.1 of the guide)
-                : { name: this.gcd(name), attributes: [], content: [{ name: this.gcd(`${choice.item}.${token}`), attributes: [['contextRef', DURATION]], content: '' }] };
+                : {
+                    name: this.gcd(name),
+                    attributes: [],
+                    content: [{ name: this.gcd(`${choice.item}.${token}`), attributes: [['contextRef', DURATION]], content: '' }]
+                };
         }
         if (name === SHARE_DIVIDE_KEY) {
             return this.resolveShareFact(value);
@@ -433,7 +510,9 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
      * @returns The facts.
      */
     private resolveFixedAssetFacts(asset: EBilanzFixedAsset, taxonomy: EBilanzTaxonomy): XbrlElement[] {
-        const asked: Set<string> = new Set(taxonomy.fixedAssetColumns.filter(([, , requirement]) => requirement === 'M' || requirement === 'S').map(([column]) => column));
+        const asked: Set<string> = new Set(taxonomy.fixedAssetColumns
+            .filter(([, , requirement]) => requirement === 'M' || requirement === 'S')
+            .map(([column]) => column));
         const context: string = this.resolveFixedAssetContextId(asset.position);
         return asset.values
             .filter(v => v.amount != undefined || asked.has(v.column))
@@ -450,7 +529,11 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
      * @param taxonomyPosition - The position of the taxonomy, or undefined for none.
      * @returns The tuples.
      */
-    private resolveAccountFacts(position: EBilanzPosition, notPossible: boolean, taxonomyPosition: EBilanzTaxonomyPosition | undefined): XbrlElement[] {
+    private resolveAccountFacts(
+        position: EBilanzPosition,
+        notPossible: boolean,
+        taxonomyPosition: EBilanzTaxonomyPosition | undefined
+    ): XbrlElement[] {
         const item: (name: string, content: string) => XbrlElement = (name, content) => ({
             name: this.gaap(`detailedInformation.accountbalances.${name}`),
             attributes: [['contextRef', DURATION]],
@@ -461,17 +544,19 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
         // it of the balance sheet and the income statement alone, not of the appropriation of profits or the BVV
         if (notPossible && !position.accounts.length && position.amount != undefined && taxonomyPosition?.sums.length === 0
             && position.statement !== 'appropriationOfProfits' && position.statement !== 'businessAssetComparison') {
-            return [{
-                name: this.gaap('detailedInformation.accountBalances'),
-                attributes: [],
-                content: [
-                    item('positionName', this.gaap(position.name)),
-                    this.resolveNil(this.gaap('detailedInformation.accountbalances.accountNumber'), [['contextRef', DURATION]]),
-                    this.resolveNil(this.gaap('detailedInformation.accountbalances.accountDescription'), [['contextRef', DURATION]]),
-                    this.resolveMonetaryFact(this.gaap('detailedInformation.accountbalances.amount'), DURATION, position.amount),
-                    item('notPossible', 'true')
-                ]
-            }];
+            return [
+                {
+                    name: this.gaap('detailedInformation.accountBalances'),
+                    attributes: [],
+                    content: [
+                        item('positionName', this.gaap(position.name)),
+                        this.resolveNil(this.gaap('detailedInformation.accountbalances.accountNumber'), [['contextRef', DURATION]]),
+                        this.resolveNil(this.gaap('detailedInformation.accountbalances.accountDescription'), [['contextRef', DURATION]]),
+                        this.resolveMonetaryFact(this.gaap('detailedInformation.accountbalances.amount'), DURATION, position.amount),
+                        item('notPossible', 'true')
+                    ]
+                }
+            ];
         }
         return position.accounts.map(account => ({
             name: this.gaap('detailedInformation.accountBalances'),
@@ -494,11 +579,10 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
      * @returns The fact.
      */
     private resolveMonetaryFact(name: string, context: string, amount: BigNumber | null): XbrlElement {
-        if (amount == undefined) {
-            // a NIL item has no decimals, XBRL 2.1 4.6.3
-            return this.resolveNil(name, [['contextRef', context], ['unitRef', EUR]]);
-        }
-        return { name, attributes: [['contextRef', context], ['unitRef', EUR], ['decimals', '2']], content: amount.toFixed(2) };
+        // a NIL item has no decimals, XBRL 2.1 4.6.3
+        return amount == undefined
+            ? this.resolveNil(name, [['contextRef', context], ['unitRef', EUR]])
+            : { name, attributes: [['contextRef', context], ['unitRef', EUR], ['decimals', '2']], content: amount.toFixed(2) };
     }
 
     private resolveNil(name: string, attributes: readonly (readonly [string, string])[]): XbrlElement {
@@ -530,7 +614,9 @@ export class XbrlEBilanzExporter implements EBilanzExporterInterface {
      */
     private stringify(element: XbrlElement, depth: number): string {
         const indentation: string = '  '.repeat(depth);
-        const attributes: string = element.attributes.map(([name, value]) => ` ${name}="${XmlWriterUtilities.escapeAttributeValue(value)}"`).join('');
+        const attributes: string = element.attributes
+            .map(([name, value]) => ` ${name}="${XmlWriterUtilities.escapeAttributeValue(value)}"`)
+            .join('');
         if (!element.content.length) {
             return `${indentation}<${element.name}${attributes}/>`;
         }

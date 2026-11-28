@@ -42,13 +42,14 @@ keywords: [invoices, invoicing, billing, invoice pdf, bills, credit note, cancel
 `zibri-contract` has the models of the routes for your frontend: `InvoiceModel` with `InvoiceItemModel`, `InvoiceAddressModel`, `ElectronicAddressModel`, `AmountUnitModel`, `VatModel` and `InvoiceReferenceModel`, `InvoiceQueryModel` for the query of `GET /invoices`, `InvoiceType` and the permissions.
 
 ## Setting it up
-Add `new ZibriInvoicingPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `Invoice`, `NumberInvoices` and `InvoiceRecipientAbbreviation` to the `entities` of your data source.
+Add `new ZibriInvoicingPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `Invoice`, `NumberInvoices` and `InvoiceRecipientAbbreviation` to the `entities` of your data source. You import the names of the plugin from `zibri/plugin/invoicing`.
 
 Each [tenant](../data/tenancy.md) issues its own invoices: an invoice belongs to the tenant it is created in, and each tenant numbers its invoices on its own. Tell the plugin which company a tenant issues them as, with its address, tax number, bank details and logo, through a service under `ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE`. The service is required:
 
 ```ts
 // src/services/company-info.service.ts
-import { CompanyInfo, CompanyInfoServiceInterface, inject, Repository, repositoryTokenFor } from 'zibri';
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+import { CompanyInfo, CompanyInfoServiceInterface } from 'zibri/plugin/invoicing';
 
 import { TenantSettings } from '../models/tenant-settings.model';
 
@@ -62,7 +63,8 @@ export class CompanyInfoService implements CompanyInfoServiceInterface {
 
 ```ts
 // src/providers.ts
-import { defineProvider, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider } from 'zibri';
+import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 import { CompanyInfoService } from './services/company-info.service';
 
@@ -79,7 +81,8 @@ An invoice pdf is A4 by default. `pageSize` of the options sets it for every inv
 
 ```ts
 // src/services/invoice-delivery.service.ts
-import { inject, Invoice, InvoicePdfServiceInterface, PdfDocument, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject, PdfDocument } from 'zibri';
+import { Invoice, InvoicePdfServiceInterface, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 export async function renderLetterInvoice(invoice: Invoice): Promise<PdfDocument> {
     const pdfService: InvoicePdfServiceInterface<Invoice> = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_PDF_SERVICE);
@@ -113,7 +116,8 @@ The counter counts on its own for every distinct value of the rest of the format
 
 ```ts
 // src/providers.ts
-import { defineProvider, InvoicingOptionsInput, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider } from 'zibri';
+import { InvoicingOptionsInput, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 const invoicingOptions: InvoicingOptionsInput = {
     numberFormat: 'INV-{year}-{counter}',
@@ -143,7 +147,7 @@ Each name abbreviation belongs to one recipient, and is kept in `InvoiceRecipien
 
 ```ts
 // src/services/numbering-settings.service.ts
-import { CompanyInfo, InvoiceNumberFormatUtilities } from 'zibri';
+import { CompanyInfo, InvoiceNumberFormatUtilities } from 'zibri/plugin/invoicing';
 
 export function withNumberFormat(company: CompanyInfo, numberFormat: string): CompanyInfo {
     InvoiceNumberFormatUtilities.validateInvoiceFormat(numberFormat, 'number format of the team');
@@ -156,7 +160,8 @@ An issued invoice is not changed, it is corrected: a credit note credits all of 
 
 ```ts
 // src/services/invoice-correction.service.ts
-import { inject, Invoice, InvoiceCancellationServiceInterface, InvoiceItem, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { Invoice, InvoiceCancellationServiceInterface, InvoiceItem, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 export async function cancelInvoice(invoiceId: string): Promise<Invoice> {
     const cancellations: InvoiceCancellationServiceInterface<Invoice> = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE);
@@ -192,7 +197,8 @@ With `issuedInvoicesReadOnly` of the options, an invoice whose `issuedAt` is set
 
 ```ts
 // src/services/invoice-issuing.service.ts
-import { inject, Invoice, InvoiceAddress, InvoiceNumberServiceInterface, Repository, repositoryTokenFor, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject, Repository, repositoryTokenFor } from 'zibri';
+import { Invoice, InvoiceAddress, InvoiceNumberServiceInterface, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 export async function issueInvoice(draft: Invoice, recipientId: string): Promise<Invoice> {
     const numbers: InvoiceNumberServiceInterface<InvoiceAddress> = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_NUMBER_SERVICE);
@@ -213,7 +219,8 @@ GoBD and § 147 AO want the invoices a company sends kept as they were sent. Wit
 
 ```ts
 // src/invoice-archive.provider.ts
-import { defineProvider, DiProvider, InvoicingOptionsInput, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { InvoicingOptionsInput, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 export const invoiceArchive: DiProvider<InvoicingOptionsInput> = defineProvider({
     token: ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS_INPUT,
@@ -244,7 +251,8 @@ The pdf is rendered with the pdf service, in the time zone of the `CompanyInfo` 
 // src/services/invoice-document.function.ts
 import { Readable } from 'node:stream';
 
-import { inject, Invoice, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { Invoice, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 export async function resolveInvoicePdf(invoice: Invoice): Promise<Readable> {
     return await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_DOCUMENT_SERVICE)
@@ -266,7 +274,8 @@ A posting of your own implements `InvoicePostingInterface`, and is registered wi
 
 ```ts
 // src/services/invoice-payment.function.ts
-import { inject, Invoice, InvoicePaymentState, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { Invoice, InvoicePaymentState, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 export async function resolveInvoicePaymentState(invoice: Invoice): Promise<InvoicePaymentState | undefined> {
     return await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_PAYMENT_SERVICE).resolvePaymentState(invoice);
@@ -290,7 +299,8 @@ A source of your own implements `InvoicePaymentSourceInterface`, and is register
 
 ```ts
 // src/controllers/invoicing.controller.ts
-import { Controller, InvoicingController } from 'zibri';
+import { Controller } from 'zibri';
+import { InvoicingController } from 'zibri/plugin/invoicing';
 
 @Controller('/invoicing', { versions: 'all' })
 export class AppInvoicingController extends InvoicingController {}
@@ -305,11 +315,10 @@ import {
     definePermissions,
     DefinedPlatformPermissions,
     definePlatformPermissions,
-    ZIBRI_INVOICING_PERMISSIONS,
-    ZIBRI_INVOICING_PLATFORM_PERMISSIONS,
     ZIBRI_PERMISSIONS,
     ZIBRI_PLATFORM_PERMISSIONS
 } from 'zibri';
+import { ZIBRI_INVOICING_PERMISSIONS, ZIBRI_INVOICING_PLATFORM_PERMISSIONS } from 'zibri/plugin/invoicing';
 
 const PERMISSIONS = [...ZIBRI_PERMISSIONS, ...ZIBRI_INVOICING_PERMISSIONS] as const;
 const PLATFORM_PERMISSIONS = [...ZIBRI_PLATFORM_PERMISSIONS, ...ZIBRI_INVOICING_PLATFORM_PERMISSIONS] as const;

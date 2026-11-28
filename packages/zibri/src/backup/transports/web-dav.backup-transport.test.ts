@@ -32,7 +32,7 @@ import { describeBackupTransport } from './backup-transport.cases';
 import { WebDavBackupTransport } from './web-dav.backup-transport';
 
 // against a WebDAV server in this process. What a real server does with the same requests is held by
-// web-dav.backup-transport.apache.test.ts, and what Nextcloud does by nextcloud.backup-transport.nextcloud.test.ts
+// web-dav.backup-transport.container.test.ts, and what Nextcloud does by nextcloud.backup-transport.nextcloud.test.ts
 
 const USER: string = 'ada';
 
@@ -239,7 +239,7 @@ describe('WebDavBackupTransport, as the transport of an encrypted backup', () =>
     it('stores nothing of the data readably, in the folder, and restores all of it', async () => {
         const files: string[] = server.findFilePaths(`files/${USER}/Backups/app`);
         expect(files.some(path => path.includes('/.zibri-repository/chunks/'))).toBe(true);
-        expect(files.filter(path => server.files.get(path)?.content.includes(MARKER))).toEqual([]);
+        expect(files.filter(path => server.files.get(path)?.content.includes(MARKER) === true)).toEqual([]);
         expect(files.filter(path => path.includes('.zibri-upload-'))).toEqual([]);
 
         const notes: Repository<Note> = inject(repositoryTokenFor(Note));

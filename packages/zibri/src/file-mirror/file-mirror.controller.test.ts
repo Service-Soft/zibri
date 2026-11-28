@@ -197,10 +197,12 @@ beforeAll(async () => {
     await webDav.start();
     webDav.createFolder(root);
     server = await startTestServer({
-        dataSources: [createInMemoryDataSource({
-            entities: [...defaultTestServerEntities, ApiKey, TenantWebDavConnection, MirroredFile, FileMirrorRequest, FileMirrorShareLink],
-            repositories: defaultTestServerRepositories
-        })],
+        dataSources: [
+            createInMemoryDataSource({
+                entities: [...defaultTestServerEntities, ApiKey, TenantWebDavConnection, MirroredFile, FileMirrorRequest, FileMirrorShareLink],
+                repositories: defaultTestServerRepositories
+            })
+        ],
         authStrategies: [ApiKeyAuthStrategy],
         controllers: [TestFileMirrorController],
         providers: [

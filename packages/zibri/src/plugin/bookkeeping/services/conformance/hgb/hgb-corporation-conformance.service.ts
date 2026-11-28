@@ -1,4 +1,4 @@
-/* eslint-disable cspell/spellchecker */
+
 import { Repository } from '../../../../../data-source/repository/repository';
 import { type Transaction } from '../../../../../data-source/transaction/transaction.model';
 import { repositoryTokenFor } from '../../../../../di/decorators/inject-repository.decorator';
@@ -28,8 +28,8 @@ import { HGB_MICRO_INCOME_STATEMENT } from '../../../statements/hgb-micro-income
 import { HGB_SMALL_BALANCE_SHEET } from '../../../statements/hgb-small-balance-sheet.model';
 import { type BookkeepingReportServiceInterface } from '../../bookkeeping-report-service.interface';
 import { type BookkeepingConformance, type BookkeepingConformanceServiceInterface } from '../bookkeeping-conformance-service.interface';
-import { HgbSizeClass } from './hgb-size-class.enum';
 import { HGB_SIZE_CLASS_THRESHOLDS, type HgbSizeClassThresholds } from './hgb-size-class-thresholds.model';
+import { HgbSizeClass } from './hgb-size-class.enum';
 import { type HgbSizeThreshold } from './hgb-size-threshold.model';
 
 /**
@@ -109,7 +109,9 @@ export class HgbCorporationConformanceService implements BookkeepingConformanceS
      */
     async resolveStatementForms(context: BookkeepingReportContext): Promise<BookkeepingStatementForms> {
         if (context.settings.currency !== 'EUR') {
-            throw new ConflictError($ts`The books of a corporation under the HGB need to be kept in EUR, and are kept in ${context.settings.currency}.`);
+            throw new ConflictError(
+                $ts`The books of a corporation under the HGB need to be kept in EUR, and are kept in ${context.settings.currency}.`
+            );
         }
         switch (await this.resolveSizeClass(context.fiscalYear, context.transaction)) {
             case HgbSizeClass.MICRO: {
@@ -206,10 +208,7 @@ export class HgbCorporationConformanceService implements BookkeepingConformanceS
                 // own date, and a company that existed before keeps the class it had, as a change takes two dates
                 return this.resolveStatusBefore(year, limit) ?? now;
             }
-            if (now === this.exceeds(await figuresOf(before), thresholds)) {
-                return now;
-            }
-            return await isAbove(index - 1, limit);
+            return now === this.exceeds(await figuresOf(before), thresholds) ? now : await isAbove(index - 1, limit);
         };
         const index: number = fiscalYears.findIndex(y => y.id === fiscalYear.id);
         // one after the other, each reusing the figures the one before resolved
@@ -241,7 +240,10 @@ export class HgbCorporationConformanceService implements BookkeepingConformanceS
             return classes.indexOf(previous) > LIMITS.indexOf(limit);
         }
         const sizeClasses: string = classes.join(', ');
-        throw new ConflictError($ts`The first fiscal year of the books, from ${start} to ${end}, needs either founded, when the company was founded in it, or its previousSizeClass, one of ${sizeClasses}.`);
+        throw new ConflictError(
+            // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
+            $ts`The first fiscal year of the books, from ${start} to ${end}, needs either founded, when the company was founded in it, or its previousSizeClass, one of ${sizeClasses}.`
+        );
     }
 
     /**
@@ -255,8 +257,16 @@ export class HgbCorporationConformanceService implements BookkeepingConformanceS
     protected async resolveSizeFigures(fiscalYear: FiscalYear, transaction?: Transaction): Promise<SizeFigures> {
         const employees: number = this.validateEmployees(fiscalYear);
         // one after the other, as the reads of one transaction run over one connection
-        const balanceSheet: BookkeepingStatement = await this.reportService.resolveBalanceSheet(fiscalYear.id, HGB_BALANCE_SHEET.id, transaction);
-        const incomeStatement: BookkeepingStatement = await this.reportService.resolveIncomeStatement(fiscalYear.id, HGB_INCOME_STATEMENT.id, transaction);
+        const balanceSheet: BookkeepingStatement = await this.reportService.resolveBalanceSheet(
+            fiscalYear.id,
+            HGB_BALANCE_SHEET.id,
+            transaction
+        );
+        const incomeStatement: BookkeepingStatement = await this.reportService.resolveIncomeStatement(
+            fiscalYear.id,
+            HGB_INCOME_STATEMENT.id,
+            transaction
+        );
         const amountOf: (statement: BookkeepingStatement, id: string) => BigNumber = (statement, id) => {
             const position: BookkeepingStatementPosition | undefined = statement.positions.find(p => p.id === id);
             return position?.amount ?? new BigNumber(0);
@@ -312,6 +322,7 @@ export class HgbCorporationConformanceService implements BookkeepingConformanceS
             const start: string = BookkeepingDayUtilities.formatDay(fiscalYear.start);
             const end: string = BookkeepingDayUtilities.formatDay(fiscalYear.end);
             throw new ConflictError(
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 $ts`The fiscal year from ${start} to ${end} needs its averageEmployees, the average number of employees the size class of § 267 HGB is resolved by.`
             );
         }

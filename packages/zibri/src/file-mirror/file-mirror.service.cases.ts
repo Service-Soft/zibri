@@ -1,3 +1,4 @@
+/* eslint-disable sonar/no-duplicate-string -- the paths, contents and content types are the data each case writes and reads back */
 import { createHash } from 'node:crypto';
 
 import { beforeEach, describe, expect, it } from '@jest/globals';
@@ -82,7 +83,10 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
          * @returns What it resolves to.
          */
         async function inTenant<T>(call: (service: FileMirrorServiceInterface) => Promise<T>): Promise<T> {
-            return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(server.tenantId, async () => await call(inject(ZIBRI_DI_TOKENS.FILE_MIRROR_SERVICE)));
+            return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+                server.tenantId,
+                async () => await call(inject(ZIBRI_DI_TOKENS.FILE_MIRROR_SERVICE))
+            );
         }
 
         /**
@@ -118,7 +122,8 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
          * @returns The mirrored file.
          */
         async function findMirrored(path: string): Promise<MirroredFile | undefined> {
-            return (await inTenant(async service => await service.findMirroredFiles({ type: 'invoice', id: path }))).find(file => file.path === `${folder}/${path}`);
+            return (await inTenant(async service => await service.findMirroredFiles({ type: 'invoice', id: path })))
+                .find(file => file.path === `${folder}/${path}`);
         }
 
         beforeEach(() => {
@@ -131,12 +136,15 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
             const written: MirroredFile | undefined = await findMirrored('Customers/Ada Lovelace/Invoices/2026-001.pdf');
             await mirror('Customers/Ada Lovelace/Invoices/2026-001.pdf', '%PDF-1.7 invoice 2026-001');
 
-            const entry: WebDavEntry | undefined = await server.folderApp.findEntry(`${folder}/Customers/Ada Lovelace/Invoices/2026-001.pdf`);
-            expect(await readFolderText(server.folderApp, `${folder}/Customers/Ada Lovelace/Invoices/2026-001.pdf`)).toBe('%PDF-1.7 invoice 2026-001');
+            const entry: WebDavEntry | undefined = await server.folderApp
+                .findEntry(`${folder}/Customers/Ada Lovelace/Invoices/2026-001.pdf`);
+            expect(await readFolderText(server.folderApp, `${folder}/Customers/Ada Lovelace/Invoices/2026-001.pdf`))
+                .toBe('%PDF-1.7 invoice 2026-001');
             expect(written).toMatchObject({
                 currentPath: `${folder}/Customers/Ada Lovelace/Invoices/2026-001.pdf`,
                 etag: entry?.etag,
-                contentHash: createHash('sha256').update('%PDF-1.7 invoice 2026-001').digest('hex'),
+                contentHash: createHash('sha256').update('%PDF-1.7 invoice 2026-001')
+                    .digest('hex'),
                 mirroredAt: expect.any(Date),
                 conflict: null
             });
@@ -157,13 +165,22 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
         it('leaves a file somebody changed in the folder as it is, and reports the conflict', async () => {
             await mirror('2026-003.pdf', '%PDF-1.7 as issued');
             const written: MirroredFile | undefined = await findMirrored('2026-003.pdf');
-            await server.folderApp.put(`${folder}/2026-003.pdf`, '%PDF-1.7 signed by the customer', { contentType: 'application/pdf', overwrite: true });
+            await server.folderApp.put(
+                `${folder}/2026-003.pdf`,
+                '%PDF-1.7 signed by the customer',
+                { contentType: 'application/pdf', overwrite: true }
+            );
 
             await mirror('2026-003.pdf', '%PDF-1.7 corrected');
 
             expect(await readFolderText(server.folderApp, `${folder}/2026-003.pdf`)).toBe('%PDF-1.7 signed by the customer');
             const conflicted: MirroredFile | undefined = await findMirrored('2026-003.pdf');
-            expect(conflicted).toMatchObject({ conflict: MirroredFileConflict.CHANGED, conflictAt: expect.any(Date), etag: written?.etag, contentHash: written?.contentHash });
+            expect(conflicted).toMatchObject({
+                conflict: MirroredFileConflict.CHANGED,
+                conflictAt: expect.any(Date),
+                etag: written?.etag,
+                contentHash: written?.contentHash
+            });
             const conflicts: PaginationResult<MirroredFile> = await inTenant(async service => await service.findConflicts(1, 100));
             expect(conflicts.items.map(file => file.id)).toContain(conflicted?.id);
             expect(conflicts.totalAmount).toBeGreaterThanOrEqual(1);
@@ -171,27 +188,34 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
 
         it('leaves a file somebody put where one is mirrored to first, and reports the conflict', async () => {
             await server.folderApp.createFolder(folder);
-            await server.folderApp.put(`${folder}/2026-004.pdf`, '%PDF-1.7 another one', { contentType: 'application/pdf', ifNoneMatch: '*' });
+            await server.folderApp.put(
+                `${folder}/2026-004.pdf`,
+                '%PDF-1.7 another one',
+                { contentType: 'application/pdf', ifNoneMatch: '*' }
+            );
 
             await mirror('2026-004.pdf', '%PDF-1.7 the invoice');
 
             expect(await readFolderText(server.folderApp, `${folder}/2026-004.pdf`)).toBe('%PDF-1.7 another one');
-            expect(await findMirrored('2026-004.pdf')).toMatchObject({ conflict: MirroredFileConflict.CHANGED, etag: null, contentHash: null, mirroredAt: null });
+            expect(await findMirrored('2026-004.pdf'))
+                .toMatchObject({ conflict: MirroredFileConflict.CHANGED, etag: null, contentHash: null, mirroredAt: null });
         }, CASE_TIMEOUT_IN_MS);
 
         it('writes nothing of a file queued in a transaction that is rolled back', async () => {
             const requests: Repository<FileMirrorRequest> = inject(repositoryTokenFor(FileMirrorRequest));
 
-            const rolledBack: Error | undefined = await inTenant(async service => await requests.dataSource.runInTransaction(async (transaction: Transaction) => {
-                await service.mirrorFile({
-                    connectionId: server.connectionId,
-                    path: `${folder}/2026-005.pdf`,
-                    content: '%PDF-1.7 never issued',
-                    contentType: 'application/pdf',
-                    source: { type: 'invoice', id: '2026-005.pdf' }
-                }, transaction);
-                throw new Error('rolled back');
-            }, { maxAttempts: 1 }).then(() => undefined, (error: unknown) => error instanceof Error ? error : undefined));
+            const rolledBack: Error | undefined = await inTenant(
+                async service => await requests.dataSource.runInTransaction(async (transaction: Transaction) => {
+                    await service.mirrorFile({
+                        connectionId: server.connectionId,
+                        path: `${folder}/2026-005.pdf`,
+                        content: '%PDF-1.7 never issued',
+                        contentType: 'application/pdf',
+                        source: { type: 'invoice', id: '2026-005.pdf' }
+                    }, transaction);
+                    throw new Error('rolled back');
+                }, { maxAttempts: 1 }).then(() => undefined, (error: unknown) => error instanceof Error ? error : undefined)
+            );
             await settle();
 
             expect(rolledBack?.message).toBe('rolled back');
@@ -202,7 +226,11 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
         it('puts no second copy where a file was before somebody moved it', async () => {
             await mirror('Invoices/2026-006.pdf', '%PDF-1.7 version 1');
             await server.folderApp.createFolder(`${folder}/Archive`);
-            await server.folderApp.move(`${folder}/Invoices/2026-006.pdf`, `${folder}/Archive/2026-006.pdf`, { overwrite: false });
+            await server.folderApp.move(
+                `${folder}/Invoices/2026-006.pdf`,
+                `${folder}/Archive/2026-006.pdf`,
+                { overwrite: false }
+            );
 
             await mirror('Invoices/2026-006.pdf', '%PDF-1.7 version 2');
 
@@ -211,7 +239,8 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
             switch (server.kind) {
                 case WebDavConnectionKind.WEB_DAV: {
                     expect(await readFolderText(server.folderApp, `${folder}/Archive/2026-006.pdf`)).toBe('%PDF-1.7 version 1');
-                    expect(mirrored).toMatchObject({ conflict: MirroredFileConflict.MISSING, currentPath: `${folder}/Invoices/2026-006.pdf` });
+                    expect(mirrored)
+                        .toMatchObject({ conflict: MirroredFileConflict.MISSING, currentPath: `${folder}/Invoices/2026-006.pdf` });
                     break;
                 }
                 case WebDavConnectionKind.NEXTCLOUD: {
@@ -239,7 +268,11 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
 
         it('overwrites a file somebody changed with the last version mirrored, once asked to', async () => {
             await mirror('2026-009.pdf', '%PDF-1.7 as issued');
-            await server.folderApp.put(`${folder}/2026-009.pdf`, '%PDF-1.7 signed by the customer', { contentType: 'application/pdf', overwrite: true });
+            await server.folderApp.put(
+                `${folder}/2026-009.pdf`,
+                '%PDF-1.7 signed by the customer',
+                { contentType: 'application/pdf', overwrite: true }
+            );
             await mirror('2026-009.pdf', '%PDF-1.7 corrected');
             const conflicted: MirroredFile | undefined = await findMirrored('2026-009.pdf');
 
@@ -250,9 +283,11 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
                 conflict: null,
                 conflictAt: null,
                 etag: (await server.folderApp.findEntry(`${folder}/2026-009.pdf`))?.etag,
-                contentHash: createHash('sha256').update('%PDF-1.7 corrected').digest('hex')
+                contentHash: createHash('sha256').update('%PDF-1.7 corrected')
+                    .digest('hex')
             });
-            expect(await inject(repositoryTokenFor(FileMirrorRequest)).exists({ where: { path: `${folder}/2026-009.pdf` }, acrossTenants: true })).toBe(false);
+            expect(await inject(repositoryTokenFor(FileMirrorRequest))
+                .exists({ where: { path: `${folder}/2026-009.pdf` }, acrossTenants: true })).toBe(false);
         }, CASE_TIMEOUT_IN_MS);
 
         it('puts a file somebody deleted back where it was mirrored to, once asked to', async () => {
@@ -265,14 +300,23 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
 
             expect(missing).toMatchObject({ conflict: MirroredFileConflict.MISSING });
             expect(await readFolderText(server.folderApp, `${folder}/Invoices/2026-010.pdf`)).toBe('%PDF-1.7 version 2');
-            expect(await findMirrored('Invoices/2026-010.pdf')).toMatchObject({ conflict: null, currentPath: `${folder}/Invoices/2026-010.pdf` });
+            expect(await findMirrored('Invoices/2026-010.pdf'))
+                .toMatchObject({ conflict: null, currentPath: `${folder}/Invoices/2026-010.pdf` });
         }, CASE_TIMEOUT_IN_MS);
 
         it('overwrites a file somebody moved and changed where Nextcloud says it is, and where it was mirrored to elsewhere', async () => {
             await mirror('Invoices/2026-011.pdf', '%PDF-1.7 version 1');
             await server.folderApp.createFolder(`${folder}/Archive`);
-            await server.folderApp.move(`${folder}/Invoices/2026-011.pdf`, `${folder}/Archive/2026-011.pdf`, { overwrite: false });
-            await server.folderApp.put(`${folder}/Archive/2026-011.pdf`, '%PDF-1.7 signed', { contentType: 'application/pdf', overwrite: true });
+            await server.folderApp.move(
+                `${folder}/Invoices/2026-011.pdf`,
+                `${folder}/Archive/2026-011.pdf`,
+                { overwrite: false }
+            );
+            await server.folderApp.put(
+                `${folder}/Archive/2026-011.pdf`,
+                '%PDF-1.7 signed',
+                { contentType: 'application/pdf', overwrite: true }
+            );
             await mirror('Invoices/2026-011.pdf', '%PDF-1.7 version 2');
             const conflicted: MirroredFile | undefined = await findMirrored('Invoices/2026-011.pdf');
 
@@ -287,10 +331,15 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
                     break;
                 }
                 case WebDavConnectionKind.NEXTCLOUD: {
-                    expect(conflicted).toMatchObject({ conflict: MirroredFileConflict.CHANGED, currentPath: `${folder}/Archive/2026-011.pdf` });
+                    expect(conflicted)
+                        .toMatchObject({ conflict: MirroredFileConflict.CHANGED, currentPath: `${folder}/Archive/2026-011.pdf` });
                     expect(await readFolderText(server.folderApp, `${folder}/Archive/2026-011.pdf`)).toBe('%PDF-1.7 version 2');
                     expect(await server.folderApp.findEntry(`${folder}/Invoices/2026-011.pdf`)).toBeUndefined();
-                    expect(await findMirrored('Invoices/2026-011.pdf')).toMatchObject({ conflict: null, currentPath: `${folder}/Archive/2026-011.pdf`, fileId: conflicted?.fileId });
+                    expect(await findMirrored('Invoices/2026-011.pdf')).toMatchObject({
+                        conflict: null,
+                        currentPath: `${folder}/Archive/2026-011.pdf`,
+                        fileId: conflicted?.fileId
+                    });
                     break;
                 }
             }
@@ -298,14 +347,21 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
 
         it('stops mirroring a file in conflict, and mirrors a later version to its path as a new file', async () => {
             await mirror('2026-012.pdf', '%PDF-1.7 as issued');
-            await server.folderApp.put(`${folder}/2026-012.pdf`, '%PDF-1.7 kept by hand', { contentType: 'application/pdf', overwrite: true });
+            await server.folderApp.put(
+                `${folder}/2026-012.pdf`,
+                '%PDF-1.7 kept by hand',
+                { contentType: 'application/pdf', overwrite: true }
+            );
             await mirror('2026-012.pdf', '%PDF-1.7 corrected');
             const conflicted: MirroredFile | undefined = await findMirrored('2026-012.pdf');
 
-            await inTenant(async service => await service.resolveConflict(conflicted?.id ?? '', MirroredFileConflictResolution.STOP_MIRRORING));
+            await inTenant(
+                async service => await service.resolveConflict(conflicted?.id ?? '', MirroredFileConflictResolution.STOP_MIRRORING)
+            );
 
             expect(await findMirrored('2026-012.pdf')).toBeUndefined();
-            expect(await inject(repositoryTokenFor(FileMirrorRequest)).exists({ where: { path: `${folder}/2026-012.pdf` }, acrossTenants: true })).toBe(false);
+            expect(await inject(repositoryTokenFor(FileMirrorRequest))
+                .exists({ where: { path: `${folder}/2026-012.pdf` }, acrossTenants: true })).toBe(false);
             expect(await readFolderText(server.folderApp, `${folder}/2026-012.pdf`)).toBe('%PDF-1.7 kept by hand');
 
             // written only where nothing is, and something is
@@ -318,8 +374,9 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
             await mirror('2026-013.pdf', '%PDF-1.7 as issued');
             const written: MirroredFile | undefined = await findMirrored('2026-013.pdf');
 
-            const refusal: unknown = await inTenant(async service => await service.resolveConflict(written?.id ?? '', MirroredFileConflictResolution.OVERWRITE))
-                .then(() => undefined, (error: unknown) => error);
+            const refusal: unknown = await inTenant(
+                async service => await service.resolveConflict(written?.id ?? '', MirroredFileConflictResolution.OVERWRITE)
+            ).then(() => undefined, (error: unknown) => error);
 
             expect(refusal).toBeInstanceOf(BadRequestError);
             expect(await readFolderText(server.folderApp, `${folder}/2026-013.pdf`)).toBe('%PDF-1.7 as issued');
@@ -341,7 +398,11 @@ export function describeFileMirror(name: string, resolveServer: () => FileMirror
                 }
                 case WebDavConnectionKind.NEXTCLOUD: {
                     const link: FileMirrorShareLink = await ask();
-                    expect(link).toMatchObject({ path: `${folder}/Customers/Ada Lovelace`, url: expect.stringMatching(/^https?:\/\/.+\/s\/\w+$/), expiresOn: null });
+                    expect(link).toMatchObject({
+                        path: `${folder}/Customers/Ada Lovelace`,
+                        url: expect.stringMatching(/^https?:\/\/.+\/s\/\w+$/),
+                        expiresOn: null
+                    });
                     // asked again, while Nextcloud has it
                     expect(await ask()).toEqual(link);
                     break;

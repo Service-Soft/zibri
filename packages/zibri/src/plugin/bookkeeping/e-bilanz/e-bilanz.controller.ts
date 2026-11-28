@@ -36,8 +36,8 @@ import { EBilanzFiling, type EBilanzFilingCreateData } from './models/e-bilanz-f
 import { EBilanzPreparationInput } from './models/e-bilanz-preparation-input.model';
 import { EBilanzPreparation } from './models/e-bilanz-preparation.model';
 import { EBilanzProtocolUpload } from './models/e-bilanz-protocol-upload.model';
-import { type EBilanzSettings } from './models/e-bilanz-settings.model';
 import { EBilanzSettingsView } from './models/e-bilanz-settings-view.model';
+import { type EBilanzSettings } from './models/e-bilanz-settings.model';
 import { EBilanzState } from './models/e-bilanz-state.model';
 import { ZibriEBilanzPermissions, ZibriEBilanzPlatformPermissions } from './models/zibri-e-bilanz-permissions.model';
 import { type EBilanzExport, type EBilanzFile, type EBilanzServiceInterface } from './services/e-bilanz-service.interface';
@@ -136,7 +136,12 @@ export class EBilanzController {
         @CurrentUser()
         user: CurrentUser
     ): Promise<FileResponse> {
-        const file: EBilanzExport = await this.runInTenantOfFiscalYear(user, PREPARE, id, async () => await this.eBilanzService.resolveExport(id, exporter));
+        const file: EBilanzExport = await this.runInTenantOfFiscalYear(
+            user,
+            PREPARE,
+            id,
+            async () => await this.eBilanzService.resolveExport(id, exporter)
+        );
         return FileResponse.fromStream({ stream: Readable.from(file.data), filename: file.name, mimeType: file.mimeType });
     }
 
@@ -150,7 +155,12 @@ export class EBilanzController {
         @CurrentUser()
         user: CurrentUser
     ): Promise<EBilanzFiling> {
-        return await this.runInTenantOfFiscalYear(user, TRANSMIT, id, async () => await this.eBilanzService.transmit(id, { test: true }, user.id));
+        return await this.runInTenantOfFiscalYear(
+            user,
+            TRANSMIT,
+            id,
+            async () => await this.eBilanzService.transmit(id, { test: true }, user.id)
+        );
     }
 
     @Auth.hasAnyLevelPermission(TRANSMIT)
@@ -164,7 +174,12 @@ export class EBilanzController {
         @CurrentUser()
         user: CurrentUser
     ): Promise<EBilanzFiling> {
-        return await this.runInTenantOfFiscalYear(user, TRANSMIT, id, async () => await this.eBilanzService.transmit(id, { test: false }, user.id));
+        return await this.runInTenantOfFiscalYear(
+            user,
+            TRANSMIT,
+            id,
+            async () => await this.eBilanzService.transmit(id, { test: false }, user.id)
+        );
     }
 
     @Auth.hasAnyLevelPermission(TRANSMIT)
@@ -195,7 +210,12 @@ export class EBilanzController {
         try {
             const data: Buffer = await buffer(FsUtilities.createReadStream(form.value.protocol.path));
             const protocol: EBilanzFile = { name: form.value.protocol.originalname, mimeType: form.value.protocol.mimetype, data };
-            return await this.runInTenantOfFiscalYear(user, TRANSMIT, id, async () => await this.eBilanzService.recordManualFiling(id, protocol, user.id));
+            return await this.runInTenantOfFiscalYear(
+                user,
+                TRANSMIT,
+                id,
+                async () => await this.eBilanzService.recordManualFiling(id, protocol, user.id)
+            );
         }
         finally {
             await form.cleanup();
@@ -294,7 +314,11 @@ export class EBilanzController {
             user,
             MANAGE,
             tenantId,
-            async () => await this.eBilanzService.updateAccountMapping({ accountId, position: input.position, creditPosition: input.creditPosition ?? null })
+            async () => await this.eBilanzService.updateAccountMapping({
+                accountId,
+                position: input.position,
+                creditPosition: input.creditPosition ?? null
+            })
         );
     }
 
@@ -332,7 +356,12 @@ export class EBilanzController {
      * @param work - The work.
      * @returns What the work returns.
      */
-    private async runInTenantOfFiscalYear<T>(user: CurrentUser, permissions: AnyLevelPermissions, fiscalYearId: string, work: () => Promise<T>): Promise<T> {
+    private async runInTenantOfFiscalYear<T>(
+        user: CurrentUser,
+        permissions: AnyLevelPermissions,
+        fiscalYearId: string,
+        work: () => Promise<T>
+    ): Promise<T> {
         return await this.runInTenantOfRow(
             user,
             permissions,
@@ -373,7 +402,12 @@ export class EBilanzController {
      * @returns What the work returns.
      * @throws A BadRequestError for a request naming no tenant and no `tenantId`.
      */
-    private async runInTenant<T>(user: CurrentUser, permissions: AnyLevelPermissions, tenantId: string | undefined, work: () => Promise<T>): Promise<T> {
+    private async runInTenant<T>(
+        user: CurrentUser,
+        permissions: AnyLevelPermissions,
+        tenantId: string | undefined,
+        work: () => Promise<T>
+    ): Promise<T> {
         if (this.tenantService.getActiveTenantId() != undefined) {
             return await work();
         }
@@ -399,4 +433,8 @@ export class EBilanzController {
 
 // the route the url of the protocol of each record points to, with the access of the route answering the records. It
 // writes no record from a multipart body, the protocol of a filing by hand being stored by the service
-MetadataUtilities.setRouteServedFiles(EBilanzController, { entityClass: EBilanzFiling, accessOf: 'resolveState', bodyClasses: [] }, 'resolveFilingFile');
+MetadataUtilities.setRouteServedFiles(
+    EBilanzController,
+    { entityClass: EBilanzFiling, accessOf: 'resolveState', bodyClasses: [] },
+    'resolveFilingFile'
+);

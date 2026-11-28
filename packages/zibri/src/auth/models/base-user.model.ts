@@ -13,8 +13,8 @@ import { UniqueDeclaration } from '../../entity/models/unique-declaration.model'
 import { InternalError } from '../../error-handling/internal-error.model';
 import { type LocaleCode } from '../../localization/models/locale-code.model';
 import { Newable } from '../../types/newable.type';
-import { SoftDeletingUserEntityOptions } from './soft-deleting-user-entity-options.model';
 import { UserKindUtilities } from '../user/user-kind.utilities';
+import { SoftDeletingUserEntityOptions } from './soft-deleting-user-entity-options.model';
 import { type UserKind } from './user-kind.type';
 
 /**

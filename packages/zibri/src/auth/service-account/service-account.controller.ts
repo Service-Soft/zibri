@@ -79,7 +79,6 @@ export abstract class ServiceAccountController implements OnAppInit {
         return inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         validateEntitiesRegistered(ServiceAccountController.name, app, ApiKey);
         // at boot rather than per request: the methods are optional until 4.0, and a service of the application
@@ -155,7 +154,10 @@ export abstract class ServiceAccountController implements OnAppInit {
                 : (await roleMethods.findMembership(account.id, tenantId, transaction))?.roles ?? [];
             const gained: string[] = input.roles.filter(role => !account.roles.includes(role));
             const gainedInTenant: string[] = input.tenantRoles.filter(role => !tenantRoles.includes(role));
-            const lost: string[] = [...account.roles.filter(role => !input.roles.includes(role)), ...tenantRoles.filter(role => !input.tenantRoles.includes(role))];
+            const lost: string[] = [
+                ...account.roles.filter(role => !input.roles.includes(role)),
+                ...tenantRoles.filter(role => !input.tenantRoles.includes(role))
+            ];
             // assignRole takes the level from the role, so a role is checked against the level it is asked for first
             await roleMethods.validateMayAssign(caller, gained, undefined, transaction);
             if (tenantId != undefined && gainedInTenant.length) {
@@ -255,7 +257,8 @@ export abstract class ServiceAccountController implements OnAppInit {
             this.authService.findApiKeys(account.id, transaction),
             tenantId == undefined
                 ? []
-                : this.resolveRoleMethods().findMembership(account.id, tenantId, transaction).then(membership => membership?.roles ?? [])
+                : this.resolveRoleMethods().findMembership(account.id, tenantId, transaction)
+                    .then(membership => membership?.roles ?? [])
         ]);
         return {
             id: account.id,
@@ -287,7 +290,9 @@ export abstract class ServiceAccountController implements OnAppInit {
      */
     private resolvePermissions(permissions: string[]): (Permission | PlatformPermission)[] {
         const roleService: RoleServiceInterface = this.roleService;
-        const isDeclared: (permission: string) => permission is Permission | PlatformPermission = (permission): permission is Permission | PlatformPermission => {
+        const isDeclared: (permission: string) => permission is Permission | PlatformPermission = (
+            permission
+        ): permission is Permission | PlatformPermission => {
             return roleService.isPermission(permission) || roleService.isPlatformPermission(permission);
         };
         const undeclared: string | undefined = permissions.find(permission => !isDeclared(permission));

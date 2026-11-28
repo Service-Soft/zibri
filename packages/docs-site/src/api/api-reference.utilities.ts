@@ -4,6 +4,15 @@ import type { JSONOutput } from 'typedoc' with { 'resolution-mode': 'import' };
 import * as zibriExports from 'zibri';
 import { BaseEntity, JsonUtilities, Newable } from 'zibri';
 import { MetadataUtilities } from 'zibri/internal';
+import * as analyticsExports from 'zibri/plugin/analytics';
+import * as approvalExports from 'zibri/plugin/approval';
+import * as bankExports from 'zibri/plugin/bank';
+import * as bookkeepingExports from 'zibri/plugin/bookkeeping';
+import * as invoicingExports from 'zibri/plugin/invoicing';
+import * as mailingListExports from 'zibri/plugin/mailing-list';
+import * as mcpExports from 'zibri/plugin/mcp';
+import * as paymentExports from 'zibri/plugin/payment';
+import * as projectsExports from 'zibri/plugin/projects';
 
 import { BASE_PATH } from '../base-path';
 import { ApiCodeTarget, ApiExport, ApiKind } from './api-export.model';
@@ -20,6 +29,19 @@ type ApiReference = {
     // where each reflection a link or a type can name is documented: the page of an export, or a section of it
     addresses: Map<number, string>
 };
+
+// what the entry points of the plugins export, which the reference documents beside `zibri`
+const PLUGIN_EXPORTS: object[] = [
+    analyticsExports,
+    approvalExports,
+    bankExports,
+    bookkeepingExports,
+    invoicingExports,
+    mailingListExports,
+    mcpExports,
+    paymentExports,
+    projectsExports
+];
 
 /**
  * The folder of the API reference below the site, which the sidebar marks as the file of its pages.
@@ -136,10 +158,13 @@ export abstract class ApiReferenceUtilities {
             throw new Error(`There is no ${API_JSON_FILE}. Build zibri with "npm run build:prod -w zibri" first.`);
         }
         const project: JSONOutput.ProjectReflection = JsonUtilities.parse(readFileSync(API_JSON_FILE, 'utf8'));
+        // one module per entry point, `zibri` and each `zibri/plugin/<name>`, whose names the reference lists together
+        const declared: JSONOutput.DeclarationReflection[] = (project.children ?? [])
+            .flatMap(child => child.kind === REFLECTION_KINDS.Module ? child.children ?? [] : [child]);
         const entityNames: Set<string> = this.resolveEntityNames();
         const exports: Map<string, ApiExport> = new Map();
         const addresses: Map<number, string> = new Map();
-        const declarations: JSONOutput.DeclarationReflection[] = [...project.children ?? []]
+        const declarations: JSONOutput.DeclarationReflection[] = [...declared]
             .sort((a, b) => a.name.localeCompare(b.name));
         for (const declaration of declarations) {
             // the page shows first what the badge shows
@@ -158,7 +183,7 @@ export abstract class ApiReferenceUtilities {
                 addresses.set(member.id, `${address}#${this.resolveMemberAnchor(member.name)}`);
             }
         }
-        this.reference = { declarations: project.children ?? [], exports, addresses };
+        this.reference = { declarations: declared, exports, addresses };
         return this.reference;
     }
 
@@ -177,7 +202,7 @@ export abstract class ApiReferenceUtilities {
 
     // the classes zibri stores as rows, which their metadata names, as typedoc records no decorator
     private static resolveEntityNames(): Set<string> {
-        const values: Map<string, unknown> = new Map(Object.entries(zibriExports));
+        const values: Map<string, unknown> = new Map([zibriExports, ...PLUGIN_EXPORTS].flatMap(exported => Object.entries(exported)));
         return new Set([...values]
             .filter(([, value]) => isBaseEntityClass(value) && MetadataUtilities.getEntityMetadata(value) != undefined)
             .map(([name]) => name));

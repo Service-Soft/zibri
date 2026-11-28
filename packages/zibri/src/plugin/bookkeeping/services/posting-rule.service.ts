@@ -29,8 +29,8 @@ import { JournalEntry } from '../models/journal-entry.model';
 import { type NewJournalEntryLine } from '../models/new-journal-entry-line.model';
 import { type NewJournalEntry } from '../models/new-journal-entry.model';
 import { type NewPostingRuleSet } from '../models/new-posting-rule-set.model';
-import { type PostingRuleTaxAccount } from '../models/posting-rule-tax-account.model';
 import { PostingRuleSet, type PostingRuleSetCreateData } from '../models/posting-rule-set.model';
+import { type PostingRuleTaxAccount } from '../models/posting-rule-tax-account.model';
 import { type PostingRules } from '../models/posting-rules.model';
 import { PostingSourceType } from '../models/posting-source-type.enum';
 import { type PostingSource } from '../models/posting-source.model';
@@ -111,7 +111,11 @@ export class PostingRuleService implements PostingRuleServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveEntry(source: PostingSource, settings: BookkeepingSettings, transaction: Transaction): Promise<NewJournalEntry | undefined> {
+    async resolveEntry(
+        source: PostingSource,
+        settings: BookkeepingSettings,
+        transaction: Transaction
+    ): Promise<NewJournalEntry | undefined> {
         switch (source.type) {
             case PostingSourceType.INVOICE: {
                 return await this.resolveInvoiceEntry(source.invoice, settings, transaction);
@@ -151,6 +155,7 @@ export class PostingRuleService implements PostingRuleServiceInterface {
             await this.validateConformingRules(fiscalYear, [ruleSet.rules], undefined, started);
             if (await this.ruleSetRepository.exists({ where: { fiscalYearId: fiscalYear.id, validFrom }, transaction: started })) {
                 throw new ConflictError(
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                     $ts`The fiscal year from ${start} to ${end} has posting rules valid from ${day} already, which are changed rather than added again.`
                 );
             }
@@ -174,7 +179,11 @@ export class PostingRuleService implements PostingRuleServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async validateRuleSets(fiscalYear: FiscalYear, settings: BookkeepingSettings, transaction: Transaction): Promise<void> {
-        const ruleSets: PostingRuleSet[] = await this.ruleSetRepository.findAll({ where: { fiscalYearId: fiscalYear.id }, limit: 'all', transaction });
+        const ruleSets: PostingRuleSet[] = await this.ruleSetRepository.findAll({
+            where: { fiscalYearId: fiscalYear.id },
+            limit: 'all',
+            transaction
+        });
         await this.validateConformingRules(fiscalYear, ruleSets.map(r => r.rules), settings, transaction);
     }
 
@@ -193,7 +202,8 @@ export class PostingRuleService implements PostingRuleServiceInterface {
         settings: BookkeepingSettings | undefined,
         transaction: Transaction
     ): Promise<void> {
-        const judged: BookkeepingSettings | undefined = settings ?? await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).findSettings(transaction);
+        const judged: BookkeepingSettings | undefined = settings
+            ?? await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).findSettings(transaction);
         if (judged == undefined) {
             return;
         }
@@ -222,10 +232,9 @@ export class PostingRuleService implements PostingRuleServiceInterface {
             limit: 1,
             transaction
         });
-        if (latest == undefined) {
-            return undefined;
-        }
-        return await this.ruleSetRepository.create({ fiscalYearId: to.id, validFrom: to.start, rules: latest.rules }, { transaction });
+        return latest == undefined
+            ? undefined
+            : await this.ruleSetRepository.create({ fiscalYearId: to.id, validFrom: to.start, rules: latest.rules }, { transaction });
     }
 
     /**
@@ -290,7 +299,10 @@ export class PostingRuleService implements PostingRuleServiceInterface {
         const rules: RulesOfDay = await this.resolveRules(expense.documentDate, transaction);
         const payables: string = this.resolvePayablesAccount(rules);
         const net: BigNumber = expense.totals.reduce((sum, t) => NumberUtilities.add(sum, t.net), NumberUtilities.new(0));
-        const total: BigNumber = expense.totals.reduce((sum, t) => NumberUtilities.add(NumberUtilities.add(sum, t.net), t.tax), NumberUtilities.new(0));
+        const total: BigNumber = expense.totals.reduce(
+            (sum, t) => NumberUtilities.add(NumberUtilities.add(sum, t.net), t.tax),
+            NumberUtilities.new(0)
+        );
         const lines: NewJournalEntryLine[] = [
             ...this.resolveLine(expense.accountId, 'debit', net),
             ...expense.totals.flatMap(t => t.tax.isGreaterThan(0)
@@ -372,7 +384,10 @@ export class PostingRuleService implements PostingRuleServiceInterface {
      */
     protected async resolveInvoiceLines(invoice: Invoice, rules: RulesOfDay): Promise<NewJournalEntryLine[]> {
         const groups: InvoiceTaxGroup[] = await this.resolveTaxGroups(invoice);
-        const total: BigNumber = groups.reduce((sum, g) => NumberUtilities.add(NumberUtilities.add(sum, g.net), g.tax), NumberUtilities.new(0));
+        const total: BigNumber = groups.reduce(
+            (sum, g) => NumberUtilities.add(NumberUtilities.add(sum, g.net), g.tax),
+            NumberUtilities.new(0)
+        );
         return this.mergeLines([
             ...this.resolveLine(this.resolveReceivablesAccount(rules), 'debit', total),
             ...groups.flatMap(g => this.resolveLine(this.resolveRevenueAccount(rules, g.vat), 'credit', g.net)),
@@ -404,7 +419,10 @@ export class PostingRuleService implements PostingRuleServiceInterface {
         const minorUnits: number = inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).getCurrencyMinorUnits(settings.currency);
         const groups: InvoiceTaxGroup[] = (await this.resolveTaxGroups(invoice))
             .filter(g => NumberUtilities.add(g.net, g.tax).isGreaterThan(0));
-        const total: BigNumber = groups.reduce((sum, g) => NumberUtilities.add(NumberUtilities.add(sum, g.net), g.tax), NumberUtilities.new(0));
+        const total: BigNumber = groups.reduce(
+            (sum, g) => NumberUtilities.add(NumberUtilities.add(sum, g.net), g.tax),
+            NumberUtilities.new(0)
+        );
         let left: BigNumber = difference;
         const lines: NewJournalEntryLine[] = [];
         for (const [index, group] of groups.entries()) {
@@ -457,10 +475,14 @@ export class PostingRuleService implements PostingRuleServiceInterface {
             required: false,
             transaction
         });
-        if (entry == undefined) {
-            return undefined;
-        }
-        return await this.lineRepository.findAll({ where: { entryId: entry.id }, order: { chainSequence: 'ASC' }, limit: 'all', transaction });
+        return entry == undefined
+            ? undefined
+            : await this.lineRepository.findAll({
+                where: { entryId: entry.id },
+                order: { chainSequence: 'ASC' },
+                limit: 'all',
+                transaction
+            });
     }
 
     /**
@@ -483,7 +505,9 @@ export class PostingRuleService implements PostingRuleServiceInterface {
      * @returns Each group with its total before tax and its tax.
      */
     protected async resolveTaxGroups(invoice: Invoice): Promise<InvoiceTaxGroup[]> {
-        const calc: InvoiceCalcServiceInterface<Invoice> = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE);
+        const calc: InvoiceCalcServiceInterface<Invoice> = inject<InvoiceCalcServiceInterface<Invoice>>(
+            ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CALC_SERVICE
+        );
         const groups: Vat[] = await calc.getTaxGroups(invoice, false);
         return await Promise.all(groups.map(async vat => ({
             vat,
@@ -595,7 +619,9 @@ export class PostingRuleService implements PostingRuleServiceInterface {
                 throw new ConflictError($ts`The posting rules valid on ${rules.day} need to name an input tax account for ${rate} %.`);
             }
             case 'difference': {
-                throw new ConflictError($ts`The posting rules valid on ${rules.day} need to name a payment difference account for ${rate} %.`);
+                throw new ConflictError(
+                    $ts`The posting rules valid on ${rules.day} need to name a payment difference account for ${rate} %.`
+                );
             }
         }
     }
@@ -610,7 +636,9 @@ export class PostingRuleService implements PostingRuleServiceInterface {
     protected resolveBankAccount(rules: RulesOfDay, bankAccountId: string): string {
         const account: string | undefined = rules.rules.bankAccounts.find(b => b.bankAccountId === bankAccountId)?.accountId;
         if (account == undefined) {
-            throw new ConflictError($ts`The posting rules valid on ${rules.day} need to name the account of the bank account "${bankAccountId}".`);
+            throw new ConflictError(
+                $ts`The posting rules valid on ${rules.day} need to name the account of the bank account "${bankAccountId}".`
+            );
         }
         return account;
     }
@@ -637,19 +665,21 @@ export class PostingRuleService implements PostingRuleServiceInterface {
                 throw new BadRequestError($ts`The ${property} of the posting rules need to name each one once, and name ${twice} twice.`);
             }
         }
-        const ids: string[] = [...new Set([
-            ...rules.receivablesAccountId == undefined ? [] : [rules.receivablesAccountId],
-            ...rules.payablesAccountId == undefined ? [] : [rules.payablesAccountId],
-            ...rules.legalReserveAccountId == undefined ? [] : [rules.legalReserveAccountId],
-            ...rules.reserveAllocationAccountId == undefined ? [] : [rules.reserveAllocationAccountId],
-            ...[
-                ...rules.revenueAccounts,
-                ...rules.outputTaxAccounts,
-                ...rules.inputTaxAccounts,
-                ...rules.paymentDifferenceAccounts,
-                ...rules.bankAccounts
-            ].map(r => r.accountId)
-        ])];
+        const ids: string[] = [
+            ...new Set([
+                ...rules.receivablesAccountId == undefined ? [] : [rules.receivablesAccountId],
+                ...rules.payablesAccountId == undefined ? [] : [rules.payablesAccountId],
+                ...rules.legalReserveAccountId == undefined ? [] : [rules.legalReserveAccountId],
+                ...rules.reserveAllocationAccountId == undefined ? [] : [rules.reserveAllocationAccountId],
+                ...[
+                    ...rules.revenueAccounts,
+                    ...rules.outputTaxAccounts,
+                    ...rules.inputTaxAccounts,
+                    ...rules.paymentDifferenceAccounts,
+                    ...rules.bankAccounts
+                ].map(r => r.accountId)
+            ])
+        ];
         const found: Set<string> = new Set((await this.accountRepository.findAll({
             where: { id: { oneOf: ids } },
             select: { id: true },
@@ -726,7 +756,12 @@ export class PostingRuleService implements PostingRuleServiceInterface {
      * @param lines - The lines.
      * @returns The entry, or undefined for no lines.
      */
-    protected resolveEntryOf(day: Date, documentReference: string | null, text: string, lines: NewJournalEntryLine[]): NewJournalEntry | undefined {
+    protected resolveEntryOf(
+        day: Date,
+        documentReference: string | null,
+        text: string,
+        lines: NewJournalEntryLine[]
+    ): NewJournalEntry | undefined {
         return lines.length ? { documentDate: day, postingDate: day, documentReference, text, lines } : undefined;
     }
 

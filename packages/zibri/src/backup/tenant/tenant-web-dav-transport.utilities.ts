@@ -26,6 +26,7 @@ export abstract class TenantWebDavTransportUtilities {
         }
         catch (error) {
             throw new BadRequestError(
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 $ts`The folder of a transport needs to be segments separated by "/", none of them empty, "." or "..", or empty for the folder of the connection.`,
                 { cause: error }
             );
@@ -53,13 +54,17 @@ export abstract class TenantWebDavTransportUtilities {
             async () => await inject(repositoryTokenFor(TenantWebDavConnection)).findOne({ where: { id: connectionId }, required: false })
         );
         if (connection == undefined) {
-            throw new InternalError(`The transport "${transportName}" needs a WebDAV connection of the tenant, and the tenant has none of the id "${connectionId}".`);
+            throw new InternalError(
+                `The transport "${transportName}" needs a WebDAV connection of the tenant,`
+                + ` and the tenant has none of the id "${connectionId}".`
+            );
         }
         // the transport of the other kind keeps the folder read-only and its trash bin empty, which a connection to
         // any other server cannot, and a Nextcloud through the plain transport would silently do neither
         if (connection.kind !== kind) {
             throw new InternalError(
-                `The transport "${transportName}" needs a WebDAV connection of the kind ${kind}, and "${connection.name}" is of the kind ${connection.kind}.`
+                `The transport "${transportName}" needs a WebDAV connection of the kind ${kind},`
+                + ` and "${connection.name}" is of the kind ${connection.kind}.`
             );
         }
         return connection;

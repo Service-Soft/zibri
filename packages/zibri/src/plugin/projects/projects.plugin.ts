@@ -6,8 +6,8 @@ import { repositoryTokenFor } from '../../di/decorators/inject-repository.decora
 import { NoProviderError } from '../../di/errors/no-provider.error';
 import { inject } from '../../di/inject.function';
 import { DiProvider } from '../../di/models/di-provider.model';
-import { DiVariants } from '../../di/models/di-variant.model';
 import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
+import { DiVariants } from '../../di/models/di-variant.model';
 import { BaseEntity } from '../../entity/base-entity.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { Lease } from '../../leases/lease.model';

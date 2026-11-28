@@ -1,45 +1,6 @@
-/**
- * Writes the file only while it is the version the server named with the ETag.
- */
-type WebDavPutIfMatch = {
-    /**
-     * The ETag of the version that may be replaced, quotes included. Any other version, or no file, fails the put
-     * with a `WebDavPreconditionFailedError`.
-     */
-    ifMatch: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    ifNoneMatch?: undefined,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    overwrite?: undefined
-};
-
-/**
- * Writes the file only where there is none.
- */
-type WebDavPutIfNoneMatch = {
-    /**
-     * `'*'`: a file that exists fails the put with a `WebDavPreconditionFailedError`.
-     */
-    ifNoneMatch: '*',
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    ifMatch?: undefined,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    overwrite?: undefined
-};
-
-/**
- * Writes the file whatever is there.
- */
-type WebDavPutOverwrite = {
-    /**
-     * `true`: a file that exists is replaced, whatever its version.
-     */
-    overwrite: true,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    ifMatch?: undefined,
-    // eslint-disable-next-line jsdoc/require-jsdoc
-    ifNoneMatch?: undefined
-};
+import { WebDavPutIfMatch } from './web-dav-put-if-match.model';
+import { WebDavPutIfNoneMatch } from './web-dav-put-if-none-match.model';
+import { WebDavPutOverwrite } from './web-dav-put-overwrite.model';
 
 /**
  * How a file is written to a WebDAV server: its content type, and which of the three conditions it is written

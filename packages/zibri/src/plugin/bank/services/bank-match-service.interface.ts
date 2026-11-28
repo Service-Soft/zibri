@@ -1,20 +1,20 @@
 import { type KeptRowCheckInterface } from '../../../backup/kept-row-check.interface';
 import { type PaginationResult } from '../../../data-source/models/pagination-result.model';
 import { type Transaction } from '../../../data-source/transaction/transaction.model';
+import { type BigNumber } from '../../../utilities/number.utilities';
 import { type ApprovalRequestDetails } from '../../approval/models/approval-request-details.model';
 import { type ApprovalRunContext } from '../../approval/models/approval-run-context.model';
 import { type InvoicePaymentSourceInterface } from '../../invoicing/services/invoice-payment-source.interface';
 import { type BankMatchFilter } from '../models/bank-match-filter.model';
 import { type BankMatchInput } from '../models/bank-match-input.model';
-import { type BankMatchTarget } from '../models/bank-match-target.model';
 import { type BankMatchTargetType } from '../models/bank-match-target-type.enum';
+import { type BankMatchTarget } from '../models/bank-match-target.model';
 import { type BankMatch } from '../models/bank-match.model';
 import { type BankTransactionDetails } from '../models/bank-transaction-details.model';
 import { type BankTransactionFilter } from '../models/bank-transaction-filter.model';
 import { type BankTransactionState } from '../models/bank-transaction-state.model';
 import { type BankTransactionSuggestion } from '../models/bank-transaction-suggestion.model';
 import { type BankTransaction } from '../models/bank-transaction.model';
-import { type BigNumber } from '../../../utilities/number.utilities';
 
 /**
  * Matches the transactions of the bank accounts of the current tenant with the invoices they pay, and with what the
@@ -87,7 +87,11 @@ export interface BankMatchServiceInterface extends InvoicePaymentSourceInterface
      * @returns The page.
      * @throws A BadRequestError for a `from` or `until` with a time, or an `until` before `from`.
      */
-    findTransactionDetails: (page: number, limit: number, filter: BankTransactionFilter) => Promise<PaginationResult<BankTransactionDetails>>,
+    findTransactionDetails: (
+        page: number,
+        limit: number,
+        filter: BankTransactionFilter
+    ) => Promise<PaginationResult<BankTransactionDetails>>,
     /**
      * Finds the pending suggestions of a transaction: the approval requests of `bank.match` waiting for a decision,
      * the most likely first, each with the difference within `paymentDifferenceTolerance` it would record of an

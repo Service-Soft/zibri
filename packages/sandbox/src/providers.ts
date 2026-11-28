@@ -1,4 +1,6 @@
-import { AesGcmEncryptionStrategy, CompanyInfo, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, GlobalRegistry, inject, JwtAuthOptionsInput, LoggerTransport, LoggingEmailTransport, LogLevel, Ms, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri';
+import { AesGcmEncryptionStrategy, defineDateFormat, defineProvider, DiProvider, EmailConfigInput, GlobalRegistry, inject, JwtAuthOptionsInput, LoggerTransport, LoggingEmailTransport, LogLevel, Ms, repositoryTokenFor, SmtpEmailTransport, ZIBRI_DI_TOKENS } from 'zibri';
+import { CompanyInfo, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri/plugin/mailing-list';
 
 import { env } from './env';
 import { permissions, Tenant } from './models';

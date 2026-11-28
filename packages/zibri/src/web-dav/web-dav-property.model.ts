@@ -10,5 +10,10 @@ export type WebDavProperty = {
     /**
      * The name of the property within its namespace, such as `fileid`.
      */
-    name: string
+    name: string,
+    /**
+     * The name of the one element the property holds, whose text it is read as, such as `checksum` of the
+     * `checksums` of Nextcloud. Undefined for a property read as its own text.
+     */
+    child?: string
 };

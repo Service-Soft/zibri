@@ -6,8 +6,8 @@ import { inject } from '../../di/inject.function';
 import { ConflictError } from '../../error-handling/errors/conflict.error';
 import { $ts } from '../../localization/translate.function';
 import { BankMatchReason } from '../bank/models/bank-match-reason.enum';
-import { type BankMatchTarget } from '../bank/models/bank-match-target.model';
 import { BankMatchTargetType } from '../bank/models/bank-match-target-type.enum';
+import { type BankMatchTarget } from '../bank/models/bank-match-target.model';
 import { type BankMatcherSuggestion } from '../bank/models/bank-matcher-suggestion.model';
 import { type BankMatcherTransaction } from '../bank/models/bank-matcher-transaction.model';
 import { type BankTransaction } from '../bank/models/bank-transaction.model';
@@ -56,7 +56,11 @@ export class AccountBankMatcher implements BankMatcherInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveTarget(targetId: string, _bankTransaction: BankTransaction, transaction: Transaction | undefined): Promise<BankMatchTarget> {
+    async resolveTarget(
+        targetId: string,
+        _bankTransaction: BankTransaction,
+        transaction: Transaction | undefined
+    ): Promise<BankMatchTarget> {
         const account: BookkeepingAccount = await this.accountRepository.findById(targetId, { transaction });
         if (account.closedAt != undefined) {
             throw new ConflictError($ts`The account ${account.number} ${account.name} is closed, and a match needs an open account.`);

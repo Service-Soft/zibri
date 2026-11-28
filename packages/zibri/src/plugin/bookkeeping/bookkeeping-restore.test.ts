@@ -15,14 +15,12 @@ import { ZibriApprovalPlugin } from '../approval/approval.plugin';
 import { ZibriBankPlugin } from '../bank/bank.plugin';
 import { ZibriInvoicingPlugin } from '../invoicing/invoicing.plugin';
 import { postingTestFileStores, statementsFolder } from './bookkeeping-postings.cases';
-import {
-    describeRestoreOfBooks,
+import { describeRestoreOfBooks,
     restoreBackupFolder,
     RestoreFsBackupTransport,
     restoreStandIn,
     restoreTestEntities,
-    restoreTestProviders
-} from './bookkeeping-restore.cases';
+    restoreTestProviders } from './bookkeeping-restore.cases';
 import { receiptsFolder } from './bookkeeping.cases';
 import { ZibriBookkeepingPlugin } from './bookkeeping.plugin';
 

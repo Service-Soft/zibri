@@ -20,7 +20,6 @@ import { HashService } from '../../auth/hash/hash.service';
 import { defaultScryptCost, ScryptHashStrategy } from '../../auth/hash/strategies/scrypt.hash-strategy';
 import { Sha256HashStrategy } from '../../auth/hash/strategies/sha256.hash-strategy';
 import { InvitationService } from '../../auth/invitation/invitation.service';
-import { ShareService } from '../../sharing/share.service';
 import { RouteAuthConfiguration } from '../../auth/models/route-auth-configuration.model';
 import { RoleService } from '../../auth/roles/role.service';
 import { RouteAuthService } from '../../auth/route-auth.service';
@@ -38,8 +37,6 @@ import { CacheService } from '../../caching/cache.service';
 import { CalendarEntryLinkUsageCleaner } from '../../calendar-sync/calendar-entry-link-usage-cleaner.service';
 import { CalendarSyncService } from '../../calendar-sync/calendar-sync.service';
 import { AlsUtilities } from '../../context/als.utilities';
-import { FileMirrorUsageCleaner } from '../../file-mirror/file-mirror-usage-cleaner.service';
-import { FileMirrorService } from '../../file-mirror/file-mirror.service';
 import { CronService } from '../../cron/cron.service';
 import { ChainService } from '../../data-source/chain/chain.service';
 import { DataSourceService } from '../../data-source/data-source.service';
@@ -54,6 +51,8 @@ import { EventService } from '../../event/event.service';
 import { FileService } from '../../file/file.service';
 import { S3TenantFileStoreKind } from '../../file/tenant/s3.tenant-file-store-kind';
 import { SftpTenantFileStoreKind } from '../../file/tenant/sftp.tenant-file-store-kind';
+import { FileMirrorUsageCleaner } from '../../file-mirror/file-mirror-usage-cleaner.service';
+import { FileMirrorService } from '../../file-mirror/file-mirror.service';
 import { GlobalRegistry } from '../../global/global-registry';
 import { BodySizeLimits } from '../../http/body-size-limits.model';
 import { CompressionOptions } from '../../http/compression.middleware';
@@ -77,6 +76,7 @@ import { WakeUpService } from '../../polling/wake-up.service';
 import { RateLimitStoreFailurePolicy } from '../../rate-limiting/limiter/rate-limiter-config.model';
 import { RateLimitingService } from '../../rate-limiting/rate-limiting.service';
 import { Router } from '../../routing/router';
+import { ShareService } from '../../sharing/share.service';
 import { MembershipService } from '../../tenancy/membership/membership.service';
 import { TenantService } from '../../tenancy/tenant.service';
 import { InMemoryTraceBuffer } from '../../tracing/in-memory.trace-buffer';
@@ -495,7 +495,10 @@ export const ZIBRI_DI_PROVIDERS: DefaultDiProviderRecord<typeof ZIBRI_DI_TOKENS>
     FILE_MIRROR_USAGE_CLEANER: { useClass: FileMirrorUsageCleaner, variants: [DiVariants.WEB_DAV_CONNECTION_USAGE_CLEANER] },
     // in effect only for an application that declares TenantBackupTransport. A finder rather than a cleaner: a backup
     // kept through a connection that is gone cannot be restored
-    BACKUP_WEB_DAV_CONNECTION_USAGE_FINDER: { useClass: WebDavBackupTransportUsageFinder, variants: [DiVariants.WEB_DAV_CONNECTION_USAGE_FINDER] },
+    BACKUP_WEB_DAV_CONNECTION_USAGE_FINDER: {
+        useClass: WebDavBackupTransportUsageFinder,
+        variants: [DiVariants.WEB_DAV_CONNECTION_USAGE_FINDER]
+    },
     EVENT_SERVICE: { useClass: EventService },
     EVENT_EXECUTION_LEASE_IN_MS: { useFactory: () => Ms.MINUTE },
     EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS: { useFactory: () => Ms.MINUTE },

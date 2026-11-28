@@ -1,4 +1,4 @@
-/* eslint-disable typescript/no-deprecated, cspell/spellchecker -- the overrides of 3.2, which 3.x keeps until 4.0 */
+/* eslint-disable typescript/no-deprecated -- the overrides of 3.2, which 3.x keeps until 4.0 */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { InMemoryDataSource } from 'zibri-testing';
 

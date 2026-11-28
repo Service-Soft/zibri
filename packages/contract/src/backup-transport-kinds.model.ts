@@ -1,3 +1,8 @@
+import { type TenantNextcloudTransportSettingsModel } from './tenant-nextcloud-transport-settings.model';
+import { type TenantS3TransportSettingsModel } from './tenant-s3-transport-settings.model';
+import { type TenantSftpTransportSettingsModel } from './tenant-sftp-transport-settings.model';
+import { type TenantWebDavTransportSettingsModel } from './tenant-web-dav-transport-settings.model';
+
 /**
  * The names of the kinds of storage Zibri ships for the backups of a tenant: a bucket of an S3 compatible storage, an
  * SFTP server, a folder of a WebDAV server and one of a Nextcloud. The settings of each are described by

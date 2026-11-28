@@ -3,8 +3,8 @@ import { type TaskLabelModel } from 'zibri-contract';
 import { BaseTenantEntity } from '../../../entity/base-tenant-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
-import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 import { Project } from './project.model';
+import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 
 /**
  * A label of a project its tasks can carry, such as `Bug`. Seen by whoever sees the project.

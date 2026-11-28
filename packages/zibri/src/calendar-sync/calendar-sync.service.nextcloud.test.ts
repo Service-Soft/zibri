@@ -52,7 +52,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await testServer?.shutdown();
-    await server?.container.stop();
+    await server?.stop();
 }, TestTimeouts.inMemory.shutdown);
 
 describeCalendarSync('Nextcloud', () => {
@@ -92,7 +92,7 @@ describe('CalendarSyncService against what only Nextcloud does', () => {
         const credentials: string = Buffer.from(`${server.connection.username}:${server.connection.password}`).toString('base64');
         const response: Response = await fetch(`${server.origin}/remote.php/dav/${calendarPath}/`, {
             method: 'REPORT',
-            headers: { 'authorization': `Basic ${credentials}`, 'content-type': 'application/xml; charset=utf-8', 'depth': '1' },
+            headers: { authorization: `Basic ${credentials}`, 'content-type': 'application/xml; charset=utf-8', depth: '1' },
             body: '<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
                 + '<d:prop><d:getetag/><c:calendar-data/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VEVENT">'
                 + '<c:time-range start="20260731T000000Z" end="20260801T000000Z"/></c:comp-filter></c:comp-filter></c:filter></c:calendar-query>'

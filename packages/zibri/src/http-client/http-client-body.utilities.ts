@@ -265,10 +265,7 @@ export abstract class HttpClientBodyUtilities {
             case 'stream': {
                 // an answer such as a 204 has no body at all, which is the same as a body of no bytes to
                 // whoever reads it
-                if (!response.body) {
-                    return Readable.from([]);
-                }
-                return Readable.fromWeb(response.body as NodeReadableStream);
+                return !response.body ? Readable.from([]) : Readable.fromWeb(response.body as NodeReadableStream);
             }
         }
     }

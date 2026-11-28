@@ -1,3 +1,6 @@
+import { type TenantS3TransportSecretModel } from './tenant-s3-transport-secret.model';
+import { type TenantS3TransportSettingsModel } from './tenant-s3-transport-settings.model';
+
 /**
  * Storage of the tenant to keep its backups on, as `POST /` of the routes of the backup transports takes it. It is
  * added once a small file was written to it and deleted again.

@@ -1,14 +1,12 @@
 /* eslint-disable cspell/spellchecker */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import {
-    type ApprovalRequestDetailsModel,
+import { type ApprovalRequestDetailsModel,
     type ApprovalRequestModel,
     type BankMatchModel,
     type BankTransactionDetailsModel,
     type BankTransactionSuggestionModel,
     type ErrorResponseBody,
-    type PaginationResult
-} from 'zibri-contract';
+    type PaginationResult } from 'zibri-contract';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { testFileFolder, TestTimeouts } from '../../__testing__/constants';

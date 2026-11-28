@@ -1,3 +1,5 @@
+import { type ZIBRI_BACKUP_TRANSPORT_KINDS } from './backup-transport-kinds.model';
+
 /**
  * A kind of storage the application lets tenants keep their backups on, as `GET /kinds` of the routes of the backup
  * transports answers it.

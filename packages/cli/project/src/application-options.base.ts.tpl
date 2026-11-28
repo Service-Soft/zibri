@@ -1,8 +1,6 @@
-{{#mailingList}}
-import { OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
-{{/mailingList}}
-{{^mailingList}}
 import { OmitStrict, SemVerUtilities, ZibriApplicationOptions } from 'zibri';
+{{#mailingList}}
+import { ZibriMailingListPlugin } from 'zibri/plugin/mailing-list';
 {{/mailingList}}
 
 import { version } from '../package.json';

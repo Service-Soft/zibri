@@ -3,8 +3,8 @@ import { BaseTenantEntity } from '../../../entity/base-tenant-entity.model';
 import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { ProjectColumn } from './project-column.model';
-import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 import { Project } from './project.model';
+import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 import { TaskComment } from './task-comment.model';
 
 /**

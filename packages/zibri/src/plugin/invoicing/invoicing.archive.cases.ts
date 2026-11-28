@@ -16,6 +16,7 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { FileStore } from '../../file/decorators/file-store.decorator';
 import { FileRecord } from '../../file/file-record.model';
 import { FsFileStore } from '../../file/stores/fs.file-store';
+import { type Timezone } from '../../localization/models/timezone.model';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
@@ -31,6 +32,8 @@ import { InvoiceType } from './models/invoice-type.enum';
 import { Invoice } from './models/invoice.model';
 import { type InvoicingOptionsInput } from './models/invoicing-options-input.model';
 import { NumberInvoices } from './models/number-invoices.model';
+import { type InvoiceConformance } from './services/conformance/invoice-conformance-service.interface';
+import { type InvoiceCancellationServiceInterface } from './services/invoice-cancellation-service.interface';
 import { type InvoiceDocumentServiceInterface } from './services/invoice-document-service.interface';
 
 /**
@@ -42,7 +45,10 @@ import { type InvoiceDocumentServiceInterface } from './services/invoice-documen
 /**
  * The folder the archived documents of the cases are kept in.
  */
-export const invoiceDocumentsFolder: FsPath = FsUtilities.getPath(testFileFolder, `invoice-documents-${UUIDUtilities.generate()}`);
+export const invoiceDocumentsFolder: FsPath = FsUtilities.getPath(
+    testFileFolder,
+    `invoice-documents-${UUIDUtilities.generate()}`
+);
 
 /**
  * The file store the documents of issued invoices are archived in.
@@ -77,6 +83,16 @@ let companyName: string = 'Example Company';
 const PDF_ONLY_CUSTOMER: string = 'Paper Only LLC';
 
 /**
+ * The electronic invoice the cases archive and render.
+ */
+const XRECHNUNG: InvoiceConformance = 'x-rechnung';
+
+/**
+ * The timezone of the company issuing the invoices of the cases.
+ */
+const COMPANY_TIMEZONE: Timezone = 'Europe/Berlin';
+
+/**
  * The options of the cases: every invoice archived in `invoices`, in English, as an XRechnung, but those of
  * {@link PDF_ONLY_CUSTOMER}.
  */
@@ -84,7 +100,7 @@ export const invoiceArchiveTestOptions: InvoicingOptionsInput = {
     archive: {
         store: 'invoices',
         locale: 'en-US',
-        resolveConformance: invoice => invoice.customerAddressData.companyName === PDF_ONLY_CUSTOMER ? undefined : 'x-rechnung'
+        resolveConformance: invoice => invoice.customerAddressData.companyName === PDF_ONLY_CUSTOMER ? undefined : XRECHNUNG
     }
 };
 
@@ -98,7 +114,7 @@ export const invoiceArchiveTestProviders: DiProvider<unknown>[] = [
         fullName: `${companyName} LLC`,
         email: 'info@example-company.com',
         phone: '12345 67890123',
-        timezone: 'Europe/Berlin',
+        timezone: COMPANY_TIMEZONE,
         address: { street: 'Example street', number: '1b', postcode: '12345', city: 'Example city', countryId: 'DE' },
         taxNumber: '123/456/78910',
         vatNumber: 'DE123456789',
@@ -110,10 +126,10 @@ export const invoiceArchiveTestProviders: DiProvider<unknown>[] = [
 
 /**
  * The address of a customer, a company with an email, as an XRechnung names it.
- * @param companyName - The name of the company.
+ * @param customerName - The name of the company.
  * @returns The address.
  */
-function customerOf(companyName: string): InvoiceAddress {
+function customerOf(customerName: string): InvoiceAddress {
     return {
         formOfAddress: '',
         firstName: '',
@@ -123,7 +139,7 @@ function customerOf(companyName: string): InvoiceAddress {
         postcode: '12345',
         city: 'Great City',
         company: true,
-        companyName,
+        companyName: customerName,
         countryId: 'DE',
         email: 'info@great-company-llc.com'
     };
@@ -135,7 +151,13 @@ function customerOf(companyName: string): InvoiceAddress {
  * @returns The item.
  */
 function itemOf(price: number): InvoiceItem {
-    return { name: 'Consulting', amount: 1, amountUnit: { code: 'HUR', displayName: 'Hours' }, vat: { categoryCode: 'S', rate: 19 }, price };
+    return {
+        name: 'Consulting',
+        amount: 1,
+        amountUnit: { code: 'HUR', displayName: 'Hours' },
+        vat: { categoryCode: 'S', rate: 19 },
+        price
+    };
 }
 
 function invoices(): Repository<Invoice, OmitStrict<Invoice, 'id' | 'tenantId'>> {
@@ -146,8 +168,16 @@ function invoiceDocuments(): Repository<InvoiceDocument> {
     return inject(repositoryTokenFor(InvoiceDocument));
 }
 
+function fileRecords(): Repository<FileRecord> {
+    return inject(repositoryTokenFor(FileRecord));
+}
+
 function documentService(): InvoiceDocumentServiceInterface {
     return inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_DOCUMENT_SERVICE);
+}
+
+function cancellations(): InvoiceCancellationServiceInterface<Invoice> {
+    return inject<InvoiceCancellationServiceInterface<Invoice>>(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE);
 }
 
 async function inTenant<T>(tenantId: string, work: () => Promise<T>): Promise<T> {
@@ -190,13 +220,16 @@ async function bytesOf(read: () => Promise<Readable>): Promise<Buffer> {
  */
 export function describeInvoiceArchive(dataSourceName: string): void {
     describe(`archiving the documents of issued invoices on ${dataSourceName}`, () => {
-        it('archives the pdf, carrying the XRechnung, and its xml as an invoice is issued, kept 8 years from the end of its year', async () => {
+        it('archives the pdf, carrying the XRechnung, and its xml as an invoice is issued, '
+            + 'kept 8 years from the end of its year', async () => {
             const tenantId: string = UUIDUtilities.generate();
             const issuedAt: Date = new Date('2026-03-02T09:00:00.000Z');
 
-            const invoice: Invoice = await inTenant(tenantId, async () => await invoices().create(invoiceOf('2026-GREATC-0001', { issuedAt })));
+            const invoice: Invoice
+                = await inTenant(tenantId, async () => await invoices().create(invoiceOf('2026-GREATC-0001', { issuedAt })));
 
-            const document: InvoiceDocument | undefined = await inTenant(tenantId, async () => await documentService().findDocument(invoice.id));
+            const document: InvoiceDocument | undefined
+                = await inTenant(tenantId, async () => await documentService().findDocument(invoice.id));
             expect(document).toMatchObject({
                 tenantId,
                 invoiceId: invoice.id,
@@ -204,8 +237,8 @@ export function describeInvoiceArchive(dataSourceName: string): void {
                 type: InvoiceType.INVOICE,
                 issuedAt,
                 locale: 'en-US',
-                timezone: 'Europe/Berlin',
-                conformance: 'x-rechnung',
+                timezone: COMPANY_TIMEZONE,
+                conformance: XRECHNUNG,
                 retainUntil: new Date('2035-01-01T00:00:00.000Z')
             });
             const files: FileRecord[] = await inTenant(tenantId, async () => await inject(ZIBRI_DI_TOKENS.FILE_SERVICE)
@@ -225,18 +258,22 @@ export function describeInvoiceArchive(dataSourceName: string): void {
             expect(xml).toContain('xrechnung');
         });
 
-        it('serves the archived documents of an issued invoice, the same bytes every time, whatever the company is since, and renders a draft', async () => {
+        it('serves the archived documents of an issued invoice, the same bytes every time, '
+            + 'whatever the company is since, and renders a draft', async () => {
             const tenantId: string = UUIDUtilities.generate();
-            const issued: Invoice = await inTenant(tenantId, async () => await invoices().create(invoiceOf('2026-GREATC-0002', { issuedAt: new Date() })));
+            const issued: Invoice
+                = await inTenant(tenantId, async () => await invoices().create(invoiceOf('2026-GREATC-0002', { issuedAt: new Date() })));
             const draft: Invoice = await inTenant(tenantId, async () => await invoices().create(invoiceOf('TEMP-0001')));
             const resolvePdf: (invoice: Invoice) => Promise<Buffer> = async invoice => await inTenant(tenantId, async () => await bytesOf(
-                async () => await documentService().resolvePdf(invoice, 'en-US', 'Europe/Berlin', 'x-rechnung', undefined)
+                async () => await documentService().resolvePdf(invoice, 'en-US', COMPANY_TIMEZONE, XRECHNUNG, undefined)
             ));
             const resolveXml: (invoice: Invoice) => Promise<string> = async invoice => (await inTenant(tenantId, async () => await bytesOf(
-                async () => await documentService().resolveElectronicInvoice(invoice, 'x-rechnung', 'Europe/Berlin')
+                async () => await documentService().resolveElectronicInvoice(invoice, XRECHNUNG, COMPANY_TIMEZONE)
             ))).toString();
-            const archived: InvoiceDocument | undefined = await inTenant(tenantId, async () => await documentService().findDocument(issued.id));
-            const storedPdf: Buffer = await inTenant(tenantId, async () => await inject(ZIBRI_DI_TOKENS.FILE_SERVICE).read(archived?.pdf ?? ''));
+            const archived: InvoiceDocument | undefined
+                = await inTenant(tenantId, async () => await documentService().findDocument(issued.id));
+            const storedPdf: Buffer
+                = await inTenant(tenantId, async () => await inject(ZIBRI_DI_TOKENS.FILE_SERVICE).read(archived?.pdf ?? ''));
 
             const first: Buffer = await resolvePdf(issued);
             const firstXml: string = await resolveXml(issued);
@@ -268,13 +305,13 @@ export function describeInvoiceArchive(dataSourceName: string): void {
             // a write that changes nothing of whether it is issued archives nothing again
             await inTenant(tenantId, async () => await invoices().updateById(issued.id, { textAfterItems: ['Thank you'] }));
             expect(await inTenant(tenantId, async () => await invoiceDocuments().count())).toBe(1);
-            const creditNote: Invoice = await inTenant(tenantId, async () => await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CANCELLATION_SERVICE)
+            const creditNote: Invoice = await inTenant(tenantId, async () => await cancellations()
                 .createCreditNote(issued.id, [itemOf(200)], { date: new Date('2026-04-01T12:00:00.000Z') }));
 
             const documents: InvoiceDocument[] = await inTenant(tenantId, async () => await invoiceDocuments().findAll({ limit: 'all' }));
             expect(documents.map(d => [d.invoiceId, d.number, d.type, d.conformance]).sort()).toEqual([
-                [creditNote.id, creditNote.number, InvoiceType.CREDIT_NOTE, 'x-rechnung'],
-                [issued.id, '2026-GREATC-0003', InvoiceType.INVOICE, 'x-rechnung']
+                [creditNote.id, creditNote.number, InvoiceType.CREDIT_NOTE, XRECHNUNG],
+                [issued.id, '2026-GREATC-0003', InvoiceType.INVOICE, XRECHNUNG]
             ].sort());
         });
 
@@ -285,22 +322,25 @@ export function describeInvoiceArchive(dataSourceName: string): void {
                 invoiceOf('2026-PAPERO-0001', { issuedAt: new Date(), customerAddressData: customerOf(PDF_ONLY_CUSTOMER) })
             ));
 
-            const document: InvoiceDocument | undefined = await inTenant(tenantId, async () => await documentService().findDocument(invoice.id));
+            const document: InvoiceDocument | undefined
+                = await inTenant(tenantId, async () => await documentService().findDocument(invoice.id));
             expect(document).toMatchObject({ conformance: null, electronicInvoice: null });
-            await expect(inTenant(tenantId, async () => await documentService().resolveElectronicInvoice(invoice, 'x-rechnung', 'UTC')))
+            await expect(inTenant(tenantId, async () => await documentService().resolveElectronicInvoice(invoice, XRECHNUNG, 'UTC')))
                 .rejects.toThrow('The invoice 2026-PAPERO-0001 was archived without an electronic invoice.');
         });
 
         it('refuses to issue an invoice whose documents cannot be rendered, and keeps nothing of it', async () => {
             const tenantId: string = UUIDUtilities.generate();
-            const files: number = await inTenant(tenantId, async () => await inject<Repository<FileRecord>>(repositoryTokenFor(FileRecord)).count());
+            const files: number = await inTenant(tenantId, async () => await fileRecords().count());
 
             // a total below 0, which no pdf of an invoice states
-            await expect(inTenant(tenantId, async () => await invoices().create(invoiceOf('2026-GREATC-0004', { items: [itemOf(-10)], issuedAt: new Date() }))))
-                .rejects.toThrow('An invoice cannot total less than 0, issue a credit note instead.');
+            await expect(inTenant(
+                tenantId,
+                async () => await invoices().create(invoiceOf('2026-GREATC-0004', { items: [itemOf(-10)], issuedAt: new Date() }))
+            )).rejects.toThrow('An invoice cannot total less than 0, issue a credit note instead.');
 
             expect(await inTenant(tenantId, async () => [await invoices().count(), await invoiceDocuments().count()])).toEqual([0, 0]);
-            expect(await inTenant(tenantId, async () => await inject<Repository<FileRecord>>(repositoryTokenFor(FileRecord)).count())).toBe(files);
+            expect(await inTenant(tenantId, async () => await fileRecords().count())).toBe(files);
             // a draft of the same is written, as nothing is rendered of it
             await inTenant(tenantId, async () => await invoices().create(invoiceOf('TEMP-0003', { items: [itemOf(-10)] })));
             expect(await inTenant(tenantId, async () => await invoices().count())).toBe(1);
@@ -318,14 +358,15 @@ export function describeInvoiceArchive(dataSourceName: string): void {
             expect(await inTenant(tenantId, async () => [
                 await invoices().count(),
                 await invoiceDocuments().count(),
-                await inject<Repository<FileRecord>>(repositoryTokenFor(FileRecord)).count()
+                await fileRecords().count()
             ])).toEqual([0, 0, 0]);
         });
 
         it('keeps the documents of each tenant to it', async () => {
             const tenantId: string = UUIDUtilities.generate();
             const other: string = UUIDUtilities.generate();
-            const invoice: Invoice = await inTenant(tenantId, async () => await invoices().create(invoiceOf('2026-GREATC-0006', { issuedAt: new Date() })));
+            const invoice: Invoice
+                = await inTenant(tenantId, async () => await invoices().create(invoiceOf('2026-GREATC-0006', { issuedAt: new Date() })));
 
             expect(await inTenant(other, async () => await documentService().findDocument(invoice.id))).toBeUndefined();
             expect(await inTenant(tenantId, async () => await documentService().findDocument(invoice.id))).toMatchObject({ tenantId });

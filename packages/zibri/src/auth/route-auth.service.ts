@@ -1,13 +1,13 @@
 import { ZibriApplication } from '../application/application';
 import { DefaultAuth } from '../application/application-options.model';
 import { Inject } from '../di/decorators/inject.decorator';
+import { Injectable } from '../di/decorators/injectable.decorator';
+import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
+import { inject } from '../di/inject.function';
 import { type BaseEntity } from '../entity/base-entity.model';
 import { EntityMetadata } from '../entity/decorators/entity.decorator';
 import { PropertyMetadata } from '../entity/decorators/property.decorator';
 import { isRelationMetadata } from '../entity/models/is-relation-metadata.function';
-import { Injectable } from '../di/decorators/injectable.decorator';
-import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
-import { inject } from '../di/inject.function';
 import { InvalidDecoratorCombinationError } from '../error-handling/errors/invalid-decorator-combination.error';
 import { InternalError } from '../error-handling/internal-error.model';
 import { BeforeAppInit } from '../global/before-app-init.interface';
@@ -340,7 +340,10 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
      * @returns What the route requires, or undefined when it requires no role.
      * @throws When the entity is not shared, or does not declare the role.
      */
-    private resolveRequireShareRoleMetadata(controllerClass: Newable<unknown>, controllerMethod: string): RequireShareRoleMetadata | undefined {
+    private resolveRequireShareRoleMetadata(
+        controllerClass: Newable<unknown>,
+        controllerMethod: string
+    ): RequireShareRoleMetadata | undefined {
         const metadata: RequireShareRoleMetadata | undefined = this.resolveCheckMetadata(
             controllerClass,
             controllerMethod,
@@ -385,7 +388,9 @@ export class RouteAuthService implements RouteAuthServiceInterface, BeforeAppIni
             current = through.target();
         }
         if (roles == undefined) {
-            throw new InternalError(`${route} in ${label} names ${metadata.entityClass.name}, which is neither shareable nor shared through a relation.`);
+            throw new InternalError(
+                `${route} in ${label} names ${metadata.entityClass.name}, which is neither shareable nor shared through a relation.`
+            );
         }
         if (!roles.includes(metadata.role)) {
             throw new InternalError(`${route} in ${label} names the role '${metadata.role}', which is none of ${roles.join(', ')}.`);

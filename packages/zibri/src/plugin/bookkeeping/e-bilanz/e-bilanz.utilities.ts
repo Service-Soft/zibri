@@ -7,12 +7,12 @@ import { BigNumber, NumberUtilities } from '../../../utilities/number.utilities'
 import { BookkeepingStatementUtilities } from '../bookkeeping-statement.utilities';
 import { BookkeepingAccountType } from '../models/bookkeeping-account-type.enum';
 import { type BookkeepingCompany } from '../models/bookkeeping-company.model';
-import { type BookkeepingStatement } from '../models/bookkeeping-statement.model';
 import { type BookkeepingStatementPosition } from '../models/bookkeeping-statement-position.model';
+import { type BookkeepingStatement } from '../models/bookkeeping-statement.model';
 import { EBilanzTaxonomyUtilities } from './e-bilanz-taxonomy.utilities';
+import { type EBilanzAccountBalance } from './models/e-bilanz-account-balance.model';
 import { type EBilanzAccountMapping } from './models/e-bilanz-account-mapping.model';
 import { type EBilanzAccount } from './models/e-bilanz-account.model';
-import { type EBilanzAccountBalance } from './models/e-bilanz-account-balance.model';
 import { type EBilanzBooks } from './models/e-bilanz-books.model';
 import { type EBilanzBusinessAssetComparisonPositions } from './models/e-bilanz-business-asset-comparison-positions.model';
 import { type EBilanzContent } from './models/e-bilanz-content.model';
@@ -34,9 +34,17 @@ import { type GermanBookkeepingCompany } from './models/german-bookkeeping-compa
 const E_BILANZ_CURRENCY: CurrencyCode = 'EUR';
 
 /**
+ * A key a `GermanBookkeepingCompany` holds beside a `BookkeepingCompany`, and requires.
+ */
+type GermanCompanyRequiredKey = Exclude<
+    keyof GermanBookkeepingCompany,
+    keyof BookkeepingCompany | 'economicId' | 'sender' | 'shareholders'
+>;
+
+/**
  * What a `GermanBookkeepingCompany` holds beside a `BookkeepingCompany`, and requires.
  */
-const GERMAN_COMPANY_REQUIRED_KEYS: readonly Exclude<keyof GermanBookkeepingCompany, keyof BookkeepingCompany | 'economicId' | 'sender' | 'shareholders'>[] = [
+const GERMAN_COMPANY_REQUIRED_KEYS: readonly GermanCompanyRequiredKey[] = [
     'legalStatus',
     'taxNumber',
     'taxOfficeNumber',
@@ -67,7 +75,9 @@ export abstract class EBilanzUtilities {
         const appropriating: boolean = this.isAppropriating(books);
         // the result of the year is part of the balance sheet whether or not it is posted, as in the statements of the
         // books: the balances are those before the closing entry
-        const result: BigNumber = BookkeepingStatementUtilities.resolveResult(books.balances.map(b => ({ account: b.account, debit: b.debit, credit: b.credit })));
+        const result: BigNumber = BookkeepingStatementUtilities.resolveResult(
+            books.balances.map(b => ({ account: b.account, debit: b.debit, credit: b.credit }))
+        );
         const accounts: Map<string, EBilanzAccount[]> = this.resolveAccounts(books, positions, findings, appropriating);
         const amounts: Map<string, BigNumber | null> = this.resolveAmounts(books, positions, accounts, appropriating, result);
         this.resolveBusinessAssetComparison(books, positions, amounts);
@@ -83,7 +93,10 @@ export abstract class EBilanzUtilities {
         const company: GermanBookkeepingCompany | undefined = this.findGermanCompany(books.company);
         const fields: EBilanzField[] = this.resolveFields(books, company, statements, fixedAssets.length > 0, appropriating);
         if (company == undefined) {
-            findings.push({ position: 'genInfo.company', message: $ts`The E-Bilanz needs the company it states: its legal form, tax number, tax office, address and business.` });
+            findings.push({
+                position: 'genInfo.company',
+                message: $ts`The E-Bilanz needs the company it states: its legal form, tax number, tax office, address and business.`
+            });
         }
         this.validateAmounts(books, positions, amounts, findings, appropriating);
         const content: EBilanzContent = {
@@ -111,7 +124,7 @@ export abstract class EBilanzUtilities {
     static validateSums(content: EBilanzContent, positions: Map<string, EBilanzTaxonomyPosition>): EBilanzFinding[] {
         const amounts: Map<string, BigNumber | null> = new Map(content.positions.map(p => [p.name, p.amount]));
         return content.positions.flatMap(position => {
-            const parts: { name: string, weight: 1 | -1 }[] = [...positions.get(position.name)?.sums ?? []]
+            const parts: EBilanzTaxonomyPosition['sums'] = [...positions.get(position.name)?.sums ?? []]
                 .filter(s => amounts.get(s.name) != undefined);
             if (!parts.length || position.amount == undefined) {
                 return [];
@@ -125,7 +138,13 @@ export abstract class EBilanzUtilities {
             }
             const amount: string = $f.price(position.amount, E_BILANZ_CURRENCY);
             const total: string = $f.price(sum, E_BILANZ_CURRENCY);
-            return [{ position: position.name, message: $ts`The position "${position.label}" states ${amount} and needs to equal the sum of the positions below it, ${total}.` }];
+            const label: string = position.label;
+            return [
+                {
+                    position: position.name,
+                    message: $ts`The position "${label}" states ${amount} and needs to equal the sum of the positions below it, ${total}.`
+                }
+            ];
         });
     }
 
@@ -135,7 +154,8 @@ export abstract class EBilanzUtilities {
      * @returns The hash, hex encoded.
      */
     static resolveContentHash(content: EBilanzContent): string {
-        return createHash('sha256').update(JSON.stringify(content)).digest('hex');
+        return createHash('sha256').update(JSON.stringify(content))
+            .digest('hex');
     }
 
     /**
@@ -157,7 +177,8 @@ export abstract class EBilanzUtilities {
      */
     static resolveEquityAccountIds(books: EBilanzBooks): Set<string> {
         const { equity, deficitNotCoveredByCapital } = books.adapter.businessAssetComparison;
-        const isEquity: (name: string) => boolean = name => [equity, deficitNotCoveredByCapital].some(e => name === e || name.startsWith(`${e}.`));
+        const isEquity: (name: string) => boolean = name => [equity, deficitNotCoveredByCapital]
+            .some(e => name === e || name.startsWith(`${e}.`));
         const mapped: Readonly<Record<string, string>> = books.adapter.resolveStatementPositionMapping(books.taxonomy);
         // an account distributed in full has no balance at the end and is listed under no position, and its opening
         // balance and its distribution are still those of the equity. The appropriation of the result moves accounts
@@ -165,7 +186,12 @@ export abstract class EBilanzUtilities {
         return new Set(books.balances.filter(({ account, debit, credit }) => {
             const net: BigNumber = NumberUtilities.subtract(debit, credit);
             const mapping: EBilanzAccountMapping | undefined = books.accountMappings.find(m => m.accountId === account.id);
-            const name: string | undefined = this.findPositionName(mapping, BookkeepingStatementUtilities.findPositionId(account, net), mapped, net);
+            const name: string | undefined = this.findPositionName(
+                mapping,
+                BookkeepingStatementUtilities.findPositionId(account, net),
+                mapped,
+                net
+            );
             return name != undefined && isEquity(name);
         }).map(b => b.account.id));
     }
@@ -222,15 +248,23 @@ export abstract class EBilanzUtilities {
         const nets: BigNumber[] = [...entries.values()];
         const contributions: BigNumber = sumOf(nets.filter(n => n.isGreaterThan(0)));
         const distributions: BigNumber = NumberUtilities.subtract(zero, sumOf(nets.filter(n => n.isLessThan(0))));
-        amounts.set(comparison.equityAtEnd, NumberUtilities.subtract(amounts.get(comparison.equity) ?? zero, amounts.get(comparison.deficitNotCoveredByCapital) ?? zero));
+        amounts.set(
+            comparison.equityAtEnd,
+            NumberUtilities.subtract(amounts.get(comparison.equity) ?? zero, amounts.get(comparison.deficitNotCoveredByCapital) ?? zero)
+        );
         amounts.set(comparison.equityAtPreviousEnd, opening);
         amounts.set(comparison.capitalAdjustments, zero);
         amounts.set(comparison.contributions, contributions);
         amounts.set(comparison.distributions, distributions);
         // the positions below a sum come after it in the taxonomy, so each is resolved before the sum of it
-        const sums: EBilanzTaxonomyPosition[] = [...positions.values()].filter(p => p.statement === 'businessAssetComparison' && p.sums.length).reverse();
+        const sums: EBilanzTaxonomyPosition[] = [...positions.values()]
+            .filter(p => p.statement === 'businessAssetComparison' && p.sums.length > 0)
+            .reverse();
         for (const sum of sums) {
-            amounts.set(sum.name, sum.sums.reduce((total, part) => NumberUtilities.add(total, NumberUtilities.multiply(amounts.get(part.name) ?? zero, part.weight)), zero));
+            amounts.set(sum.name, sum.sums.reduce(
+                (total, part) => NumberUtilities.add(total, NumberUtilities.multiply(amounts.get(part.name) ?? zero, part.weight)),
+                zero
+            ));
         }
     }
 
@@ -263,12 +297,14 @@ export abstract class EBilanzUtilities {
         const res: Map<string, EBilanzAccount[]> = new Map();
         const add: (name: string, account: EBilanzAccountBalance['account'], net: BigNumber) => void = (name, account, net) => {
             const side: string | undefined = positions.get(name)?.balance;
-            res.set(name, [...res.get(name) ?? [], {
-                accountId: account.id,
-                number: account.number,
-                name: account.name,
-                balance: side === 'debit' ? net : net.negated()
-            }]);
+            res.set(name, [
+                ...res.get(name) ?? [], {
+                    accountId: account.id,
+                    number: account.number,
+                    name: account.name,
+                    balance: side === 'debit' ? net : net.negated()
+                }
+            ]);
         };
         const mapped: Readonly<Record<string, string>> = books.adapter.resolveStatementPositionMapping(books.taxonomy);
         const { appropriation } = books.adapter;
@@ -284,57 +320,131 @@ export abstract class EBilanzUtilities {
             // profit, § 268 (1) HGB, and each account of them a line of the appropriation of profits, unless the
             // account is mapped otherwise
             if (appropriating && mapping == undefined
-                && (statementPosition === appropriation.statementResultPosition || statementPosition === appropriation.statementCarriedForwardPosition)) {
+                && (
+                    statementPosition === appropriation.statementResultPosition
+                    || statementPosition === appropriation.statementCarriedForwardPosition
+                )) {
                 const appropriates: boolean = statementPosition === appropriation.statementResultPosition;
-                const line: string = appropriates
-                    ? account.id === books.legalReserveAllocationAccountId
-                        ? appropriation.legalReserve
-                        : net.isGreaterThan(0) ? appropriation.otherReserves : appropriation.otherReservesReleased
-                    : net.isLessThan(0) ? appropriation.profitCarriedForward : appropriation.lossCarriedForward;
                 add(appropriation.balanceSheetProfit, account, net);
-                add(line, account, net);
+                add(this.resolveAppropriationLine(books, account, appropriates, net), account, net);
                 continue;
             }
             const name: string | undefined = this.findPositionName(mapping, statementPosition, mapped, net);
-            const position: EBilanzTaxonomyPosition | undefined = name == undefined ? undefined : positions.get(name);
-            const version: string = books.taxonomy.version;
-            if (name == undefined) {
-                findings.push({
-                    position: account.number,
-                    message: $ts`The account ${account.number} "${account.name}" has a balance and needs a position in the E-Bilanz: map it to a position of the taxonomy ${version}, or give it a statement position the taxonomy maps.`
-                });
-                continue;
+            const position: EBilanzTaxonomyPosition | undefined = this.findMappedPosition(
+                account,
+                name,
+                positions,
+                books.taxonomy.version,
+                findings
+            );
+            if (position != undefined) {
+                add(position.name, account, net);
             }
-            if (position == undefined) {
-                findings.push({
-                    position: account.number,
-                    message: $ts`The account ${account.number} "${account.name}" is mapped to ${name}, which the taxonomy ${version} does not have: it needs to be mapped to a position of this taxonomy.`
-                });
-                continue;
-            }
-            if ((position.statement === 'balanceSheet') !== this.isBalanceSheetAccount(account.type)) {
-                findings.push({
-                    position: account.number,
-                    message: this.isBalanceSheetAccount(account.type)
-                        ? $ts`The account ${account.number} "${account.name}" belongs to the balance sheet and needs to be mapped to a position of the balance sheet, but is mapped to "${position.label}".`
-                        : $ts`The account ${account.number} "${account.name}" belongs to the income statement and needs to be mapped to a position of the income statement, but is mapped to "${position.label}".`
-                });
-                continue;
-            }
-            if (position.sums.length) {
-                findings.push({
-                    position: account.number,
-                    message: $ts`The account ${account.number} "${account.name}" is mapped to "${position.label}", which only adds up the positions below it: it needs to be mapped to one of those.`
-                });
-                continue;
-            }
-            add(position.name, account, net);
         }
         // the account level detail names an account for the result of the year too (B.12.1 of the technical guide):
         // each the closing books part of it to, with that part. Its balances are those before the closing entry, so an
         // account holding a balance of its own is listed with that under its own position, and with the result under
         // this one
-        const name: string = appropriating ? appropriation.balanceSheetProfit : books.adapter.balanceSheetResultPosition;
+        const resultPosition: string = appropriating ? appropriation.balanceSheetProfit : books.adapter.balanceSheetResultPosition;
+        this.addResultAccounts(books, positions, res, resultPosition);
+        return res;
+    }
+
+    /**
+     * Resolves the line of the appropriation of profits an account of the result, or of the profit or loss carried
+     * forward, is stated on after a partial appropriation of the result.
+     * @param books - The books.
+     * @param account - The account.
+     * @param appropriates - Whether the account is in the result position of the books, rather than in that of the profit
+     * or loss carried forward.
+     * @param net - Its debits less its credits.
+     * @returns The name of the position of the line.
+     */
+    private static resolveAppropriationLine(
+        books: EBilanzBooks,
+        account: EBilanzAccountBalance['account'],
+        appropriates: boolean,
+        net: BigNumber
+    ): string {
+        const { appropriation } = books.adapter;
+        return appropriates
+            ? account.id === books.legalReserveAllocationAccountId
+                ? appropriation.legalReserve
+                : net.isGreaterThan(0) ? appropriation.otherReserves : appropriation.otherReservesReleased
+            : net.isLessThan(0) ? appropriation.profitCarriedForward : appropriation.lossCarriedForward;
+    }
+
+    /**
+     * Finds the position of the taxonomy an account with a balance is stated on, outside the appropriation of the
+     * result.
+     * @param account - The account.
+     * @param name - The name of the position it is mapped to, or undefined for none.
+     * @param positions - The positions of the taxonomy.
+     * @param version - The version of the taxonomy.
+     * @param findings - The findings, which an account without a position it can be stated on is added to.
+     * @returns The position, or undefined when the account has none it can be stated on.
+     */
+    private static findMappedPosition(
+        account: EBilanzAccountBalance['account'],
+        name: string | undefined,
+        positions: Map<string, EBilanzTaxonomyPosition>,
+        version: string,
+        findings: EBilanzFinding[]
+    ): EBilanzTaxonomyPosition | undefined {
+        if (name == undefined) {
+            findings.push({
+                position: account.number,
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                message: $ts`The account ${account.number} "${account.name}" has a balance and needs a position in the E-Bilanz: map it to a position of the taxonomy ${version}, or give it a statement position the taxonomy maps.`
+            });
+            return undefined;
+        }
+        const position: EBilanzTaxonomyPosition | undefined = positions.get(name);
+        if (position == undefined) {
+            findings.push({
+                position: account.number,
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                message: $ts`The account ${account.number} "${account.name}" is mapped to ${name}, which the taxonomy ${version} does not have: it needs to be mapped to a position of this taxonomy.`
+            });
+            return undefined;
+        }
+        if ((position.statement === 'balanceSheet') !== this.isBalanceSheetAccount(account.type)) {
+            findings.push({
+                position: account.number,
+                message: this.isBalanceSheetAccount(account.type)
+                    // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                    ? $ts`The account ${account.number} "${account.name}" belongs to the balance sheet and needs to be mapped to a position of the balance sheet, but is mapped to "${position.label}".`
+                    // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                    : $ts`The account ${account.number} "${account.name}" belongs to the income statement and needs to be mapped to a position of the income statement, but is mapped to "${position.label}".`
+            });
+            return undefined;
+        }
+        if (position.sums.length) {
+            findings.push({
+                position: account.number,
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                message: $ts`The account ${account.number} "${account.name}" is mapped to "${position.label}", which only adds up the positions below it: it needs to be mapped to one of those.`
+            });
+            return undefined;
+        }
+        return position;
+    }
+
+    /**
+     * Adds each account the closing books part of the result of the year to under the result position of the balance
+     * sheet, with that part.
+     * @param books - The books.
+     * @param positions - The positions of the taxonomy.
+     * @param res - The accounts of each position, which the accounts are added to.
+     * @param name - The result position of the balance sheet, or the balance sheet profit after a partial appropriation
+     * of the result.
+     */
+    private static addResultAccounts(
+        books: EBilanzBooks,
+        positions: Map<string, EBilanzTaxonomyPosition>,
+        res: Map<string, EBilanzAccount[]>,
+        name: string
+    ): void {
         for (const { account, amount } of books.resultLines.filter(l => !l.amount.isZero())) {
             const balance: BigNumber = positions.get(name)?.balance === 'credit' ? amount : amount.negated();
             const listed: EBilanzAccount[] = res.get(name) ?? [];
@@ -344,7 +454,6 @@ export abstract class EBilanzUtilities {
                 ? listed.map(a => a.accountId === account.id ? { ...a, balance: NumberUtilities.add(a.balance, balance) } : a)
                 : [...listed, { accountId: account.id, number: account.number, name: account.name, balance }]);
         }
-        return res;
     }
 
     /**
@@ -385,7 +494,9 @@ export abstract class EBilanzUtilities {
         // the result position of the balance sheet holds the result as the balances of the accounts the closing books it
         // to, where there are any
         const resultPositions: string[] = [
-            ...books.resultLines.length ? [] : [appropriating ? appropriation.balanceSheetProfit : books.adapter.balanceSheetResultPosition],
+            ...books.resultLines.length
+                ? []
+                : [appropriating ? appropriation.balanceSheetProfit : books.adapter.balanceSheetResultPosition],
             ...appropriating ? [appropriation.netIncome] : []
         ];
         const res: Map<string, BigNumber | null> = new Map();
@@ -487,16 +598,23 @@ export abstract class EBilanzUtilities {
         const isFixedAsset: (name: string) => boolean = name => name.startsWith(`${fixedAssetsPosition}.`);
         const labelOf: (name: string) => string = name => positions.get(name)?.label ?? name;
         for (const input of books.fixedAssets) {
-            const unknown: string | undefined = input.values.map(v => v.column).find(column => !books.taxonomy.fixedAssetColumns.some(c => c[0] === column));
+            const unknown: string | undefined = input.values
+                .map(v => v.column)
+                .find(column => !books.taxonomy.fixedAssetColumns.some(c => c[0] === column));
             const label: string = labelOf(input.position);
             if (!isFixedAsset(input.position) || !positions.has(input.position) || !accounts.has(input.position)) {
                 findings.push({
                     position: input.position,
+                    // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                     message: $ts`The statement of changes in fixed assets names "${label}", which needs to be a position of the fixed assets that accounts are mapped to.`
                 });
             }
             else if (unknown != undefined) {
-                findings.push({ position: input.position, message: $ts`The statement of changes in fixed assets of "${label}" names the column ${unknown}, which the taxonomy does not have.` });
+                findings.push({
+                    position: input.position,
+                    // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                    message: $ts`The statement of changes in fixed assets of "${label}" names the column ${unknown}, which the taxonomy does not have.`
+                });
             }
         }
         // ERiC checks each row against the positions above it, which need rows too, and their sums (B.14.12.1 b of the
@@ -516,11 +634,18 @@ export abstract class EBilanzUtilities {
         // the rows below a position come after it in the taxonomy, so each is resolved before the row summing it
         for (const name of [...ordered].reverse()) {
             columnAmounts.set(name, leaves.includes(name)
-                ? this.resolveFixedAssetAmounts(name, labelOf(name), books.taxonomy.fixedAssetColumns, sums, this.resolveFixedAssetFigures(books, name, accounts), findings)
+                ? this.resolveFixedAssetAmounts(
+                    name,
+                    labelOf(name),
+                    books.taxonomy.fixedAssetColumns,
+                    sums,
+                    this.resolveFixedAssetFigures(books, name, accounts),
+                    findings
+                )
                 : this.resolveFixedAssetRowSums(books, positions.get(name)?.sums ?? [], columnAmounts));
         }
         return ordered.map(name => {
-            const of: Map<string, BigNumber | null> = columnAmounts.get(name) ?? new Map();
+            const of: Map<string, BigNumber | null> = columnAmounts.get(name) ?? new Map<string, BigNumber | null>();
             const values: EBilanzFixedAssetValue[] = books.taxonomy.fixedAssetColumns.map(([column, , , label]) => ({
                 column,
                 label,
@@ -534,6 +659,7 @@ export abstract class EBilanzUtilities {
                 if (balance != undefined && leaves.includes(name)) {
                     findings.push({
                         position: name,
+                        // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                         message: $ts`The statement of changes in fixed assets of "${label}" needs its acquisition costs at the start of the year and the other figures the books do not hold.`
                     });
                 }
@@ -545,7 +671,9 @@ export abstract class EBilanzUtilities {
                 findings.push({
                     position: name,
                     message: leaves.includes(name)
+                        // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                         ? $ts`The statement of changes in fixed assets of "${label}" ends with a book value of ${a}, which needs to equal the ${b} of the balance sheet: enter the figures the books do not hold, such as the depreciation of the year.`
+                        // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                         : $ts`The statement of changes in fixed assets of "${label}" ends with a book value of ${a}, which needs to equal the ${b} of the balance sheet: enter the figures the books do not hold for the positions below it.`
                 });
             }
@@ -567,18 +695,28 @@ export abstract class EBilanzUtilities {
      * @param accounts - The accounts of each position.
      * @returns The figures, by the name of the column.
      */
-    private static resolveFixedAssetFigures(books: EBilanzBooks, position: string, accounts: Map<string, EBilanzAccount[]>): Map<string, BigNumber> {
+    private static resolveFixedAssetFigures(
+        books: EBilanzBooks,
+        position: string,
+        accounts: Map<string, EBilanzAccount[]>
+    ): Map<string, BigNumber> {
         const { fixedAssetColumns } = books.adapter;
-        const of: EBilanzAccountBalance[] = books.balances.filter(b => accounts.get(position)?.some(a => a.accountId === b.account.id));
+        const of: EBilanzAccountBalance[] = books.balances
+            .filter(b => accounts.get(position)?.some(a => a.accountId === b.account.id) ?? false);
         const opened: boolean = of.some(b => !NumberUtilities.subtract(b.openingDebit, b.openingCredit).isZero());
         const derived: Map<string, BigNumber> = new Map();
-        derived.set(fixedAssetColumns.additions, of.reduce((sum, b) => NumberUtilities.add(sum, NumberUtilities.subtract(b.debit, b.openingDebit)), new BigNumber(0)));
+        derived.set(
+            fixedAssetColumns.additions,
+            of.reduce((sum, b) => NumberUtilities.add(sum, NumberUtilities.subtract(b.debit, b.openingDebit)), new BigNumber(0))
+        );
         // an asset that was not there at the start of the year cost nothing yet and was not depreciated
         if (!opened) {
             derived.set(fixedAssetColumns.grossBeginning, new BigNumber(0));
             derived.set(fixedAssetColumns.depreciationBeginning, new BigNumber(0));
         }
-        const given: [string, BigNumber][] = books.fixedAssets.find(f => f.position === position)?.values.map(v => [v.column, v.amount]) ?? [];
+        const given: [string, BigNumber][] = books.fixedAssets
+            .find(f => f.position === position)?.values
+            .map(v => [v.column, v.amount]) ?? [];
         return new Map([...derived, ...given]);
     }
 
@@ -633,13 +771,16 @@ export abstract class EBilanzUtilities {
                 const amount: BigNumber | null = resolve(part.name);
                 return amount == undefined ? [] : [NumberUtilities.multiply(amount, part.weight)];
             });
-            const total: BigNumber | null = parts.length ? parts.reduce((sum, part) => NumberUtilities.add(sum, part), new BigNumber(0)) : null;
+            const total: BigNumber | null = parts.length
+                ? parts.reduce((sum, part) => NumberUtilities.add(sum, part), new BigNumber(0))
+                : null;
             const figure: BigNumber | undefined = figures.get(column);
             if (figure != undefined && total != undefined && !figure.isEqualTo(total)) {
                 const [a, b] = [$f.price(figure, E_BILANZ_CURRENCY), $f.price(total, E_BILANZ_CURRENCY)];
                 const columnLabel: string = columns.find(c => c[0] === column)?.[3] ?? column;
                 findings.push({
                     position,
+                    // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                     message: $ts`The statement of changes in fixed assets of "${label}" states ${a} as "${columnLabel}", which needs to equal the sum of the columns it adds up, ${b}.`
                 });
             }
@@ -659,6 +800,8 @@ export abstract class EBilanzUtilities {
      * @param company - The company it states, or undefined while it is not known.
      * @param statements - The statements the E-Bilanz states a position of.
      * @param fixedAssets - Whether it states a statement of changes in fixed assets.
+     * @param balanceSheetProfit - Whether the balance sheet is drawn up after the partial appropriation of the result,
+     * stating the balance sheet profit or loss.
      * @returns The fields, in the order of the taxonomy.
      */
     private static resolveFields(
@@ -692,6 +835,7 @@ export abstract class EBilanzUtilities {
      * @param positions - The positions of the taxonomy, which a finding names by their label.
      * @param amounts - The amount of each position.
      * @param findings - The findings, which what does not hold is added to.
+     * @param appropriating - Whether the balance sheet is drawn up after the partial appropriation of the result.
      */
     private static validateAmounts(
         books: EBilanzBooks,
@@ -708,6 +852,7 @@ export abstract class EBilanzUtilities {
             const [a, b] = [formattedAmountOf(assets), formattedAmountOf(equityAndLiabilities)];
             findings.push({
                 position: assets,
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                 message: $ts`The balance sheet does not balance: the assets total ${a}, and the equity and liabilities ${b}. Each account with a balance needs a position on its side of the balance sheet.`
             });
         }
@@ -719,6 +864,7 @@ export abstract class EBilanzUtilities {
             const [label, a, b] = [labelOf(profit), formattedAmountOf(profit), formattedAmountOf(appropriation.total)];
             findings.push({
                 position: profit,
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                 message: $ts`The position "${label}" states ${a} and needs to equal the balance sheet profit the appropriation of profits ends with, ${b}.`
             });
         }
@@ -726,6 +872,7 @@ export abstract class EBilanzUtilities {
             const [label, a, b] = [labelOf(resultPosition), formattedAmountOf(resultPosition), formattedAmountOf(incomePosition)];
             findings.push({
                 position: resultPosition,
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                 message: $ts`The position "${label}" states ${a} and needs to equal the result of the income statement, ${b}: map each account that appropriates the result to a position of the appropriation of profits.`
             });
         }
@@ -737,20 +884,27 @@ export abstract class EBilanzUtilities {
             const [label, a, b] = [labelOf(comparison.result), formattedAmountOf(comparison.result), formattedAmountOf(incomePosition)];
             findings.push({
                 position: comparison.result,
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                 message: $ts`The position "${label}" of the comparison of business assets states ${a} and needs to equal the result of the income statement, ${b}: check the positions the accounts of the equity are mapped to.`
             });
         }
         for (const total of books.adapter.totals) {
-            const statement: BookkeepingStatement | undefined = books.statements.find(s => s.positions.some(p => p.id === total.statementPosition));
+            const statement: BookkeepingStatement | undefined = books.statements
+                .find(s => s.positions.some(p => p.id === total.statementPosition));
             const expected: BookkeepingStatementPosition | undefined = statement?.positions.find(p => p.id === total.statementPosition);
             if (expected == undefined) {
                 continue;
             }
             // the income statement of the books counts its expenses negative, and so does the taxonomy its result
             if (!expected.amount.isEqualTo(amountOf(total.position))) {
-                const [label, a, b] = [labelOf(total.position), formattedAmountOf(total.position), $f.price(expected.amount, E_BILANZ_CURRENCY)];
+                const [label, a, b] = [
+                    labelOf(total.position),
+                    formattedAmountOf(total.position),
+                    $f.price(expected.amount, E_BILANZ_CURRENCY)
+                ];
                 findings.push({
                     position: total.position,
+                    // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                     message: $ts`The position "${label}" states ${a} and needs to equal "${expected.label}" of the statements archived when the fiscal year was closed, ${b}: check the positions its accounts are mapped to.`
                 });
             }

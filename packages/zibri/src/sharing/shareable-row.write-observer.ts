@@ -93,7 +93,7 @@ export class ShareableRowWriteObserver implements EntityWriteObserver {
             return;
         }
         const rowIds: string[] = write.before
-            .map(row => Reflect.get(row, 'id'))
+            .map((row): unknown => Reflect.get(row, 'id'))
             .filter((id): id is string => typeof id === 'string');
         if (rowIds.length) {
             await this.handlers.deleteSharesOf(rowIds, write.transaction);

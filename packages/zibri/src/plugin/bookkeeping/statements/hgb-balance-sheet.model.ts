@@ -1,7 +1,7 @@
 /* eslint-disable cspell/spellchecker */
 import { $t } from '../../../localization/translate.function';
-import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { type BookkeepingStatementStructure } from '../models/bookkeeping-statement-structure.model';
+import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 
 /**
  * The full balance sheet of a corporation, § 266 (2) and (3) HGB: the assets and, below them, the equity and
@@ -33,6 +33,7 @@ export const HGB_BALANCE_SHEET: BookkeepingStatementStructure = {
                                 { id: 'assets.A.I.1', label: $t`Self-created industrial property rights and similar rights and assets` },
                                 {
                                     id: 'assets.A.I.2',
+                                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                                     label: $t`Purchased concessions, industrial property rights and similar rights and assets, and licenses in such rights and assets`
                                 },
                                 { id: 'assets.A.I.3', label: $t`Goodwill` },
@@ -43,7 +44,10 @@ export const HGB_BALANCE_SHEET: BookkeepingStatementStructure = {
                             id: 'assets.A.II',
                             label: $t`Tangible assets`,
                             positions: [
-                                { id: 'assets.A.II.1', label: $t`Land, land rights and buildings, including buildings on third-party land` },
+                                {
+                                    id: 'assets.A.II.1',
+                                    label: $t`Land, land rights and buildings, including buildings on third-party land`
+                                },
                                 { id: 'assets.A.II.2', label: $t`Technical equipment and machinery` },
                                 { id: 'assets.A.II.3', label: $t`Other equipment, operating and office equipment` },
                                 { id: 'assets.A.II.4', label: $t`Prepayments made and assets under construction` }
@@ -119,7 +123,10 @@ export const HGB_BALANCE_SHEET: BookkeepingStatementStructure = {
                             label: $t`Revenue reserves`,
                             positions: [
                                 { id: 'equity-and-liabilities.A.III.1', label: $t`Legal reserve` },
-                                { id: 'equity-and-liabilities.A.III.2', label: $t`Reserve for shares in a controlling or majority-owning company` },
+                                {
+                                    id: 'equity-and-liabilities.A.III.2',
+                                    label: $t`Reserve for shares in a controlling or majority-owning company`
+                                },
                                 { id: 'equity-and-liabilities.A.III.3', label: $t`Statutory reserves` },
                                 { id: 'equity-and-liabilities.A.III.4', label: $t`Other revenue reserves` }
                             ]

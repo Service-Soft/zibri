@@ -623,10 +623,14 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async beforeAppShutdown(): Promise<void> {
-        if (this.socketServer == undefined) {
-            return;
+        if (this.socketServer != undefined) {
+            await this.socketServer.close();
         }
-        await this.socketServer.close();
+        // a check outliving its application would run against a container that is gone
+        for (const check of this.expiryChecks.values()) {
+            clearTimeout(check);
+        }
+        this.expiryChecks.clear();
     }
 
     private async onConnect(socket: Socket): Promise<void> {
@@ -1281,7 +1285,10 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         const room: string = tenantRoomOf(tenantId);
         const data: WebsocketTenantDeactivated = { tenantId };
         // told while they are still in it, and nothing to replay, since nothing of the tenant reaches them afterwards
-        server.to(room).emit(WebsocketEvent.TENANT_DEACTIVATED, { ok: true, data, senderUserId: undefined, senderConnectionId: undefined });
+        server.to(room).emit(
+            WebsocketEvent.TENANT_DEACTIVATED,
+            { ok: true, status: HttpStatus.OK, data, senderUserId: undefined, senderConnectionId: undefined }
+        );
         // the connections stay, as they serve the other tenants of their users. Through the room, which reaches
         // them on every instance
         const ofTenant: WebsocketChannel[] = await this.channelRepository.findAll({ where: { tenantId }, acrossTenants: true });
@@ -1361,10 +1368,17 @@ export class WebsocketService implements WebsocketServiceInterface<SocketIOWebso
         }
         const context: WebsocketRequestContext = new WebsocketRequestContext(connection.handshakeRequest, undefined, undefined, undefined);
         const expiresAt: Date | undefined = await this.authService.resolveCredentialExpiry(context);
+        // a connection that disconnected while its expiry was read had its checks cleared already: one set now would run
+        // for a connection that is gone, and after its application has shut down
+        if (this.connections.get(connection.id) !== connection) {
+            return;
+        }
         // a credential still accepted past the expiry it names would be checked again at once, forever
         if (expiresAt == undefined || expiresAt.getTime() <= Date.now()) {
             return;
         }
+        // another check set while this one read, such as of a connection recovered meanwhile
+        clearTimeout(this.expiryChecks.get(connection.id));
         const check: NodeJS.Timeout = setTimeout(
             // eslint-disable-next-line promise/prefer-await-to-then
             () => void this.closeIfLoginEnded(connection).catch(

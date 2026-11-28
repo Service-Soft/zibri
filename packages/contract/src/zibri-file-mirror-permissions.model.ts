@@ -11,4 +11,5 @@ export const ZIBRI_FILE_MIRROR_PERMISSIONS = ['file-mirror.read', 'file-mirror.m
 /**
  * {@link ZIBRI_FILE_MIRROR_PERMISSIONS}, by name.
  */
-export const ZibriFileMirrorPermissions: DefinedPermissions<typeof ZIBRI_FILE_MIRROR_PERMISSIONS> = definePermissions(ZIBRI_FILE_MIRROR_PERMISSIONS);
+export const ZibriFileMirrorPermissions: DefinedPermissions<typeof ZIBRI_FILE_MIRROR_PERMISSIONS>
+    = definePermissions(ZIBRI_FILE_MIRROR_PERMISSIONS);

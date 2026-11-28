@@ -1,6 +1,6 @@
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
-import { BankTransactionStatus } from './models/bank-transaction-status.enum';
 import { type BankTransactionState, type BankTransactionStateCreateData } from './models/bank-transaction-state.model';
+import { BankTransactionStatus } from './models/bank-transaction-status.enum';
 import { type BankTransaction } from './models/bank-transaction.model';
 
 /**

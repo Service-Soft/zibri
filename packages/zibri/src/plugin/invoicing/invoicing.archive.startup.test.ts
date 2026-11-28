@@ -10,12 +10,10 @@ import { BaseEntity } from '../../entity/base-entity.model';
 import { FsFileStore } from '../../file/stores/fs.file-store';
 import { Newable } from '../../types/newable.type';
 import { FsUtilities } from '../../utilities/fs.utilities';
-import {
-    invoiceArchiveTestEntities,
+import { invoiceArchiveTestEntities,
     invoiceArchiveTestProviders,
     InvoiceDocumentsFileStore,
-    invoiceDocumentsFolder
-} from './invoicing.archive.cases';
+    invoiceDocumentsFolder } from './invoicing.archive.cases';
 import { ZibriInvoicingPlugin } from './invoicing.plugin';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from './invoicing.tokens';
 import { InvoiceDocument } from './models/invoice-document.model';

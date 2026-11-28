@@ -12,18 +12,19 @@ import { type DiVariant } from '../../../../di/models/di-variant.model';
 import { ConflictError } from '../../../../error-handling/errors/conflict.error';
 import { InternalError } from '../../../../error-handling/internal-error.model';
 import { type FileRecord } from '../../../../file/file-record.model';
-import { $ts } from '../../../../localization/translate.function';
 import { type LeaseServiceInterface } from '../../../../leases/lease-service.interface';
+import { $ts } from '../../../../localization/translate.function';
 import { errorToLoggedError } from '../../../../logging/error-to-logged-error.function';
 import { type OmitStrict } from '../../../../types/omit-strict.type';
 import { Ms } from '../../../../utilities/ms';
 import { BigNumber, NumberUtilities } from '../../../../utilities/number.utilities';
 import { BookkeepingDayUtilities } from '../../bookkeeping-day.utilities';
 import { ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from '../../bookkeeping.tokens';
-import { BookkeepingAccount } from '../../models/bookkeeping-account.model';
 import { type BookkeepingAccountBalance } from '../../models/bookkeeping-account-balance.model';
+import { BookkeepingAccount } from '../../models/bookkeeping-account.model';
 import { type BookkeepingCarriedBalances } from '../../models/bookkeeping-carried-balances.model';
 import { type BookkeepingSettings } from '../../models/bookkeeping-settings.model';
+import { type BookkeepingStatementForms } from '../../models/bookkeeping-statement-forms.model';
 import { type BookkeepingStatementStructure } from '../../models/bookkeeping-statement-structure.model';
 import { BookkeepingStatementType } from '../../models/bookkeeping-statement-type.enum';
 import { type BookkeepingStatement } from '../../models/bookkeeping-statement.model';
@@ -36,26 +37,26 @@ import { JournalEntry } from '../../models/journal-entry.model';
 import { type BookkeepingReportServiceInterface } from '../../services/bookkeeping-report-service.interface';
 import { HGB_MICRO_INCOME_STATEMENT } from '../../statements/hgb-micro-income-statement.model';
 import { EBilanzDeadlineUtilities } from '../e-bilanz-deadline.utilities';
+import { EBilanzNotSentError } from '../e-bilanz-not-sent.error';
 import { EBilanzTaxonomyUtilities } from '../e-bilanz-taxonomy.utilities';
 import { E_BILANZ_EXPORTER_DI_VARIANT, E_BILANZ_TRANSMITTER_DI_VARIANT, ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS } from '../e-bilanz.tokens';
 import { EBilanzUtilities } from '../e-bilanz.utilities';
-import { EBilanzAccountMapping, type EBilanzAccountMappingCreateData } from '../models/e-bilanz-account-mapping.model';
 import { type EBilanzAccountBalance } from '../models/e-bilanz-account-balance.model';
+import { EBilanzAccountMapping, type EBilanzAccountMappingCreateData } from '../models/e-bilanz-account-mapping.model';
 import { type EBilanzBooks } from '../models/e-bilanz-books.model';
 import { type EBilanzEquityLine } from '../models/e-bilanz-equity-line.model';
 import { EBilanzFilingKind } from '../models/e-bilanz-filing-kind.enum';
 import { EBilanzFiling, type EBilanzFilingCreateData } from '../models/e-bilanz-filing.model';
 import { EBilanzIncomeStatementForm } from '../models/e-bilanz-income-statement-form.enum';
-import { type EBilanzResultLine } from '../models/e-bilanz-result-line.model';
 import { type EBilanzPreparationInput } from '../models/e-bilanz-preparation-input.model';
 import { type EBilanzPreparation } from '../models/e-bilanz-preparation.model';
+import { type EBilanzResultLine } from '../models/e-bilanz-result-line.model';
+import { EBilanzRevisionStatus } from '../models/e-bilanz-revision-status.enum';
 import { EBilanzSettings, type EBilanzSettingsCreateData } from '../models/e-bilanz-settings.model';
 import { type EBilanzState } from '../models/e-bilanz-state.model';
-import { EBilanzRevisionStatus } from '../models/e-bilanz-revision-status.enum';
-import { type EBilanzTransmissionSummary } from '../models/e-bilanz-transmission-summary.model';
-import { EBilanzTransmissionStatus } from '../models/e-bilanz-transmission-status.enum';
-import { EBilanzNotSentError } from '../e-bilanz-not-sent.error';
 import { type EBilanzTaxonomy } from '../models/e-bilanz-taxonomy.model';
+import { EBilanzTransmissionStatus } from '../models/e-bilanz-transmission-status.enum';
+import { type EBilanzTransmissionSummary } from '../models/e-bilanz-transmission-summary.model';
 import { type EBilanzExporterInterface } from './e-bilanz-exporter.interface';
 import { type EBilanzExport, type EBilanzFile, type EBilanzServiceInterface } from './e-bilanz-service.interface';
 import { type EBilanzTaxonomyAdapterInterface } from './e-bilanz-taxonomy-adapter.interface';
@@ -80,12 +81,25 @@ const NO_TRANSMISSION: Pick<EBilanzFilingCreateData, 'status' | 'transmissionId'
 /**
  * What a transmitter answered, or what it threw.
  */
-type TransmitterOutcome = { readonly transmission: EBilanzTransmission } | { readonly error: unknown };
+type TransmitterOutcome = {
+    /**
+     * What the transmitter answered.
+     */
+    readonly transmission: EBilanzTransmission
+} | {
+    /**
+     * What the transmitter threw.
+     */
+    readonly error: unknown
+};
 
 /**
  * What the record of the result of a transmission states beside what it takes from the record of its start.
  */
-type TransmissionResultData = Pick<EBilanzFilingCreateData, 'status' | 'mayHaveBeenSent' | 'error' | 'succeeded' | 'ticket' | 'messages' | 'protocol' | 'createdBy'>;
+type TransmissionResultData = Pick<
+    EBilanzFilingCreateData,
+    'status' | 'mayHaveBeenSent' | 'error' | 'succeeded' | 'ticket' | 'messages' | 'protocol' | 'createdBy'
+>;
 
 /**
  * Prepares, exports and sends the E-Bilanz of the closed fiscal years of the current tenant from its books and the
@@ -136,10 +150,13 @@ export class EBilanzService implements EBilanzServiceInterface {
         const filed: EBilanzFiling | undefined = (await this.findFilings(fiscalYear)).filter(f => this.isFiled(f)).at(-1);
         const revisionStatus: EBilanzRevisionStatus = input.revisionStatus ?? EBilanzRevisionStatus.ORIGINAL;
         if (filed == undefined && revisionStatus !== EBilanzRevisionStatus.ORIGINAL) {
-            throw new ConflictError($ts`The E-Bilanz of the fiscal year is not filed, so it is prepared without a revisionStatus correcting one.`);
+            throw new ConflictError(
+                $ts`The E-Bilanz of the fiscal year is not filed, so it is prepared without a revisionStatus correcting one.`
+            );
         }
         if (filed != undefined && revisionStatus === EBilanzRevisionStatus.ORIGINAL) {
             throw new ConflictError(
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                 $ts`The E-Bilanz of the fiscal year is filed, so a preparation corrects it and needs its revisionStatus: corrected, changed, corrected-and-changed, more-detail or other-correction.`
             );
         }
@@ -175,7 +192,8 @@ export class EBilanzService implements EBilanzServiceInterface {
         const filings: EBilanzFiling[] = await this.findFilingsConcluded(fiscalYear);
         const preparation: EBilanzFiling | undefined = filings.filter(f => f.kind === EBilanzFilingKind.PREPARED).at(-1);
         const settings: EBilanzSettings | undefined = await this.findSettings();
-        const bookkeeping: BookkeepingSettings | undefined = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).findSettings();
+        const bookkeeping: BookkeepingSettings | undefined = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE)
+            .findSettings();
         let current: EBilanzPreparation | undefined;
         if (preparation?.input != undefined && fiscalYear.closedAt != undefined) {
             current = EBilanzUtilities.resolvePreparation(await this.resolveBooks(fiscalYear, preparation.input));
@@ -183,17 +201,21 @@ export class EBilanzService implements EBilanzServiceInterface {
         const transmitter: EBilanzTransmitterInterface | undefined = this.findTransmitter();
         return {
             fiscalYearId,
-            deadline: EBilanzDeadlineUtilities.resolveDeadline(fiscalYear.end, EBilanzUtilities.findGermanCompany(bookkeeping?.company)?.taxAdvisor ?? false),
+            deadline: EBilanzDeadlineUtilities.resolveDeadline(
+                fiscalYear.end,
+                EBilanzUtilities.findGermanCompany(bookkeeping?.company)?.taxAdvisor ?? false
+            ),
             content: preparation?.content ?? null,
             findings: current?.findings ?? [],
             filings,
             transmissions: this.resolveTransmissions(filings),
             preparationId: preparation?.id ?? null,
-            preparationCurrent: current != undefined && preparation != undefined
-                && EBilanzUtilities.resolveContentHash(current.content) === preparation.contentHash,
+            preparationCurrent: current != undefined
+                && EBilanzUtilities.resolveContentHash(current.content) === preparation?.contentHash,
             filed: filings.some(f => this.isFiled(f)),
             transmitterConfigured: transmitter != undefined && settings?.certificate != undefined && settings.certificatePin != undefined,
             transmitterUnavailableReason: transmitter == undefined
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
                 ? $ts`No transmitter is registered: provide an EBilanzTransmitterInterface with E_BILANZ_TRANSMITTER_DI_VARIANT, or file an export by hand and record it.`
                 : settings?.certificate == undefined || settings.certificatePin == undefined
                     ? $ts`The ELSTER certificate of the company and its PIN need to be uploaded.`
@@ -206,12 +228,18 @@ export class EBilanzService implements EBilanzServiceInterface {
     async resolveExport(fiscalYearId: string, exporter: string): Promise<EBilanzExport> {
         const found: EBilanzExporterInterface | undefined = this.resolveExporters().find(e => e.name === exporter);
         if (found == undefined) {
-            throw new ConflictError($ts`The exporter ${exporter} of the E-Bilanz needs to be registered with E_BILANZ_EXPORTER_DI_VARIANT.`);
+            throw new ConflictError(
+                $ts`The exporter ${exporter} of the E-Bilanz needs to be registered with E_BILANZ_EXPORTER_DI_VARIANT.`
+            );
         }
         const { fiscalYear, preparation } = await this.resolveCurrentPreparation(fiscalYearId);
         const content: EBilanzPreparation['content'] = this.resolvePreparedContent(preparation);
         const [start, end] = [fiscalYear.start, fiscalYear.end].map(day => BookkeepingDayUtilities.formatDay(day));
-        return { name: `e-bilanz-${start}-${end}.${found.fileExtension}`, mimeType: found.mimeType, data: await found.resolveFile(content) };
+        return {
+            name: `e-bilanz-${start}-${end}.${found.fileExtension}`,
+            mimeType: found.mimeType,
+            data: await found.resolveFile(content)
+        };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -298,14 +326,23 @@ export class EBilanzService implements EBilanzServiceInterface {
                 await this.concludeOpenTransmissions(fiscalYear, await this.findFilings(fiscalYear));
                 const filings: EBilanzFiling[] = await this.findFilings(fiscalYear);
                 if (this.resolveTransmissions(filings).some(t => this.isNotKnown(t))) {
-                    throw new ConflictError($ts`A transmission of the E-Bilanz of the fiscal year may have reached the tax administration, and its result is not known. Settle it before the fiscal year is reopened.`);
+                    throw new ConflictError(
+                        // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                        $ts`A transmission of the E-Bilanz of the fiscal year may have reached the tax administration, and its result is not known. Settle it before the fiscal year is reopened.`
+                    );
                 }
                 const filed: boolean = filings.some(f => this.isFiled(f));
                 if (filed && !forCorrection) {
-                    throw new ConflictError($ts`The E-Bilanz of the fiscal year is filed, and the fiscal year is reopened only to correct it, with forCorrection.`);
+                    throw new ConflictError(
+                        // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                        $ts`The E-Bilanz of the fiscal year is filed, and the fiscal year is reopened only to correct it, with forCorrection.`
+                    );
                 }
                 if (!filed && forCorrection) {
-                    throw new ConflictError($ts`The E-Bilanz of the fiscal year is not filed, so there is nothing to correct: reopen it without forCorrection.`);
+                    throw new ConflictError(
+
+                        $ts`The E-Bilanz of the fiscal year is not filed, so there is nothing to correct: reopen it without forCorrection.`
+                    );
                 }
                 return true as const;
             }
@@ -342,14 +379,23 @@ export class EBilanzService implements EBilanzServiceInterface {
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async updateAccountMapping(mapping: EBilanzAccountMappingCreateData): Promise<EBilanzAccountMapping> {
-        const account: BookkeepingAccount | undefined = await this.accountRepository.findOne({ where: { id: mapping.accountId }, required: false });
+        const account: BookkeepingAccount | undefined = await this.accountRepository.findOne({
+            where: { id: mapping.accountId },
+            required: false
+        });
         if (account == undefined) {
             throw new ConflictError($ts`The account ${mapping.accountId} needs to be an account of the books.`);
         }
-        const existing: EBilanzAccountMapping | undefined = await this.mappingRepository.findOne({ where: { accountId: mapping.accountId }, required: false });
+        const existing: EBilanzAccountMapping | undefined = await this.mappingRepository.findOne({
+            where: { accountId: mapping.accountId },
+            required: false
+        });
         return existing == undefined
             ? await this.mappingRepository.create(mapping)
-            : await this.mappingRepository.updateById(existing.id, { position: mapping.position, creditPosition: mapping.creditPosition ?? null });
+            : await this.mappingRepository.updateById(
+                existing.id,
+                { position: mapping.position, creditPosition: mapping.creditPosition ?? null }
+            );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -377,9 +423,13 @@ export class EBilanzService implements EBilanzServiceInterface {
         );
         if (taxonomy == undefined) {
             const start: string = BookkeepingDayUtilities.formatDay(fiscalYear.start);
-            throw new ConflictError($ts`The E-Bilanz of a fiscal year starting on ${start} needs a version of the taxonomy registered in ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMIES.`);
+            throw new ConflictError(
+                // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                $ts`The E-Bilanz of a fiscal year starting on ${start} needs a version of the taxonomy registered in ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMIES.`
+            );
         }
-        const adapter: EBilanzTaxonomyAdapterInterface | undefined = inject(ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMY_ADAPTERS).find(a => a.name === taxonomy.adapter);
+        const adapter: EBilanzTaxonomyAdapterInterface | undefined = inject(ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMY_ADAPTERS)
+            .find(a => a.name === taxonomy.adapter);
         if (adapter == undefined) {
             throw new InternalError(`The taxonomy ${taxonomy.version} of the E-Bilanz needs the adapter "${taxonomy.adapter}".`);
         }
@@ -387,11 +437,13 @@ export class EBilanzService implements EBilanzServiceInterface {
         const trialBalance: BookkeepingTrialBalance = await this.reportService.resolveTrialBalance(fiscalYear.id, undefined);
         // the balances the year starts with: its opening entry, and the balances carried over by hand against a
         // carry-forward account, such as those of books kept elsewhere before
-        const carried: BookkeepingCarriedBalances = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).resolveCarriedBalances(fiscalYear.id);
+        const carried: BookkeepingCarriedBalances = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE)
+            .resolveCarriedBalances(fiscalYear.id);
         const opening: Map<string, BookkeepingAccountBalance> = new Map(carried.balances.map(b => [b.account.id, b]));
         const statements: BookkeepingStatement[] = await this.resolveFullStatements(fiscalYear);
-        const forms: { incomeStatement: string } = await this.reportService.resolveStatementForms(fiscalYear.id);
-        const bookkeeping: BookkeepingSettings | undefined = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).findSettings();
+        const forms: BookkeepingStatementForms = await this.reportService.resolveStatementForms(fiscalYear.id);
+        const bookkeeping: BookkeepingSettings | undefined = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE)
+            .findSettings();
         const previous: FiscalYear | undefined = await this.fiscalYearRepository.findOne({
             where: { end: BookkeepingDayUtilities.resolvePreviousDay(fiscalYear.start) },
             required: false
@@ -410,20 +462,26 @@ export class EBilanzService implements EBilanzServiceInterface {
             previousFiscalYear: previous,
             company: bookkeeping?.company ?? undefined,
             accountingStandard: input.accountingStandard,
-            incomeStatementForm: forms.incomeStatement === HGB_MICRO_INCOME_STATEMENT.id ? EBilanzIncomeStatementForm.MICRO : EBilanzIncomeStatementForm.TOTAL_COST,
+            incomeStatementForm: forms.incomeStatement === HGB_MICRO_INCOME_STATEMENT.id
+                ? EBilanzIncomeStatementForm.MICRO
+                : EBilanzIncomeStatementForm.TOTAL_COST,
             revisionStatus: input.revisionStatus ?? EBilanzRevisionStatus.ORIGINAL,
             balances,
             equityLines: [],
             // the account a UG posts its legal reserve from, § 5a (3) GmbHG, by the rules valid at the end of the year
-            legalReserveAllocationAccountId: (await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_RULE_SERVICE).findRuleSets(fiscalYear.id))
-                .at(-1)?.rules.reserveAllocationAccountId ?? undefined,
+            legalReserveAllocationAccountId: (
+                await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_RULE_SERVICE).findRuleSets(fiscalYear.id)
+            ).at(-1)?.rules.reserveAllocationAccountId ?? undefined,
             resultLines: await this.resolveResultLines(fiscalYear),
             accountMappings: await this.findAccountMappings(),
             fixedAssets: input.fixedAssets ?? [],
             statements
         };
         // the lines of the accounts of the equity alone, which are known once the positions of the accounts are
-        return { ...books, equityLines: await this.resolveEquityLines(fiscalYear, EBilanzUtilities.resolveEquityAccountIds(books), carried.entryIds) };
+        return {
+            ...books,
+            equityLines: await this.resolveEquityLines(fiscalYear, EBilanzUtilities.resolveEquityAccountIds(books), carried.entryIds)
+        };
     }
 
     /**
@@ -434,7 +492,11 @@ export class EBilanzService implements EBilanzServiceInterface {
      * @param carriedEntryIds - The ids of the entries carrying the balances of the year in.
      * @returns The lines, each its credit less its debit.
      */
-    protected async resolveEquityLines(fiscalYear: FiscalYear, accountIds: ReadonlySet<string>, carriedEntryIds: readonly string[]): Promise<EBilanzEquityLine[]> {
+    protected async resolveEquityLines(
+        fiscalYear: FiscalYear,
+        accountIds: ReadonlySet<string>,
+        carriedEntryIds: readonly string[]
+    ): Promise<EBilanzEquityLine[]> {
         if (!accountIds.size) {
             return [];
         }
@@ -452,7 +514,11 @@ export class EBilanzService implements EBilanzServiceInterface {
             },
             limit: 'all'
         });
-        return lines.map(line => ({ entryId: line.entryId, accountId: line.accountId, amount: NumberUtilities.subtract(line.credit ?? 0, line.debit ?? 0) }));
+        return lines.map(line => ({
+            entryId: line.entryId,
+            accountId: line.accountId,
+            amount: NumberUtilities.subtract(line.credit ?? 0, line.debit ?? 0)
+        }));
     }
 
     /**
@@ -481,7 +547,10 @@ export class EBilanzService implements EBilanzServiceInterface {
         if (!lines.length) {
             return [];
         }
-        const accounts: BookkeepingAccount[] = await this.accountRepository.findAll({ where: { id: { oneOf: lines.map(l => l.accountId) } }, limit: 'all' });
+        const accounts: BookkeepingAccount[] = await this.accountRepository.findAll({
+            where: { id: { oneOf: lines.map(l => l.accountId) } },
+            limit: 'all'
+        });
         return lines.map(line => {
             const account: BookkeepingAccount | undefined = accounts.find(a => a.id === line.accountId);
             if (account == undefined) {
@@ -499,7 +568,8 @@ export class EBilanzService implements EBilanzServiceInterface {
      */
     protected async resolveFullStatements(fiscalYear: FiscalYear): Promise<BookkeepingStatement[]> {
         const structures: readonly BookkeepingStatementStructure[] = inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.STATEMENT_STRUCTURES);
-        const full: (type: BookkeepingStatementType) => string | undefined = type => structures.find(s => s.type === type && s.rollsUpFrom == undefined)?.id;
+        const full: (type: BookkeepingStatementType) => string | undefined = type => structures
+            .find(s => s.type === type && s.rollsUpFrom == undefined)?.id;
         const balanceSheet: string | undefined = full(BookkeepingStatementType.BALANCE_SHEET);
         const incomeStatement: string | undefined = full(BookkeepingStatementType.INCOME_STATEMENT);
         return [
@@ -514,7 +584,20 @@ export class EBilanzService implements EBilanzServiceInterface {
      * @returns The fiscal year, the preparation and every record of the fiscal year.
      * @throws A ConflictError without a preparation, or one the books state otherwise now.
      */
-    protected async resolveCurrentPreparation(fiscalYearId: string): Promise<{ fiscalYear: FiscalYear, preparation: EBilanzFiling, filings: EBilanzFiling[] }> {
+    protected async resolveCurrentPreparation(fiscalYearId: string): Promise<{
+        /**
+         * The fiscal year.
+         */
+        fiscalYear: FiscalYear,
+        /**
+         * Its latest preparation.
+         */
+        preparation: EBilanzFiling,
+        /**
+         * Every record of the fiscal year, the earliest first.
+         */
+        filings: EBilanzFiling[]
+    }> {
         const fiscalYear: FiscalYear = await this.resolveClosedFiscalYear(fiscalYearId);
         const filings: EBilanzFiling[] = await this.findFilings(fiscalYear);
         const preparation: EBilanzFiling | undefined = filings.filter(f => f.kind === EBilanzFilingKind.PREPARED).at(-1);
@@ -523,7 +606,9 @@ export class EBilanzService implements EBilanzServiceInterface {
         }
         const current: EBilanzPreparation = EBilanzUtilities.resolvePreparation(await this.resolveBooks(fiscalYear, preparation.input));
         if (EBilanzUtilities.resolveContentHash(current.content) !== preparation.contentHash) {
-            throw new ConflictError($ts`The books state the E-Bilanz of the fiscal year otherwise than it was prepared, and it needs to be prepared again.`);
+            throw new ConflictError(
+                $ts`The books state the E-Bilanz of the fiscal year otherwise than it was prepared, and it needs to be prepared again.`
+            );
         }
         return { fiscalYear, preparation, filings };
     }
@@ -562,7 +647,11 @@ export class EBilanzService implements EBilanzServiceInterface {
      * @returns The records.
      */
     protected async findFilings(fiscalYear: FiscalYear): Promise<EBilanzFiling[]> {
-        return await this.filingRepository.findAll({ where: { fiscalYearId: fiscalYear.id }, order: { chainSequence: 'ASC' }, limit: 'all' });
+        return await this.filingRepository.findAll({
+            where: { fiscalYearId: fiscalYear.id },
+            order: { chainSequence: 'ASC' },
+            limit: 'all'
+        });
     }
 
     /**
@@ -598,6 +687,7 @@ export class EBilanzService implements EBilanzServiceInterface {
     protected async concludeOpenTransmissions(fiscalYear: FiscalYear, filings: EBilanzFiling[]): Promise<void> {
         // one after the other, as each is a row of the chain of the tenant
         for (const started of this.findOpenTransmissions(filings)) {
+            // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
             const message: string = $ts`The transmission stopped before it had a result, such as when the application was restarted. The E-Bilanz may have reached the tax administration: check it in ELSTER.`;
             await this.createResult(fiscalYear, started, {
                 status: EBilanzTransmissionStatus.UNKNOWN,
@@ -661,6 +751,7 @@ export class EBilanzService implements EBilanzServiceInterface {
      * start, hands that record over, calls the transmitter once and records its result.
      * @param fiscalYearId - The id of the fiscal year.
      * @param options - Whether as a test.
+     * @param options.test - Whether it is sent as a test.
      * @param actingUserId - The id of the user sending it.
      * @param onStarted - Called with the record of the start, once it is written.
      * @returns False when another transmission or filing of the fiscal year holds the lease.
@@ -668,7 +759,12 @@ export class EBilanzService implements EBilanzServiceInterface {
      */
     protected async runTransmission(
         fiscalYearId: string,
-        options: { readonly test: boolean },
+        options: {
+            /**
+             * Whether it is sent as a test.
+             */
+            readonly test: boolean
+        },
         actingUserId: string,
         onStarted: (started: EBilanzFiling) => void
     ): Promise<boolean> {
@@ -677,7 +773,10 @@ export class EBilanzService implements EBilanzServiceInterface {
             async () => {
                 const transmitter: EBilanzTransmitterInterface | undefined = this.findTransmitter();
                 if (transmitter == undefined) {
-                    throw new ConflictError($ts`No transmitter is registered: provide an EBilanzTransmitterInterface with E_BILANZ_TRANSMITTER_DI_VARIANT, or file an export by hand and record it.`);
+                    throw new ConflictError(
+                        // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                        $ts`No transmitter is registered: provide an EBilanzTransmitterInterface with E_BILANZ_TRANSMITTER_DI_VARIANT, or file an export by hand and record it.`
+                    );
                 }
                 const settings: EBilanzSettings | undefined = await this.findSettings();
                 if (settings?.certificate == undefined || settings.certificatePin == undefined) {
@@ -694,10 +793,15 @@ export class EBilanzService implements EBilanzServiceInterface {
                 const manualFiling: number = records.map(f => f.kind).lastIndexOf(EBilanzFilingKind.MANUAL_FILING);
                 if (this.resolveTransmissions(records).some(t => t.test === options.test && this.isNotKnown(t)
                     && records.findIndex(f => f.id === t.id) > manualFiling)) {
-                    throw new ConflictError($ts`A transmission of the E-Bilanz may have reached the tax administration, and its result is not known. Check it in ELSTER, then record the E-Bilanz as filed by hand, or confirm that the transmission did not arrive, before it is sent again.`);
+                    throw new ConflictError(
+                        // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                        $ts`A transmission of the E-Bilanz may have reached the tax administration, and its result is not known. Check it in ELSTER, then record the E-Bilanz as filed by hand, or confirm that the transmission did not arrive, before it is sent again.`
+                    );
                 }
                 if (!options.test && !ofPreparation.some(f => f.kind === EBilanzFilingKind.TEST_TRANSMISSION && f.succeeded)) {
-                    throw new ConflictError($ts`The E-Bilanz needs to be sent as a test and accepted before it is sent for real.`);
+                    throw new ConflictError(
+                        $ts`The E-Bilanz needs to be sent as a test and accepted before it is sent for real.`
+                    );
                 }
                 const file: Buffer = await inject(ZIBRI_DI_TOKENS.FILE_SERVICE).read(settings.certificate);
                 // recorded before the transmitter is called, so that a transmission that may have been sent is never
@@ -772,6 +876,7 @@ export class EBilanzService implements EBilanzServiceInterface {
             await this.recordSafely(started, async () => await this.recordOutcome(fiscalYear, started, outcome));
             return;
         }
+        // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
         const message: string = $ts`The transmitter did not answer in time. The E-Bilanz may have reached the tax administration: check it in ELSTER.`;
         controller.abort(new Error(message));
         await this.recordSafely(started, async () => await this.createResult(fiscalYear, started, {
@@ -785,7 +890,10 @@ export class EBilanzService implements EBilanzServiceInterface {
             createdBy: started.createdBy
         }));
         // what it answers after the timeout is known, and replaces the unknown
-        void answered.then(async late => await this.recordSafely(started, async () => await this.recordOutcome(fiscalYear, started, late)));
+        void (async () => {
+            const late: TransmitterOutcome = await answered;
+            await this.recordSafely(started, async () => await this.recordOutcome(fiscalYear, started, late));
+        })();
     }
 
     /**
@@ -854,7 +962,8 @@ export class EBilanzService implements EBilanzServiceInterface {
         }
         catch (error) {
             inject(ZIBRI_DI_TOKENS.LOGGER).error(new InternalError(
-                `The result of the transmission ${started.id} of the E-Bilanz could not be recorded. It is concluded as unknown once its records are read.`,
+                `The result of the transmission ${started.id} of the E-Bilanz could not be recorded.`
+                + ' It is concluded as unknown once its records are read.',
                 { cause: error }
             ));
         }
@@ -868,7 +977,12 @@ export class EBilanzService implements EBilanzServiceInterface {
      * @throws A ConflictError while a transmission or a filing of the fiscal year holds it.
      */
     protected async runInTransmissionLease<T>(fiscalYearId: string, work: () => Promise<T>): Promise<T> {
-        const res: { value: T } | undefined = await this.leaseService.withLease(
+        const res: {
+            /**
+             * What the work returned.
+             */
+            value: T
+        } | undefined = await this.leaseService.withLease(
             { key: this.getTransmissionLeaseKey(fiscalYearId), leaseInMs: TRANSMISSION_LEASE_IN_MS, mode: 'skip' },
             async () => ({ value: await work() })
         );
@@ -943,7 +1057,10 @@ export class EBilanzService implements EBilanzServiceInterface {
         return this.resolveVariant(
             E_BILANZ_TRANSMITTER_DI_VARIANT,
             'an E-Bilanz transmitter',
-            (value): value is EBilanzTransmitterInterface => typeof value === 'object' && value != undefined && 'transmit' in value && typeof value.transmit === 'function'
+            (value): value is EBilanzTransmitterInterface => typeof value === 'object'
+                && value != undefined
+                && 'transmit' in value
+                && typeof value.transmit === 'function'
         ).at(0);
     }
 
@@ -955,7 +1072,10 @@ export class EBilanzService implements EBilanzServiceInterface {
         return this.resolveVariant(
             E_BILANZ_EXPORTER_DI_VARIANT,
             'an E-Bilanz exporter',
-            (value): value is EBilanzExporterInterface => typeof value === 'object' && value != undefined && 'resolveFile' in value && typeof value.resolveFile === 'function'
+            (value): value is EBilanzExporterInterface => typeof value === 'object'
+                && value != undefined
+                && 'resolveFile' in value
+                && typeof value.resolveFile === 'function'
         );
     }
 

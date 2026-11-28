@@ -1,11 +1,12 @@
 import { ZibriApplication } from '../../application/application';
 import { ArchiveUtilities } from '../../archive/archive.utilities';
+import { KEPT_ROW_CHECK_DI_VARIANT } from '../../backup/kept-row-check.interface';
 import { CronJob } from '../../cron/cron-job.model';
 import { DataSourceInterface } from '../../data-source/data-sources/data-source.interface';
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
-import { NoProviderError } from '../../di/errors/no-provider.error';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
+import { NoProviderError } from '../../di/errors/no-provider.error';
 import { inject } from '../../di/inject.function';
 import { DiProvider } from '../../di/models/di-provider.model';
 import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
@@ -15,7 +16,6 @@ import { type BaseTenantDefinition } from '../../tenancy/tenant-definition/base-
 import { Newable } from '../../types/newable.type';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
-import { KEPT_ROW_CHECK_DI_VARIANT } from '../../backup/kept-row-check.interface';
 import { BANK_MATCH_POSTING_DI_VARIANT, BANK_MATCHER_DI_VARIANT } from '../bank/bank.tokens';
 import { BankMatch } from '../bank/models/bank-match.model';
 import { INVOICE_POSTING_DI_VARIANT } from '../invoicing/invoicing.tokens';
@@ -128,7 +128,10 @@ export class ZibriBookkeepingPlugin extends ZibriPlugin {
         },
         EXPENSE_BANK_MATCHER: { useClass: ExpenseBankMatcher, variants: [BANK_MATCHER_DI_VARIANT] },
         ACCOUNT_BANK_MATCHER: { useClass: AccountBankMatcher, variants: [BANK_MATCHER_DI_VARIANT] },
-        KEPT_ROW_CHECK: { useFactory: () => inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_SERVICE), variants: [KEPT_ROW_CHECK_DI_VARIANT] }
+        KEPT_ROW_CHECK: {
+            useFactory: () => inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.POSTING_SERVICE),
+            variants: [KEPT_ROW_CHECK_DI_VARIANT]
+        }
     };
 
     override providers: DiProvider<unknown>[] = providersFromTokenRecord(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS, this.defaultDiProviders);
@@ -159,7 +162,8 @@ export class ZibriBookkeepingPlugin extends ZibriPlugin {
             : undefined;
         if (options.tenantsWithoutBooks === 'never' && tenantEntity == undefined) {
             throw new InternalError(
-                `${this.constructor.name} with tenantsWithoutBooks set to never needs an entity of the tenants, whose rows get their bookkeeping settings as they are created.`
+                `${this.constructor.name} with tenantsWithoutBooks set to never needs an entity of the tenants, `
+                + 'whose rows get their bookkeeping settings as they are created.'
             );
         }
         // an entry is posted in one transaction with the fiscal year its sequence is drawn from, and checked against

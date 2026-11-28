@@ -34,6 +34,6 @@ export abstract class EBilanzDeadlineUtilities {
             : new Date(`${taxAdvisor ? extended[1] : extended[0]}T00:00:00.000Z`);
         const weekday: number = day.getUTCDay();
         const shift: number = weekday === 6 ? 2 : weekday === 0 ? 1 : 0;
-        return new Date(day.getTime() + shift * 86_400_000);
+        return new Date(day.getTime() + (shift * 86_400_000));
     }
 }

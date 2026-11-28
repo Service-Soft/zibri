@@ -99,7 +99,8 @@ describe('NextcloudBackupTransport, sharing its folder', () => {
             await session.put('record', Readable.from([Buffer.from('{}')]));
         });
 
-        expect(findShares(folder).map(share => [share.shareType, share.shareWith, share.permissions]).sort()).toEqual([[0, 'grace', 1], [1, 'admin', 1]]);
+        expect(findShares(folder).map(share => [share.shareType, share.shareWith, share.permissions])
+            .sort()).toEqual([[0, 'grace', 1], [1, 'admin', 1]]);
     });
 
     it('shares the folder once, whatever the sessions writing into it', async () => {

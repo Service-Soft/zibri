@@ -21,7 +21,7 @@ import { type CalendarSyncTarget } from './calendar-sync-target.model';
 import { describeCalendarSync } from './calendar-sync.service.cases';
 
 // what the calendar sync sends and how it reads the answers, against a CalDAV server in this process. What real
-// servers do is held by calendar-sync.service.apache.test.ts and calendar-sync.service.nextcloud.test.ts
+// servers do is held by calendar-sync.service.container.test.ts and calendar-sync.service.nextcloud.test.ts
 
 const calDav: InProcessWebDavServer = new InProcessWebDavServer('ada', 'Lovelace-app-password');
 const connectionId: string = UUIDUtilities.generate();

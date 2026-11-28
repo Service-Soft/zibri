@@ -1,3 +1,5 @@
+import { type TenantSftpTransportSecretModel } from './tenant-sftp-transport-secret.model';
+
 /**
  * The settings of a tenant's transport of the kind `'sftp'`: where its SFTP server is, who logs in, and the key the
  * server identifies itself with. The password or the private key is a {@link TenantSftpTransportSecretModel}.

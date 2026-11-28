@@ -111,7 +111,9 @@ export class ExpenseService implements ExpenseServiceInterface {
                 throw new ConflictError($ts`The expense ${original.documentNumber} is a draft, which is changed rather than corrected.`);
             }
             if (await this.expenseRepository.exists({ where: { correctsExpenseId: id }, transaction: started })) {
-                throw new ConflictError($ts`The expense ${original.documentNumber} is corrected already, and an expense is corrected once.`);
+                throw new ConflictError(
+                    $ts`The expense ${original.documentNumber} is corrected already, and an expense is corrected once.`
+                );
             }
             await this.validateData(data, started);
             let correction: Expense;
@@ -226,7 +228,10 @@ export class ExpenseService implements ExpenseServiceInterface {
         if (data.totals.some(t => t.net.isLessThan(0) || t.tax.isLessThan(0))) {
             throw new BadRequestError($ts`The amounts of an expense need to be at least 0.`);
         }
-        const total: BigNumber = data.totals.reduce((sum, t) => NumberUtilities.add(NumberUtilities.add(sum, t.net), t.tax), NumberUtilities.new(0));
+        const total: BigNumber = data.totals.reduce(
+            (sum, t) => NumberUtilities.add(NumberUtilities.add(sum, t.net), t.tax),
+            NumberUtilities.new(0)
+        );
         if (!total.isGreaterThan(0)) {
             throw new BadRequestError($ts`The total of an expense needs to be above 0.`);
         }

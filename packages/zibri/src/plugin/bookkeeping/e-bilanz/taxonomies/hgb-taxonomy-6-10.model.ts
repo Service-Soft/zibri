@@ -1,4 +1,4 @@
-/* eslint-disable cspell/spellchecker, stylistic/max-len */
+/* eslint-disable cspell/spellchecker, stylistic/max-len, sonar/no-duplicate-string */
 // (c) XBRL Deutschland e.V. - see http://www.xbrl.de
 // Extracted from german-gaap-taxonomy-v6.10-2026-04-01.zip (SHA-256 8e5ceb61a65aa46c6b1b6d86dce2a207ebfae1fecdbb4012687ac2316b258457) by scripts/build-e-bilanz-taxonomy.mjs, and shortened:
 // the positions, columns and fields a corporation reports to the tax administration. Rebuild it with the script

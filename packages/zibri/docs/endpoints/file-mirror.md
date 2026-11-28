@@ -61,7 +61,8 @@ The invoicing plugin hands every invoice a write issues to each [posting](../plu
 
 ```ts
 // src/services/invoice-mirror.posting.ts
-import { FileMirrorServiceInterface, inject, Injectable, Invoice, InvoicePdfServiceInterface, InvoicePostingInterface, PdfDocument, Repository, repositoryTokenFor, RepositoryTransaction, TenantWebDavConnection, WebDavConnectionKind, ZIBRI_DI_TOKENS, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri';
+import { FileMirrorServiceInterface, inject, Injectable, PdfDocument, Repository, repositoryTokenFor, RepositoryTransaction, TenantWebDavConnection, WebDavConnectionKind, ZIBRI_DI_TOKENS } from 'zibri';
+import { Invoice, InvoicePdfServiceInterface, InvoicePostingInterface, ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from 'zibri/plugin/invoicing';
 
 @Injectable()
 export class InvoiceMirrorPosting implements InvoicePostingInterface {
@@ -93,7 +94,8 @@ export class InvoiceMirrorPosting implements InvoicePostingInterface {
 
 ```ts
 // src/providers.ts
-import { defineProvider, InjectionToken, INVOICE_POSTING_DI_VARIANT, InvoicePostingInterface } from 'zibri';
+import { defineProvider, InjectionToken } from 'zibri';
+import { INVOICE_POSTING_DI_VARIANT, InvoicePostingInterface } from 'zibri/plugin/invoicing';
 
 import { InvoiceMirrorPosting } from './services/invoice-mirror.posting';
 
@@ -107,7 +109,7 @@ defineProvider({
 What a posting throws refuses the write, so a pdf that cannot be rendered keeps the invoice from being issued. The file is written once the invoice is.
 
 ## Handling a file somebody changed
-A file is created under `If-None-Match: *`, and written again under `If-Match` of the ETag written last. A file somebody changed in the folder has another ETag, and is left as it is. Its `MirroredFile` keeps the version written last and records the conflict, `CHANGED`, with `conflictAt`, and a warning is logged:
+A file is created under `If-None-Match: *`, and written again under `If-Match` of the ETag written last. A file somebody changed in the folder has another ETag, and is left as it is. On a Nextcloud, which names the same ETag for a change in the second of the write before, each file is written with the checksum of what it holds, and a file holding another checksum or none is changed as well. Its `MirroredFile` keeps the version written last and records the conflict, `CHANGED`, with `conflictAt`, and a warning is logged:
 
 | `conflict` | The file |
 |---|---|

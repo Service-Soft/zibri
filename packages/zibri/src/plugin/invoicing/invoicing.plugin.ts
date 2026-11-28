@@ -4,11 +4,11 @@ import { KEPT_ROW_CHECK_DI_VARIANT } from '../../backup/kept-row-check.interface
 import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { NoProviderError } from '../../di/errors/no-provider.error';
-import { InternalError } from '../../error-handling/internal-error.model';
-import { FileRecord } from '../../file/file-record.model';
 import { inject } from '../../di/inject.function';
 import { DiProvider } from '../../di/models/di-provider.model';
 import { DiTokenProviderRecord, providersFromTokenRecord } from '../../di/models/di-token.model';
+import { InternalError } from '../../error-handling/internal-error.model';
+import { FileRecord } from '../../file/file-record.model';
 import { Newable } from '../../types/newable.type';
 import { validateEntitiesRegistered } from '../../utilities/validate-entities-registered.function';
 import { validateTokensRegistered } from '../../utilities/validate-tokens-registered.function';
@@ -118,7 +118,8 @@ export class ZibriInvoicingPlugin extends ZibriPlugin {
         // a declared InvoiceDocument reads the name, which the check of the file stores refuses as not registered,
         // with this name in its message
         DOCUMENT_FILE_STORE: {
-            useFactory: () => inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS).archive?.store ?? 'none, as the invoicing options name no archive'
+            useFactory: () => inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.OPTIONS).archive?.store
+                ?? 'none, as the invoicing options name no archive'
         }
     };
 

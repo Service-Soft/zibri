@@ -18,7 +18,8 @@ export class RecurringTaskCronJob extends CronJob {
     // eslint-disable-next-line jsdoc/require-jsdoc
     readonly initialConfig: InitialCronConfig = {
         name: 'Recurring Tasks',
-        cron: CronExpression.daily().at(30, 'minutes').build(),
+        cron: CronExpression.daily().at(30, 'minutes')
+            .build(),
         runOnInit: false,
         // a run creates whatever is due and was not created, so one run makes up for a week of them
         catchUpWithinInMs: Ms.WEEK

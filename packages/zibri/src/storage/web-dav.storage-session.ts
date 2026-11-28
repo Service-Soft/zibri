@@ -201,7 +201,9 @@ export class WebDavStorageSession implements StorageSessionInterface {
     private resolveSegments(key: string): string[] {
         const segments: string[] = this.naming.resolveKeySegments(key);
         if (segments.some(segment => segment.startsWith(UPLOAD_PREFIX))) {
-            throw new InternalError(`The key "${key}" of the ${this.naming.subject} needs segments that do not start with "${UPLOAD_PREFIX}".`);
+            throw new InternalError(
+                `The key "${key}" of the ${this.naming.subject} needs segments that do not start with "${UPLOAD_PREFIX}".`
+            );
         }
         return segments;
     }
@@ -251,7 +253,11 @@ export class WebDavStorageSession implements StorageSessionInterface {
      * @param files - The segments of each file, below the folder of the store.
      */
     private async deleteFiles(files: string[][]): Promise<void> {
-        await PromiseUtilities.allChunked(files, async file => await this.deleteIfThere(this.resolvePath(file)), { chunkSize: REQUESTS_AT_ONCE });
+        await PromiseUtilities.allChunked(
+            files,
+            async file => await this.deleteIfThere(this.resolvePath(file)),
+            { chunkSize: REQUESTS_AT_ONCE }
+        );
         const removedFolders: string[] = await this.removeEmptiedFolders(files);
         await this.handleDeleted([...files.map(file => this.resolvePath(file)), ...removedFolders]);
     }

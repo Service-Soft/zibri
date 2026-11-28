@@ -80,6 +80,7 @@ thing it is:
 | `.type.ts` | A standalone type alias |
 | `.test.ts` | Tests for the file of the same name |
 | `.browser.test.ts` | Tests of what the file of the same name does in a real browser |
+| `.container.test.ts` | Tests that start containers: Postgres, Valkey, or a server such as Apache. A word naming them goes before the suffix only where two would share a name, as `key-reconciliation.postgres.container.test.ts` and `key-reconciliation.valkey.container.test.ts` |
 | `.cases.ts` | Test cases shared by several `.test.ts` files |
 | `.instance-options.ts` | What every instance of the `.cluster.test.ts` beside it boots with |
 
@@ -213,6 +214,7 @@ that is never red is not a suite that is passing. Leave it red and report it.
 | Script | Covers |
 |---|---|
 | `test:normal` | Everything except the below |
+| `test:container` | `*.container.test.ts`, with half as many workers as the machine has cores: every suite starts containers of its own, and more of them at once starved each other into timeouts |
 | `test:cluster` | `*.cluster.test.ts`, in band |
 | `test:nextcloud` | `*.nextcloud.test.ts`, in band: what Nextcloud does, against Nextcloud in a container |
 | `test:benchmark` | `*.benchmark.test.ts`, in band: timings reported against a `*.baseline.json` beside each suite, never failing |
@@ -273,8 +275,10 @@ Finding an element by its role checks the role as a side effect, and whoever lat
 way removes a check they did not know was there. No line of a test checks something in passing while
 doing something else.
 
-**Most suites need a container runtime.** `startTestServer()` starts Postgres and ValKey through
-testcontainers, so they need Docker or Podman running.
+**A suite that starts containers is a `.container.test.ts`.** `startTestServer()` starts Postgres and
+ValKey through testcontainers for a data source that names them, which needs Docker or Podman running.
+Named otherwise, it runs in `test:normal` beside every other suite, and their containers starve each
+other there.
 
 **Share cases rather than copying them.** A behaviour that has to hold on several data sources goes
 in a `.cases.ts` file exporting a `describeX(name, () => repository)` function, and each data

@@ -679,10 +679,15 @@ export function describeInvitations(
                     const user: JwtUser = await users().findOne({ where: { email: invitation.email } });
                     expect(user.emailVerifiedAt).toBeInstanceOf(Date);
                     expect((await findMembership(user.id, invitation.tenantId ?? ''))?.roles).toEqual([MemberRoles.USER]);
-                    expect(await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
-                        .findOne({ where: { userId: user.id }, required: false })).toBeUndefined();
+                    expect(await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(
+                        repositoryTokenFor(PasswordCredentials)
+                    ).findOne({ where: { userId: user.id }, required: false })).toBeUndefined();
                     expect(await auditEvents()).toEqual(expect.arrayContaining([
-                        expect.objectContaining({ action: AuditAction.INVITATION_ACCEPTED, outcome: AuditOutcome.SUCCESS, subject: invitation.email }),
+                        expect.objectContaining({
+                            action: AuditAction.INVITATION_ACCEPTED,
+                            outcome: AuditOutcome.SUCCESS,
+                            subject: invitation.email
+                        }),
                         expect.objectContaining({ action: AuditAction.LOGIN_LINK_USED, outcome: AuditOutcome.SUCCESS, userId: user.id }),
                         expect.objectContaining({ action: AuditAction.LOGIN, outcome: AuditOutcome.SUCCESS, userId: user.id })
                     ]));
@@ -693,8 +698,9 @@ export function describeInvitations(
                     const { invitation, token } = await invite(await createOperator(), { withoutPassword: true, createOn: 'invite' });
 
                     expect((await post('/accept-invitation', { token })).status).toBe(200);
-                    expect(await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(repositoryTokenFor(PasswordCredentials))
-                        .findOne({ where: { userId: invitation.createdUserId ?? '' }, required: false })).toBeUndefined();
+                    expect(await inject<Repository<PasswordCredentials, PasswordCredentialsCreateData>>(
+                        repositoryTokenFor(PasswordCredentials)
+                    ).findOne({ where: { userId: invitation.createdUserId ?? '' }, required: false })).toBeUndefined();
                 });
 
                 it('refuses a password for the account it creates', async () => {

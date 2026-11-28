@@ -29,7 +29,7 @@ const rent: BookkeepingAccount = account('4210', BookkeepingAccountType.EXPENSE)
 describe('JournalEntryUtilities', () => {
     // what validateLines refuses is in the cases of the books, whose messages need a started application
     it('takes lines whose debits add up to their credits', () => {
-        const line = (debit: string | null, credit: string | null): NewJournalEntryLine => ({
+        const line: (debit: string | null, credit: string | null) => NewJournalEntryLine = (debit, credit) => ({
             accountId: bank.id,
             debit: debit == undefined ? null : new BigNumber(debit),
             credit: credit == undefined ? null : new BigNumber(credit)

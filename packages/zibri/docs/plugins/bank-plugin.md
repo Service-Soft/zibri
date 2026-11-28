@@ -44,13 +44,14 @@ keywords: [camt, camt.053, iso 20022, bank statements, bank import, account stat
 `zibri-contract` has the models of the routes for your frontend: `BankAccountModel`, `NewBankAccountModel`, `BankStatementModel`, `BankStatementImportModel`, `BankTransactionModel`, `BankTransactionDetailsModel`, `BankTransactionQueryModel` for the query of `GET /transactions`, `BankTransactionStatus`, `BankTransactionSuggestionModel`, `ArchivedFileModel`, `BankMatchModel`, `BankMatchTargetType`, `BankMatchInputModel` for the input of the requests of `'bank.match'`, `BankMatchReason` and the permissions.
 
 ## Setting it up
-Add `new ZibriBankPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `BankAccount`, `BankStatement`, `BankTransaction` and `BankTransactionState` to the `entities` of your data source, beside what an [archived entity](../data/archive.md#archiving-a-type-of-document) needs.
+Add `new ZibriBankPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `BankAccount`, `BankStatement`, `BankTransaction` and `BankTransactionState` to the `entities` of your data source, beside what an [archived entity](../data/archive.md#archiving-a-type-of-document) needs. You import the names of the plugin from `zibri/plugin/bank`.
 
 The original files are kept in the file store named `bank-statements`, unless `store` of the options names another, see [keeping the original files](#keeping-the-original-files). Register it, of whichever storage you keep your documents in, see [registering a file store](../data/files.md#registering-a-file-store):
 
 ```ts
 // src/files/bank-statement.file-store.ts
-import { BANK_STATEMENT_FILE_STORE_NAME, FileStore, FsFileStore, FsUtilities } from 'zibri';
+import { FileStore, FsFileStore, FsUtilities } from 'zibri';
+import { BANK_STATEMENT_FILE_STORE_NAME } from 'zibri/plugin/bank';
 
 @FileStore()
 export class BankStatementFileStore extends FsFileStore {
@@ -65,7 +66,8 @@ Extend `BankController` with a `@Controller` of your own, at the path you choose
 
 ```ts
 // src/controllers/bank.controller.ts
-import { BankController, Controller } from 'zibri';
+import { Controller } from 'zibri';
+import { BankController } from 'zibri/plugin/bank';
 
 @Controller('/bank', { versions: 'all' })
 export class AppBankController extends BankController {}
@@ -75,7 +77,8 @@ Add the store and the controller to your application:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, ZibriApplicationOptions, ZibriBankPlugin } from 'zibri';
+import { OmitStrict, ZibriApplicationOptions } from 'zibri';
+import { ZibriBankPlugin } from 'zibri/plugin/bank';
 
 import { AppBankController } from './controllers/bank.controller';
 import { BankStatementFileStore } from './files/bank-statement.file-store';
@@ -98,7 +101,8 @@ Spread `ZIBRI_BANK_PERMISSIONS` into your tenant permissions, see [declaring per
 
 ```ts
 // src/models/permissions.ts
-import { DefinedPermissions, definePermissions, ZIBRI_BANK_PERMISSIONS, ZIBRI_PERMISSIONS } from 'zibri';
+import { DefinedPermissions, definePermissions, ZIBRI_PERMISSIONS } from 'zibri';
+import { ZIBRI_BANK_PERMISSIONS } from 'zibri/plugin/bank';
 
 const PERMISSIONS = [...ZIBRI_PERMISSIONS, ...ZIBRI_BANK_PERMISSIONS, 'invoices.read'] as const;
 
@@ -139,7 +143,8 @@ curl https://api.example.com/bank/statements \
 
 ```ts
 // src/services/statement-import.function.ts
-import { BankStatementImport, inject, ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { BankStatementImport, ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri/plugin/bank';
 
 export async function importStatementFile(name: string, data: Buffer): Promise<BankStatementImport> {
     return await inject(ZIBRI_BANK_PLUGIN_DI_TOKENS.BANK_STATEMENT_SERVICE).importStatements({ name, data });
@@ -202,7 +207,8 @@ The options name another store and another retention, such as the store of your 
 
 ```ts
 // src/providers.ts
-import { defineProvider, DiProvider, ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri/plugin/bank';
 
 export const bankProviders: DiProvider<unknown>[] = [
     defineProvider({
@@ -227,7 +233,8 @@ A match says which invoice of the [invoicing plugin](./invoicing-plugin.md) a tr
 
 ```ts
 // src/providers.ts
-import { defineProvider, DiProvider, ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri/plugin/bank';
 
 export const bankMatchingProviders: DiProvider<unknown>[] = [
     defineProvider({
@@ -339,7 +346,8 @@ A match of an account is always confirmed by a person.
 
 ```ts
 // src/providers.ts
-import { defineProvider, DiProvider, ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri/plugin/bank';
 
 export const bankAutoApprovingProviders: DiProvider<unknown>[] = [
     defineProvider({
@@ -360,7 +368,9 @@ The [policy](./approval-plugin.md#approving-automatically) is named `confidence-
 
 ```ts
 // src/services/bank-matching.function.ts
-import { ApprovalRequestDetails, inject, ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { ApprovalRequestDetails } from 'zibri/plugin/approval';
+import { ZIBRI_BANK_PLUGIN_DI_TOKENS } from 'zibri/plugin/bank';
 
 export async function suggestBankMatches(): Promise<ApprovalRequestDetails[]> {
     return await inject(ZIBRI_BANK_PLUGIN_DI_TOKENS.BANK_MATCH_SERVICE).suggestMatches();

@@ -34,10 +34,12 @@ let connectionId: string;
 beforeAll(async () => {
     server = await WebDavTestServerUtilities.startNextcloud({ username: 'ada', password: 'Lovelace-1815-Analytical' });
     testServer = await startTestServer({
-        dataSources: [createInMemoryDataSource({
-            entities: [...defaultTestServerEntities, TenantWebDavConnection, MirroredFile, FileMirrorRequest, FileMirrorShareLink],
-            repositories: defaultTestServerRepositories
-        })],
+        dataSources: [
+            createInMemoryDataSource({
+                entities: [...defaultTestServerEntities, TenantWebDavConnection, MirroredFile, FileMirrorRequest, FileMirrorShareLink],
+                repositories: defaultTestServerRepositories
+            })
+        ],
         providers: [
             ...defaultTestServerProviders,
             // the container is reached on this machine, over plain http
@@ -56,7 +58,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
     await testServer?.shutdown();
-    await server?.container.stop();
+    await server?.stop();
 }, TestTimeouts.inMemory.shutdown);
 
 describeFileMirror('Nextcloud', () => {

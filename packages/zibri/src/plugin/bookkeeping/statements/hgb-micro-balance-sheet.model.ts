@@ -1,7 +1,7 @@
 import { $t } from '../../../localization/translate.function';
 import { BookkeepingStatementUtilities } from '../bookkeeping-statement.utilities';
-import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { type BookkeepingStatementStructure } from '../models/bookkeeping-statement-structure.model';
+import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { HGB_BALANCE_SHEET } from './hgb-balance-sheet.model';
 
 /**
@@ -18,6 +18,9 @@ export const HGB_MICRO_BALANCE_SHEET: BookkeepingStatementStructure = {
     positions: ['assets', 'equity-and-liabilities'].map(side => BookkeepingStatementUtilities.resolveRolledUpPosition(
         HGB_BALANCE_SHEET,
         side,
-        ['A', 'B', 'C', 'D', 'E'].map(letter => BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, `${side}.${letter}`))
+        ['A', 'B', 'C', 'D', 'E'].map(letter => BookkeepingStatementUtilities.resolveRolledUpPosition(
+            HGB_BALANCE_SHEET,
+            `${side}.${letter}`
+        ))
     ))
 };

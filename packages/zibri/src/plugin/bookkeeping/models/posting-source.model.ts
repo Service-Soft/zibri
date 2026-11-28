@@ -1,6 +1,6 @@
-import { type Invoice } from '../../invoicing/models/invoice.model';
 import { type BankMatch } from '../../bank/models/bank-match.model';
 import { type BankTransaction } from '../../bank/models/bank-transaction.model';
+import { type Invoice } from '../../invoicing/models/invoice.model';
 import { type Expense } from './expense.model';
 import { type PostingSourceType } from './posting-source-type.enum';
 

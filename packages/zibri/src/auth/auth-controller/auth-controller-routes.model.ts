@@ -68,8 +68,11 @@ export type AuthControllerCurrentUserRoutes = {
 export type AuthControllerInvitationRoutes = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     verifyInvitationToken: (input: InvitationTokenInput) => Promise<InvitationTokenValidity>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     // strategy optional, so that an override of 3.2 calling the route through super with two arguments still compiles
+    /**
+     * Accepts an invitation, and logs in the account it created when the invitation sets no password.
+     */
     acceptInvitation: (user: CurrentUser | undefined, input: AcceptInvitationInput, strategy?: string) => Promise<unknown>,
     // eslint-disable-next-line jsdoc/require-jsdoc
     declineInvitation: (input: InvitationTokenInput) => Promise<void>

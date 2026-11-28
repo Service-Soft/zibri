@@ -1,5 +1,6 @@
 import { Readable } from 'node:stream';
 import { finished } from 'node:stream/promises';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 import { TenantTransportNetwork } from '../backup/tenant/tenant-transport-network.model';
 import { ZIBRI_DI_TOKENS } from '../di/default/zibri-di-tokens.default';
@@ -49,6 +50,11 @@ const OVERWRITE_HEADER: string = 'overwrite';
 const MAX_LISTING_SIZE: FileSize = '32mb';
 // what a server says beside a status that is the whole answer, such as the html page of a 201
 const MAX_IGNORED_BODY_SIZE: FileSize = '1mb';
+
+/**
+ * How long a folder is waited for between the attempts to create one that is locked, before what is there is read.
+ */
+const LOCKED_FOLDER_RETRY_DELAYS_IN_MS: readonly number[] = [100, 200, 400, 800];
 
 // the status line of a group of properties the server found, such as `HTTP/1.1 200 OK`
 const SUCCESS_STATUS_LINE: RegExp = /^HTTP\/\S+ 2\d\d\b/;
@@ -104,6 +110,11 @@ export class WebDavClient {
      * Whether the host of a tenant's connection was checked.
      */
     private networkValidated: boolean = false;
+
+    /**
+     * The folders being created, by their path, which a call creating the same one waits for.
+     */
+    private readonly foldersBeingCreated: Map<string, Promise<void>> = new Map();
 
     /**
      * Creates the client of a folder.
@@ -200,31 +211,80 @@ export class WebDavClient {
      * @throws {WebDavConflictError} When the folder the file is in does not exist.
      */
     async put(path: string, content: string | Uint8Array | HttpClientBufferedBody, options: WebDavPutOptions): Promise<string | undefined> {
+        return await this.putWithHeaders(path, content, options, {});
+    }
+
+    /**
+     * Writes a file with further headers, for a class building on this one whose server reads one, such as the
+     * checksum Nextcloud keeps with a file.
+     * @param path - The path of the file. The folder it is in exists.
+     * @param content - What the file holds.
+     * @param options - Its content type, and the condition it is written under.
+     * @param headers - The further headers.
+     * @returns The ETag of what was written, or undefined when the server names none in its answer.
+     * @throws {WebDavPreconditionFailedError} When the condition does not hold.
+     * @throws {WebDavConflictError} When the folder the file is in does not exist.
+     */
+    protected async putWithHeaders(
+        path: string,
+        content: string | Uint8Array | HttpClientBufferedBody,
+        options: WebDavPutOptions,
+        headers: Record<string, string>
+    ): Promise<string | undefined> {
         const url: string = this.resolveUrl(path, false);
         const requestOptions: WebDavRequestOptions = await this.resolveRequestOptions();
         const conditions: Record<string, string> = {
             ...options.ifMatch == undefined ? {} : { [KnownHeader.IF_MATCH]: options.ifMatch },
             ...options.ifNoneMatch == undefined ? {} : { [KnownHeader.IF_NONE_MATCH]: options.ifNoneMatch }
         };
-        return await this.sendMappingErrors(path, async () => {
-            const body: string | HttpClientBufferedBody = typeof content === 'string' || content instanceof HttpClientBufferedBody
-                ? content
-                : new HttpClientBufferedBody([content]);
-            const response: HttpClientResponse<Readable, Record<string, string | undefined>> = await this.httpClient.put(url, body, {
-                ...requestOptions,
-                // once under a condition: an attempt that reached the server changed the ETag, so a repeat after
-                // its answer got lost is refused for what the first one did, and reports a put that succeeded as
-                // a conflict
-                attempts: Object.keys(conditions).length ? 1 : requestOptions.attempts,
-                headers: { ...requestOptions.headers, ...conditions, [KnownHeader.CONTENT_TYPE]: options.contentType },
-                // the bytes go as they are, under the type the caller named
-                requestBodyType: MimeType.OCTET_STREAM,
-                responseBody: { type: MimeType.OCTET_STREAM, maxSize: MAX_IGNORED_BODY_SIZE },
-                responseHeaders: { [KnownHeader.ETAG]: { type: 'string', required: false } }
-            });
-            await this.discard(response.body);
-            return response.headers[KnownHeader.ETAG];
+        try {
+            return await this.sendPut(url, content, requestOptions, conditions, headers, options);
+        }
+        catch (error) {
+            // a put needs nothing at its own path, so a 404 is of the folder it is in: Nextcloud answers a folder that
+            // does not exist with one, where RFC 4918 says 409
+            if (error instanceof HttpClientError && WebDavClient.findStatus(error) === HttpStatus.NOT_FOUND) {
+                throw new WebDavConflictError(path, error);
+            }
+            throw WebDavClient.resolveError(path, error);
+        }
+    }
+
+    /**
+     * Sends the PUT of a file.
+     * @param url - The url of the file.
+     * @param content - What the file holds.
+     * @param requestOptions - What every request of the connection is sent with.
+     * @param conditions - The headers of the condition it is written under.
+     * @param headers - The further headers.
+     * @param options - Its content type, and the condition it is written under.
+     * @returns The ETag of what was written, or undefined when the server names none in its answer.
+     */
+    private async sendPut(
+        url: string,
+        content: string | Uint8Array | HttpClientBufferedBody,
+        requestOptions: WebDavRequestOptions,
+        conditions: Record<string, string>,
+        headers: Record<string, string>,
+        options: WebDavPutOptions
+    ): Promise<string | undefined> {
+        const body: string | HttpClientBufferedBody = typeof content === 'string' || content instanceof HttpClientBufferedBody
+            ? content
+            : new HttpClientBufferedBody([content]);
+        const response: HttpClientResponse<Readable, Record<string, string | undefined>> = await this.httpClient.put(url, body, {
+            ...requestOptions,
+            // once under a condition: an attempt that reached the server changed the ETag, so a repeat after
+            // its answer got lost is refused for what the first one did, and reports a put that succeeded as
+            // a conflict
+            attempts: Object.keys(conditions).length ? 1 : requestOptions.attempts,
+            headers: { ...requestOptions.headers, ...headers, ...conditions, [KnownHeader.CONTENT_TYPE]: options.contentType },
+            // the bytes go as they are, under the type the caller named
+            requestBodyType: MimeType.OCTET_STREAM,
+            responseBody: { type: MimeType.OCTET_STREAM, maxSize: MAX_IGNORED_BODY_SIZE },
+            responseHeaders: { [KnownHeader.ETAG]: { type: 'string', required: false } }
         });
+        await this.discard(response.body);
+        return response.headers[KnownHeader.ETAG];
     }
 
     /**
@@ -257,8 +317,40 @@ export class WebDavClient {
             });
         }
         catch (error) {
+            const status: HttpStatus | undefined = WebDavClient.findStatus(error);
             // a 404 is about what is moved, every other refusal about where it goes
-            throw WebDavClient.resolveError(WebDavClient.findStatus(error) === HttpStatus.NOT_FOUND ? from : to, error);
+            if (status === HttpStatus.NOT_FOUND) {
+                throw WebDavClient.resolveError(from, error);
+            }
+            // a server need not answer a folder that is not there with the 409 of RFC 4918: Apache renames, and
+            // answers a 500. So a refusal saying nothing of its own is judged by whether the folder is there
+            if (
+                error instanceof HttpClientError && status != undefined
+                && status !== HttpStatus.PRECONDITION_FAILED && status !== HttpStatus.CONFLICT
+                && await this.isMissingFolderOf(to)
+            ) {
+                throw new WebDavConflictError(to, error);
+            }
+            throw WebDavClient.resolveError(to, error);
+        }
+    }
+
+    /**
+     * Resolves whether the folder a path is in is missing.
+     * @param path - The path.
+     * @returns True when no folder is where it would be, false when one is, or when that cannot be read.
+     */
+    private async isMissingFolderOf(path: string): Promise<boolean> {
+        const segments: string[] = this.resolveSegments(path, false);
+        // the folder of the connection is there, or no request would have been answered
+        if (segments.length < 2) {
+            return false;
+        }
+        try {
+            return (await this.findEntry(segments.slice(0, -1).join('/')))?.kind !== 'folder';
+        }
+        catch {
+            return false;
         }
     }
 
@@ -285,7 +377,10 @@ export class WebDavClient {
      * @returns Them, in the order the server names them.
      * @throws {WebDavNotFoundError} When there is no folder at the path.
      */
-    async findEntries<TProperty extends string>(path: string, properties: Record<TProperty, WebDavProperty>): Promise<WebDavEntry<TProperty>[]>;
+    async findEntries<TProperty extends string>(
+        path: string,
+        properties: Record<TProperty, WebDavProperty>
+    ): Promise<WebDavEntry<TProperty>[]>;
     async findEntries(path: string, properties: Record<string, WebDavProperty> = {}): Promise<WebDavEntry<string>[]> {
         const segments: string[] = this.resolveSegments(path, true);
         const multistatus: WebDavMultistatus = await this.sendMappingErrors(
@@ -313,7 +408,10 @@ export class WebDavClient {
      * @param properties - The further properties, by the name each is read under in `properties` of the entry.
      * @returns It, or undefined when there is nothing at the path.
      */
-    async findEntry<TProperty extends string>(path: string, properties: Record<TProperty, WebDavProperty>): Promise<WebDavEntry<TProperty> | undefined>;
+    async findEntry<TProperty extends string>(
+        path: string,
+        properties: Record<TProperty, WebDavProperty>
+    ): Promise<WebDavEntry<TProperty> | undefined>;
     async findEntry(path: string, properties: Record<string, WebDavProperty> = {}): Promise<WebDavEntry<string> | undefined> {
         const segments: string[] = this.resolveSegments(path, true);
         let multistatus: WebDavMultistatus;
@@ -381,6 +479,45 @@ export class WebDavClient {
             case HttpStatus.FORBIDDEN: {
                 return new WebDavForbiddenError(path, error);
             }
+            case HttpStatus.CONTINUE:
+            case HttpStatus.SWITCHING_PROTOCOLS:
+            case HttpStatus.PROCESSING:
+            case HttpStatus.OK:
+            case HttpStatus.CREATED:
+            case HttpStatus.ACCEPTED:
+            case HttpStatus.NON_AUTHORITATIVE_INFORMATION:
+            case HttpStatus.NO_CONTENT:
+            case HttpStatus.RESET_CONTENT:
+            case HttpStatus.PARTIAL_CONTENT:
+            case HttpStatus.MULTIPLE_CHOICES:
+            case HttpStatus.MOVED_PERMANENTLY:
+            case HttpStatus.FOUND:
+            case HttpStatus.SEE_OTHER:
+            case HttpStatus.NOT_MODIFIED:
+            case HttpStatus.TEMPORARY_REDIRECT:
+            case HttpStatus.PERMANENT_REDIRECT:
+            case HttpStatus.BAD_REQUEST:
+            case HttpStatus.UNAUTHORIZED:
+            case HttpStatus.PAYMENT_REQUIRED:
+            case HttpStatus.METHOD_NOT_ALLOWED:
+            case HttpStatus.NOT_ACCEPTABLE:
+            case HttpStatus.REQUEST_TIMEOUT:
+            case HttpStatus.GONE:
+            case HttpStatus.CONTENT_TOO_LARGE:
+            case HttpStatus.URI_TOO_LONG:
+            case HttpStatus.UNSUPPORTED_MEDIA_TYPE:
+            case HttpStatus.UNPROCESSABLE_ENTITY:
+            case HttpStatus.LOCKED:
+            case HttpStatus.TOO_MANY_REQUESTS:
+            case HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE:
+            case HttpStatus.INTERNAL_SERVER_ERROR:
+            case HttpStatus.NOT_IMPLEMENTED:
+            case HttpStatus.BAD_GATEWAY:
+            case HttpStatus.SERVICE_UNAVAILABLE:
+            case HttpStatus.GATEWAY_TIMEOUT:
+            case HttpStatus.HTTP_VERSION_NOT_SUPPORTED:
+            case undefined:
+            // a status the enum does not name, such as a 207 of WebDAV
             default: {
                 return error;
             }
@@ -453,15 +590,18 @@ export class WebDavClient {
         const names: string[] = properties.map(property => property.name);
         const refused: string | undefined = names.find((name, index) => !PROPERTY_NAME.test(name)
             || RESERVED_PROPERTY_NAMES.includes(name)
-            || names.indexOf(name) !== index);
+            || names.indexOf(name) !== index)
+        ?? properties.map(property => property.child).find(child => child != undefined && !PROPERTY_NAME.test(child));
         if (refused != undefined) {
             // the answer is read by the names of its elements alone, whatever their namespace
             throw new InternalError(
-                `A further property of a WebDAV entry needs a name an xml element can have, of no property every entry is `
+                'A further property of a WebDAV entry needs a name an xml element can have, of no property every entry is '
                 + `read from and of no other property asked for, and "${refused}" is not one.`
             );
         }
-        const prefixes: string = properties.map((property, index) => ` xmlns:p${index}="${HtmlUtilities.escape(property.namespace)}"`).join('');
+        const prefixes: string = properties
+            .map((property, index) => ` xmlns:p${index}="${HtmlUtilities.escape(property.namespace)}"`)
+            .join('');
         const elements: string = properties.map((property, index) => `<p${index}:${property.name}/>`).join('');
         return XmlUtilities.resolveXmlString(
             `<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"${prefixes}><d:prop>`
@@ -472,16 +612,19 @@ export class WebDavClient {
     /**
      * Finds the text of a property among the properties a server found.
      * @param props - The properties of each group the server found.
-     * @param name - The name of the property, without its namespace.
+     * @param property - The property, and the element it holds whose text it is read as, if it is read so.
      * @returns The text, or undefined when no group holds it as text.
      */
-    private static findText(props: WebDavProp[], name: string): string | undefined {
+    private static findText(props: WebDavProp[], property: WebDavProperty): string | undefined {
         for (const prop of props) {
             // a property the model does not declare is kept under its own name, as its text, or as an object of
             // what it holds for one holding elements
-            const value: unknown = Reflect.get(prop, name);
-            if (typeof value === 'string') {
-                return value;
+            const value: unknown = Reflect.get(prop, property.name);
+            const text: unknown = property.child != undefined && typeof value === 'object' && value != undefined
+                ? Reflect.get(value, property.child)
+                : value;
+            if (typeof text === 'string') {
+                return text;
             }
         }
         return undefined;
@@ -512,10 +655,7 @@ export class WebDavClient {
      * @throws {InternalError} When a segment is empty, `.` or `..`.
      */
     private resolveSegments(path: string, allowsRoot: boolean): string[] {
-        if (path === '' && allowsRoot) {
-            return [];
-        }
-        return StorageUtilities.resolveKeySegments(`WebDAV folder ${this.baseUrl.href}`, path);
+        return path === '' && allowsRoot ? [] : StorageUtilities.resolveKeySegments(`WebDAV folder ${this.baseUrl.href}`, path);
     }
 
     /**
@@ -536,6 +676,30 @@ export class WebDavClient {
      * @throws {WebDavConflictError} When a file is where the folder, or a folder above it, would be.
      */
     private async createFolderAt(segments: string[]): Promise<void> {
+        // the calls creating one folder at once wait for the same requests, rather than each sending their own and
+        // racing for it: the files of a backup or a mirror are put into one new folder at once
+        const key: string = segments.join('/');
+        const creating: Promise<void> | undefined = this.foldersBeingCreated.get(key);
+        if (creating != undefined) {
+            await creating;
+            return;
+        }
+        const created: Promise<void> = this.createFolderAtOnce(segments);
+        this.foldersBeingCreated.set(key, created);
+        try {
+            await created;
+        }
+        finally {
+            this.foldersBeingCreated.delete(key);
+        }
+    }
+
+    /**
+     * Creates a folder, and the folders above it that do not exist, for the one call that does.
+     * @param segments - The segments of the path of the folder.
+     * @throws {WebDavConflictError} When a file is where the folder, or a folder above it, would be.
+     */
+    private async createFolderAtOnce(segments: string[]): Promise<void> {
         const missingParent: HttpClientError | undefined = await this.resolveFolderCreation(segments);
         if (missingParent == undefined) {
             return;
@@ -562,28 +726,69 @@ export class WebDavClient {
     private async resolveFolderCreation(segments: string[]): Promise<HttpClientError | undefined> {
         const path: string = segments.join('/');
         try {
-            await this.sendIgnoringBody(WebDavMethod.MKCOL, this.resolveUrlOf(segments, true), {});
+            await this.sendFolderCreation(segments);
             return undefined;
         }
         catch (error) {
             if (!(error instanceof HttpClientError)) {
                 throw error;
             }
-            switch (WebDavClient.findStatus(error)) {
-                case HttpStatus.CONFLICT: {
-                    return error;
-                }
-                // what a server answers for a folder that exists, and for a file at its path as well
-                case HttpStatus.METHOD_NOT_ALLOWED: {
-                    if ((await this.findEntry(path))?.kind !== 'folder') {
-                        throw new WebDavConflictError(path, error);
-                    }
-                    return undefined;
-                }
-                default: {
-                    throw WebDavClient.resolveError(path, error);
-                }
+            const status: HttpStatus | undefined = WebDavClient.findStatus(error);
+            if (status === HttpStatus.CONFLICT) {
+                return error;
             }
+            if (status == undefined) {
+                throw WebDavClient.resolveError(path, error);
+            }
+            // a 405 is what a server answers for a folder that exists, and for a file at its path as well. Others
+            // answer them otherwise: Apache a folder another request created between its check and its own with a
+            // 403, and a path leading into a file with a status of its own. So the refusal is judged by what is there
+            const found: WebDavEntry | undefined = await this.findEntryAfterRefusal(path, error);
+            if (found?.kind === 'folder') {
+                return undefined;
+            }
+            if (found?.kind === 'file' || status === HttpStatus.METHOD_NOT_ALLOWED) {
+                throw new WebDavConflictError(path, error);
+            }
+            throw WebDavClient.resolveError(path, error);
+        }
+    }
+
+    /**
+     * Sends the MKCOL of one folder, again while the server answers that the folder is locked: another instance creating
+     * it, which a server such as Nextcloud locks until it is done.
+     * @param segments - The segments of the path of the folder.
+     * @throws The error of the last attempt, a 423 among them once the attempts are used up.
+     */
+    private async sendFolderCreation(segments: string[]): Promise<void> {
+        for (const delayInMs of [...LOCKED_FOLDER_RETRY_DELAYS_IN_MS, undefined]) {
+            try {
+                await this.sendIgnoringBody(WebDavMethod.MKCOL, this.resolveUrlOf(segments, true), {});
+                return;
+            }
+            catch (error) {
+                if (delayInMs == undefined || WebDavClient.findStatus(error) !== HttpStatus.LOCKED) {
+                    throw error;
+                }
+                await sleep(delayInMs);
+            }
+        }
+    }
+
+    /**
+     * Finds what is at a path after a request about it was refused.
+     * @param path - The path.
+     * @param refusal - What the request was refused with.
+     * @returns What is there, or undefined when nothing is.
+     * @throws The typed error of the refusal when what is there cannot be read either.
+     */
+    private async findEntryAfterRefusal(path: string, refusal: HttpClientError): Promise<WebDavEntry | undefined> {
+        try {
+            return await this.findEntry(path);
+        }
+        catch {
+            // the refusal says more of what went wrong than the read after it
+            throw WebDavClient.resolveError(path, refusal);
         }
     }
 
@@ -604,7 +809,12 @@ export class WebDavClient {
                 ...options,
                 headers: { ...options.headers, [DEPTH_HEADER]: depth },
                 requestBodyType: MimeType.XML,
-                responseBody: { type: MimeType.XML, modelClass: WebDavMultistatus, allowAdditionalProperties: true, maxSize: MAX_LISTING_SIZE }
+                responseBody: {
+                    type: MimeType.XML,
+                    modelClass: WebDavMultistatus,
+                    allowAdditionalProperties: true,
+                    maxSize: MAX_LISTING_SIZE
+                }
             }
         );
         return response.body;
@@ -698,7 +908,9 @@ export class WebDavClient {
             size: isFolder || contentLength == undefined ? undefined : Number(contentLength),
             etag: props.map(prop => prop.etag).find(value => value != undefined && value !== ''),
             modifiedAt: modifiedAt == undefined || Number.isNaN(modifiedAt.getTime()) ? undefined : modifiedAt,
-            properties: Object.fromEntries(Object.entries(properties).map(([key, property]) => [key, WebDavClient.findText(props, property.name)]))
+            properties: Object.fromEntries(
+                Object.entries(properties).map(([key, property]) => [key, WebDavClient.findText(props, property)])
+            )
         };
     }
 }

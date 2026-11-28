@@ -1,3 +1,4 @@
+/* eslint-disable sonar/no-duplicate-string -- the days and moments are the data of each case */
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { JwtUser } from '../../__testing__/mocks/entities/jwt-user.entity';
@@ -37,13 +38,24 @@ import { type HolidayCalendarInterface } from './services/holiday-calendar.inter
  */
 
 /**
+ * The id of the one holiday calendar the application of the cases knows.
+ */
+const HOLIDAY_CALENDAR_ID: string = 'test-holidays';
+
+/**
+ * The time zone of the recurring tasks of the cases.
+ */
+const TIMEZONE: string = 'Europe/Berlin';
+
+/**
  * The holidays the application of the cases knows: the calendar `test-holidays`, whose one holiday is Friday the
  * 30th of July 2027.
  */
 const holidayCalendar: HolidayCalendarInterface = {
     findHolidays: async (calendarId, from, until) => {
-        if (calendarId !== 'test-holidays') {
-            return await Promise.resolve(undefined);
+        if (calendarId !== HOLIDAY_CALENDAR_ID) {
+            await Promise.resolve(undefined);
+            return;
         }
         const holiday: Date = new Date('2027-07-30T00:00:00.000Z');
         return await Promise.resolve(holiday >= from && holiday <= until ? [holiday] : []);
@@ -149,12 +161,23 @@ export function describeRecurringTasks(
         async function createCaller(tenantRoles: string[], tenant: string = tenantId): Promise<Caller> {
             const user: JwtUser = await inject<Repository<JwtUser>>(repositoryTokenFor(JwtUser))
                 .create({ email: `${UUIDUtilities.generate().slice(0, 8)}@recurring.test`, roles: [Roles.USER] });
-            await tenants().runAs(tenant, async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId: tenant, userId: user.id, roles: tenantRoles }));
+            await tenants().runAs(
+                tenant,
+                async () => await inject(DefaultTestServerMembershipRepository)
+                    .create({ tenantId: tenant, userId: user.id, roles: tenantRoles })
+            );
             const authService: AuthServiceInterface = inject(ZIBRI_DI_TOKENS.AUTH_SERVICE);
             const permissions: (Permission | PlatformPermission)[] = await authService.resolveUserPermissions(user, undefined);
             const key: CreatedApiKey = await authService.createApiKey(
                 user.id,
-                { name: 'cases', permissions, expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+                {
+                    name: 'cases',
+                    permissions,
+                    expiresAt: undefined,
+                    tenantId: undefined,
+                    clientAuthentication: undefined,
+                    requireDpop: false
+                },
                 undefined
             );
             return { user, headers: { 'x-api-key': key.key, 'x-tenant-id': tenant } };
@@ -184,7 +207,11 @@ export function describeRecurringTasks(
          * @param caller - Who creates it, the manager unless given.
          * @returns The project, and the first open column.
          */
-        async function createBoard(name: string, parentId?: string, caller: Caller = manager): Promise<{ projectId: string, openColumnId: string }> {
+        async function createBoard(
+            name: string,
+            parentId?: string,
+            caller: Caller = manager
+        ): Promise<{ projectId: string, openColumnId: string }> {
             const project: RowWithId = await create(caller, '/', { name, parentId: parentId ?? null });
             await create(caller, `/${project.id}/columns`, { name: 'Done', isDone: true });
             const open: RowWithId = await create(caller, `/${project.id}/columns`, { name: 'To do' });
@@ -193,7 +220,7 @@ export function describeRecurringTasks(
         }
 
         async function createRule(projectId: string, body: object, caller: Caller = member): Promise<RecurringTask> {
-            return await create<RecurringTask>(caller, `/${projectId}/recurring-tasks`, { timezone: 'Europe/Berlin', ...body });
+            return await create<RecurringTask>(caller, `/${projectId}/recurring-tasks`, { timezone: TIMEZONE, ...body });
         }
 
         async function run(now: string, tenant: string = tenantId): Promise<Task[]> {
@@ -214,20 +241,24 @@ export function describeRecurringTasks(
                     title: 'Annual return',
                     recurrence: { every: 1, unit: 'year', month: 7, dayOfMonth: 31 },
                     startsOn: '2027-01-01',
-                    timezone: 'Europe/Berlin'
+                    timezone: TIMEZONE
                 };
 
                 expect((await call(reader, 'POST', `/${projectId}/recurring-tasks`, body)).status).toBe(403);
                 const rule: RecurringTask = await createRule(projectId, body);
                 expect(rule.leadTimeInDays).toBe(14);
-                expect((await call<RecurringTask[]>(reader, 'GET', `/${projectId}/recurring-tasks`)).body.map(r => r.id)).toEqual([rule.id]);
+                expect((await call<RecurringTask[]>(reader, 'GET', `/${projectId}/recurring-tasks`)).body.map(r => r.id))
+                    .toEqual([rule.id]);
                 expect((await call(reader, 'PATCH', `/recurring-tasks/${rule.id}`, { title: 'Mine' })).status).toBe(403);
-                expect((await call<RecurringTask>(member, 'PATCH', `/recurring-tasks/${rule.id}`, { leadTimeInDays: 30 })).body.leadTimeInDays).toBe(30);
+                const changed: Answer<RecurringTask>
+                    = await call<RecurringTask>(member, 'PATCH', `/recurring-tasks/${rule.id}`, { leadTimeInDays: 30 });
+                expect(changed.body.leadTimeInDays).toBe(30);
                 const [task] = await run('2027-07-10T12:00:00.000Z');
 
                 expect((await call(member, 'DELETE', `/recurring-tasks/${rule.id}`)).status).toBe(204);
                 expect((await call(member, 'GET', `/recurring-tasks/${rule.id}`)).status).toBe(404);
-                expect((await call<{ recurringTaskId: string | null }>(member, 'GET', `/tasks/${task?.id}`)).body.recurringTaskId).toBeNull();
+                expect((await call<{ recurringTaskId: string | null }>(member, 'GET', `/tasks/${task?.id}`)).body.recurringTaskId)
+                    .toBeNull();
             });
 
             it('refuses a recurrence whose parts do not go together', async () => {
@@ -241,7 +272,11 @@ export function describeRecurringTasks(
                     { recurrence: { every: 1, unit: 'day' }, startsOn: '2027-01-01T10:00:00.000Z' }
                 ];
                 for (const body of refused) {
-                    expect((await call(member, 'POST', `/${projectId}/recurring-tasks`, { title: 'Refused', timezone: 'Europe/Berlin', ...body })).status).toBe(400);
+                    expect((await call(member, 'POST', `/${projectId}/recurring-tasks`, {
+                        title: 'Refused',
+                        timezone: TIMEZONE,
+                        ...body
+                    })).status).toBe(400);
                 }
             });
         });
@@ -326,14 +361,22 @@ export function describeRecurringTasks(
                 // Saturday the 31st of July 2027, after the holiday on Friday the 30th
                 const recurrence: object = { every: 1, unit: 'year', month: 7, dayOfMonth: 31 };
                 const { projectId } = await createBoard('Shifts');
-                await call(manager, 'PATCH', `/${projectId}/calendar`, { holidayCalendarId: 'test-holidays', nonWorkingDay: 'previous' });
+                await call(
+                    manager,
+                    'PATCH',
+                    `/${projectId}/calendar`,
+                    { holidayCalendarId: HOLIDAY_CALENDAR_ID, nonWorkingDay: 'previous' }
+                );
                 const previous: RecurringTask = await createRule(projectId, { title: 'Previous', recurrence, startsOn: '2027-01-01' });
-                const next: RecurringTask = await createRule(projectId, { title: 'Next', recurrence, startsOn: '2027-01-01', nonWorkingDay: 'next' });
-                const kept: RecurringTask = await createRule(projectId, { title: 'Kept', recurrence, startsOn: '2027-01-01', nonWorkingDay: 'keep' });
+                const next: RecurringTask
+                    = await createRule(projectId, { title: 'Next', recurrence, startsOn: '2027-01-01', nonWorkingDay: 'next' });
+                const kept: RecurringTask
+                    = await createRule(projectId, { title: 'Kept', recurrence, startsOn: '2027-01-01', nonWorkingDay: 'keep' });
 
                 await run('2027-07-31T10:00:00.000Z');
 
-                const dueOn: (rule: RecurringTask) => Promise<string | undefined> = async rule => (await occurrencesOf(rule.id))[0]?.dueOn?.toISOString();
+                const dueOn: (rule: RecurringTask) => Promise<string | undefined>
+                    = async rule => (await occurrencesOf(rule.id))[0]?.dueOn?.toISOString();
                 expect(await dueOn(previous)).toBe('2027-07-29T00:00:00.000Z');
                 expect(await dueOn(next)).toBe('2027-08-02T00:00:00.000Z');
                 expect(await dueOn(kept)).toBe('2027-07-31T00:00:00.000Z');
@@ -343,13 +386,23 @@ export function describeRecurringTasks(
                 const recurrence: object = { every: 1, unit: 'day' };
                 const paused: { projectId: string } = await createBoard('Paused');
                 const archived: { projectId: string } = await createBoard('Archived');
-                const pausedRule: RecurringTask = await createRule(paused.projectId, { title: 'Paused', recurrence, startsOn: '2027-09-01', leadTimeInDays: 0 });
-                const archivedRule: RecurringTask = await createRule(archived.projectId, { title: 'Archived', recurrence, startsOn: '2027-09-01', leadTimeInDays: 0 });
+                const pausedRule: RecurringTask = await createRule(
+                    paused.projectId,
+                    { title: 'Paused', recurrence, startsOn: '2027-09-01', leadTimeInDays: 0 }
+                );
+                const archivedRule: RecurringTask = await createRule(
+                    archived.projectId,
+                    { title: 'Archived', recurrence, startsOn: '2027-09-01', leadTimeInDays: 0 }
+                );
                 await call(member, 'PATCH', `/recurring-tasks/${pausedRule.id}`, { paused: true });
                 await call(manager, 'POST', `/${archived.projectId}/archive`);
                 const elsewhere: Caller = await createCaller([TenantRoles.MANAGER], otherTenantId);
                 const theirs: { projectId: string } = await createBoard('Theirs', undefined, elsewhere);
-                const theirRule: RecurringTask = await createRule(theirs.projectId, { title: 'Theirs', recurrence, startsOn: '2027-09-01', leadTimeInDays: 0 }, elsewhere);
+                const theirRule: RecurringTask = await createRule(
+                    theirs.projectId,
+                    { title: 'Theirs', recurrence, startsOn: '2027-09-01', leadTimeInDays: 0 },
+                    elsewhere
+                );
 
                 await run('2027-09-02T10:00:00.000Z');
 
@@ -358,7 +411,8 @@ export function describeRecurringTasks(
                 expect(await occurrencesOf(theirRule.id, otherTenantId)).toEqual([]);
                 expect((await call(manager, 'GET', `/recurring-tasks/${theirRule.id}`)).status).toBe(404);
                 await run('2027-09-02T10:00:00.000Z', otherTenantId);
-                expect((await occurrencesOf(theirRule.id, otherTenantId)).map(t => t.dueOn?.toISOString())).toEqual(['2027-09-01T00:00:00.000Z', '2027-09-02T00:00:00.000Z']);
+                expect((await occurrencesOf(theirRule.id, otherTenantId)).map(t => t.dueOn?.toISOString()))
+                    .toEqual(['2027-09-01T00:00:00.000Z', '2027-09-02T00:00:00.000Z']);
             });
         });
 
@@ -367,21 +421,34 @@ export function describeRecurringTasks(
                 const customer: { projectId: string } = await createBoard('Customer AG');
                 const website: { projectId: string } = await createBoard('Website', customer.projectId);
                 const defaults: Answer<CalendarRow> = await call(manager, 'GET', '/calendar');
-                expect(defaults.body.effective).toEqual({ workingWeekdays: [1, 2, 3, 4, 5], holidayCalendarId: null, nonWorkingDay: 'keep', calendarSync: null });
+                expect(defaults.body.effective).toEqual({
+                    workingWeekdays: [1, 2, 3, 4, 5],
+                    holidayCalendarId: null,
+                    nonWorkingDay: 'keep',
+                    calendarSync: null
+                });
 
                 expect((await call(manager, 'PATCH', '/calendar', { nonWorkingDay: 'next' })).status).toBe(200);
-                expect((await call(manager, 'PATCH', `/${customer.projectId}/calendar`, { holidayCalendarId: 'test-holidays', workingWeekdays: [1, 2, 3, 4, 5, 6] })).status)
-                    .toBe(200);
+                expect((await call(manager, 'PATCH', `/${customer.projectId}/calendar`, {
+                    holidayCalendarId: HOLIDAY_CALENDAR_ID,
+                    workingWeekdays: [1, 2, 3, 4, 5, 6]
+                })).status).toBe(200);
                 expect((await call(manager, 'PATCH', `/${website.projectId}/calendar`, { workingWeekdays: [2, 1] })).status).toBe(200);
 
                 const calendar: CalendarRow = (await call<CalendarRow>(member, 'GET', `/${website.projectId}/calendar`)).body;
                 expect(calendar).toEqual({
                     projectId: website.projectId,
                     own: { workingWeekdays: [1, 2], holidayCalendarId: null, nonWorkingDay: null, calendarSync: null },
-                    effective: { workingWeekdays: [1, 2], holidayCalendarId: 'test-holidays', nonWorkingDay: 'next', calendarSync: null }
+                    effective: {
+                        workingWeekdays: [1, 2],
+                        holidayCalendarId: HOLIDAY_CALENDAR_ID,
+                        nonWorkingDay: 'next',
+                        calendarSync: null
+                    }
                 });
                 expect((await call(manager, 'PATCH', `/${website.projectId}/calendar`, { workingWeekdays: null })).status).toBe(200);
-                expect((await call<CalendarRow>(member, 'GET', `/${website.projectId}/calendar`)).body.effective.workingWeekdays).toEqual([1, 2, 3, 4, 5, 6]);
+                expect((await call<CalendarRow>(member, 'GET', `/${website.projectId}/calendar`)).body.effective.workingWeekdays)
+                    .toEqual([1, 2, 3, 4, 5, 6]);
                 expect((await call(manager, 'PATCH', '/calendar', { nonWorkingDay: null })).status).toBe(200);
             });
 

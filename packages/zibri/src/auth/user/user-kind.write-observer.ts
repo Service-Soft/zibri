@@ -29,7 +29,8 @@ export class UserKindWriteObserver implements EntityWriteObserver {
                 continue;
             }
             // a user stored before users had a kind is a person, and writing that down changes nothing
-            if (UserKindUtilities.findKind(data) !== UserKindUtilities.findKind({ kind: Reflect.get(existing, 'kind') })) {
+            const existingKind: unknown = Reflect.get(existing, 'kind');
+            if (UserKindUtilities.findKind(data) !== UserKindUtilities.findKind({ kind: existingKind })) {
                 throw new BadRequestError($ts`The kind of a user is set when the user is created, and cannot be changed.`);
             }
         }

@@ -1,15 +1,13 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
-import {
-    type BookkeepingSettingsModel,
+import { type BookkeepingSettingsModel,
     type EBilanzContentModel,
     type EBilanzFilingModel,
     type EBilanzFindingModel,
     type EBilanzStateModel,
     type EBilanzTransmissionModel,
     type ErrorResponseBody,
-    type GermanBookkeepingCompanyModel
-} from 'zibri-contract';
+    type GermanBookkeepingCompanyModel } from 'zibri-contract';
 import { createInMemoryDataSource, InMemoryDataSource, inMemoryStoreFor } from 'zibri-testing';
 
 import { TestTimeouts } from '../../../__testing__/constants';
@@ -39,9 +37,9 @@ import { InjectionToken } from '../../../di/models/injection-token.model';
 import { type XmlElementNode } from '../../../document/xml-element-node.model';
 import { XmlReaderUtilities } from '../../../document/xml-reader.utilities';
 import { type HttpServerLimits } from '../../../http/http-server-limits.model';
-import { type Newable } from '../../../types/newable.type';
 import { Controller } from '../../../routing/decorators/controller.decorator';
 import { type TenantServiceInterface } from '../../../tenancy/tenant-service.interface';
+import { type Newable } from '../../../types/newable.type';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { MetadataUtilities } from '../../../utilities/metadata.utilities';
 import { Ms } from '../../../utilities/ms';
@@ -61,8 +59,8 @@ import { E_BILANZ_EXPORTER_DI_VARIANT, E_BILANZ_TRANSMITTER_DI_VARIANT, ZIBRI_E_
 import { EBilanzAccountingStandard } from './models/e-bilanz-accounting-standard.enum';
 import { EBilanzFilingKind } from './models/e-bilanz-filing-kind.enum';
 import { EBilanzFiling, type EBilanzFilingCreateData } from './models/e-bilanz-filing.model';
-import { EBilanzTransmissionStatus } from './models/e-bilanz-transmission-status.enum';
 import { EBilanzSettings } from './models/e-bilanz-settings.model';
+import { EBilanzTransmissionStatus } from './models/e-bilanz-transmission-status.enum';
 import { ZibriEBilanzPermissions, ZibriEBilanzPlatformPermissions } from './models/zibri-e-bilanz-permissions.model';
 import { XbrlEBilanzExporter } from './services/xbrl.e-bilanz-exporter';
 
@@ -400,7 +398,7 @@ describe('the routes of the E-Bilanz', () => {
         const { admin, fiscalYear } = await createBooks();
         await registerOtp(admin.userId);
         const otpHeader: string = inject(ZIBRI_DI_TOKENS.OTP_HEADER);
-        const code = (): Record<string, string> => ({ [otpHeader]: new TOTP({ secret: OTP_SECRET }).generate() });
+        const code: () => Record<string, string> = () => ({ [otpHeader]: new TOTP({ secret: OTP_SECRET }).generate() });
         const base: string = `e-bilanz/fiscal-years/${fiscalYear.id}`;
         const prepared: Answer<EBilanzFilingModel> = await call(`${base}/preparation`, admin, 'POST', { accountingStandard: 'unified' });
         expect((await call('e-bilanz/settings/certificate', admin, 'PUT', certificateForm('secret-pin'))).status).toBe(200);
@@ -524,9 +522,10 @@ describe('the routes of the E-Bilanz', () => {
         const filing: Answer<EBilanzFilingModel> = await call(`${base}/manual-filing`, admin, 'POST', form);
         // the url starts with the baseUrl of the application, which the server of the test is not reached at
         const url: URL = new URL(filing.body.protocol?.url ?? '');
-        const download = async (caller: Caller, search: string): Promise<Response> => await fetch(`${baseUrl}${url.pathname}${search}`, {
-            headers: { 'x-api-key': caller.key, 'x-tenant-id': caller.tenantId ?? '' }
-        });
+        const download: (caller: Caller, search: string) => Promise<Response> = async (caller, search) => await fetch(
+            `${baseUrl}${url.pathname}${search}`,
+            { headers: { 'x-api-key': caller.key, 'x-tenant-id': caller.tenantId ?? '' } }
+        );
 
         expect([url.pathname, url.searchParams.get('x-tenant-id')]).toStrictEqual([`/e-bilanz/${filing.body.id}/files/protocol`, admin.tenantId]);
         const state: Answer<EBilanzStateModel> = await call(base, reader);

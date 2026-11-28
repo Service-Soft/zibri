@@ -1,6 +1,7 @@
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { getZonedDate, ZonedDate } from '../../localization/format-date.function';
+import { getZonedDate } from '../../localization/get-zoned-date.function';
 import { type Timezone } from '../../localization/models/timezone.model';
+import { ZonedDate } from '../../localization/models/zoned-date.model';
 import { $ts } from '../../localization/translate.function';
 import { Ms } from '../../utilities/ms';
 
@@ -68,10 +69,9 @@ export abstract class BookkeepingDayUtilities {
      * @returns The last day.
      */
     static resolveDefaultEnd(start: Date, first: boolean): Date {
-        if (first) {
-            return new Date(Date.UTC(start.getUTCFullYear(), 11, 31));
-        }
         // Date.UTC runs the day over, so the 29th of February a year later is the 1st of March, the day after it
-        return this.resolvePreviousDay(new Date(Date.UTC(start.getUTCFullYear() + 1, start.getUTCMonth(), start.getUTCDate())));
+        return first
+            ? new Date(Date.UTC(start.getUTCFullYear(), 11, 31))
+            : this.resolvePreviousDay(new Date(Date.UTC(start.getUTCFullYear() + 1, start.getUTCMonth(), start.getUTCDate())));
     }
 }

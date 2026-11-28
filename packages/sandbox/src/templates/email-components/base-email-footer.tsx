@@ -1,4 +1,5 @@
-import { $ts, GlobalRegistry, MailingListTemplateData, MjColumn, MjSection, MjText, TsxComponent } from 'zibri';
+import { $ts, GlobalRegistry, MjColumn, MjSection, MjText, TsxComponent } from 'zibri';
+import { MailingListTemplateData } from 'zibri/plugin/mailing-list';
 
 import { BaseMailingListFooter } from './base-mailing-list-footer';
 

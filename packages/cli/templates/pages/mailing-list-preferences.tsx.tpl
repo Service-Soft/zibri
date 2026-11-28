@@ -1,4 +1,5 @@
-import { $ts, MailingList, MailingListPreferencesPageTemplate, MaskUtilities, State, useState } from 'zibri';
+import { $ts, MaskUtilities, State, useState } from 'zibri';
+import { MailingList, MailingListPreferencesPageTemplate } from 'zibri/plugin/mailing-list';
 
 import { Button } from '../components/button';
 import { Card } from '../components/card';

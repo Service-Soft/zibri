@@ -1,12 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
-import {
-    type BankAccountModel,
+import { type BankAccountModel,
     type BankStatementImportModel,
     type BankStatementModel,
     type BankTransactionDetailsModel,
     type ErrorResponseBody,
-    type PaginationResult
-} from 'zibri-contract';
+    type PaginationResult } from 'zibri-contract';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { testFileFolder, TestTimeouts } from '../../__testing__/constants';
@@ -33,7 +31,8 @@ import { defineProvider } from '../../di/models/di-provider.model';
 import { FileStore } from '../../file/decorators/file-store.decorator';
 import { FileRecord } from '../../file/file-record.model';
 import { FsFileStore } from '../../file/stores/fs.file-store';
-import { getZonedDate, ZonedDate } from '../../localization/format-date.function';
+import { getZonedDate } from '../../localization/get-zoned-date.function';
+import { ZonedDate } from '../../localization/models/zoned-date.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { FsPath, FsUtilities } from '../../utilities/fs.utilities';

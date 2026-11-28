@@ -10,7 +10,7 @@ import { BookkeepingTrialBalanceRow } from './bookkeeping-trial-balance-row.mode
  * balances it carries into equity.
  */
 export class BookkeepingTrialBalance
-    implements Omit<BookkeepingTrialBalanceModel, 'rows' | 'debit' | 'credit' | 'debitBalances' | 'creditBalances'> {
+implements Omit<BookkeepingTrialBalanceModel, 'rows' | 'debit' | 'credit' | 'debitBalances' | 'creditBalances'> {
     /**
      * The id of the fiscal year.
      */

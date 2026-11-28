@@ -29,7 +29,7 @@ import { type McpTool } from './models/mcp-tool.model';
 // no @Controller of its own, for the reason MailingListController has none. A controller of its own rather than a
 // route of the ServiceAccountController, which an application without the MCP plugin extends as well
 export class ServiceAccountMcpToolController implements OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     onAppInit(): void {
         validateTokensRegistered(ServiceAccountMcpToolController.name, { MCP_SERVICE: ZIBRI_MCP_PLUGIN_DI_TOKENS.MCP_SERVICE });
     }
@@ -46,13 +46,16 @@ export class ServiceAccountMcpToolController implements OnAppInit {
         const permissions: (Permission | PlatformPermission)[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
             .resolveUserPermissions(account, inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).getActiveTenantId());
         const roleService: RoleServiceInterface = inject(ZIBRI_DI_TOKENS.ROLE_SERVICE);
+        // eslint-disable-next-line unusedImports/no-unused-vars -- left out, as a current user carries permissions instead of roles
         const { roles, ...user } = account;
         // the account as a request of a key listing every permission of its roles would be, through the service
         // answering tools/list, so a service of the application that shows a tool to fewer callers shows it here too
         const caller: CurrentUser = {
             ...user,
             permissions: permissions.filter((permission): permission is Permission => roleService.isPermission(permission)),
-            platformPermissions: permissions.filter((permission): permission is PlatformPermission => roleService.isPlatformPermission(permission))
+            platformPermissions: permissions.filter(
+                (permission): permission is PlatformPermission => roleService.isPlatformPermission(permission)
+            )
         };
         const tools: McpTool[] = inject(ZIBRI_MCP_PLUGIN_DI_TOKENS.MCP_SERVICE).findTools(caller);
         return tools.map(tool => ({

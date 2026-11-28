@@ -99,7 +99,9 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
                 this.getLetterhead(invoice, company),
                 {
                     // the defaults for options written out whole for 3.2, which have none
-                    text: invoice.type === InvoiceType.CREDIT_NOTE ? this.options.creditNoteHeadline ?? 'Credit note' : this.options.headline,
+                    text: invoice.type === InvoiceType.CREDIT_NOTE
+                        ? this.options.creditNoteHeadline ?? 'Credit note'
+                        : this.options.headline,
                     fontSize: this.options.headlineFontSize,
                     margin: [0, 10, 0, 10],
                     bold: true
@@ -341,7 +343,10 @@ export class InvoicePdfService implements InvoicePdfServiceInterface<Invoice> {
             },
             ...(invoice.precedingInvoices ?? []).map((reference): PdfContentDefinition => {
                 const date: string = this.localizeService.formatDate(reference.date, 'date', { locale, timezone });
-                return { text: `${this.options.precedingInvoiceLabel ?? 'Preceding invoice'}: ${reference.number}, ${date}`, alignment: 'left' };
+                return {
+                    text: `${this.options.precedingInvoiceLabel ?? 'Preceding invoice'}: ${reference.number}, ${date}`,
+                    alignment: 'left'
+                };
             }),
             {
                 text: this.options.invoiceNumberNotice,

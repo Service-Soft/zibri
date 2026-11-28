@@ -140,7 +140,11 @@ export interface JournalServiceInterface {
      * @throws A ConflictError for an open fiscal year, one whose next fiscal year is closed, or one a conformance
      * refuses to reopen.
      */
-    reopenFiscalYear: (fiscalYearId: string, reopening: FiscalYearReopeningPosting, transaction?: Transaction) => Promise<FiscalYearReopeningResult>,
+    reopenFiscalYear: (
+        fiscalYearId: string,
+        reopening: FiscalYearReopeningPosting,
+        transaction?: Transaction
+    ) => Promise<FiscalYearReopeningResult>,
     /**
      * Resolves the balances a fiscal year starts with: the lines of its opening entry, and those of each entry with a
      * line on a carry-forward account, an equity account in no position, such as `9000` of the SKR 03 and 04, which the

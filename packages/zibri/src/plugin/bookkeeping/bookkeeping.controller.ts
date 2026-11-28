@@ -19,6 +19,7 @@ import { $ts } from '../../localization/translate.function';
 import { Response } from '../../open-api/decorators/response.decorator';
 import { FileResponse } from '../../parsing/form-data/file-response.model';
 import { FormData } from '../../parsing/form-data/form-data.model';
+import { type Route } from '../../routing/controller-route-configuration.model';
 import { Body } from '../../routing/decorators/body.decorator';
 import { Delete } from '../../routing/decorators/delete.decorator';
 import { Get } from '../../routing/decorators/get.decorator';
@@ -39,11 +40,11 @@ import { BookkeepingJournalReport } from './models/bookkeeping-journal-report.mo
 import { BookkeepingLedgerReport } from './models/bookkeeping-ledger-report.model';
 import { BookkeepingObligation } from './models/bookkeeping-obligation.model';
 import { BookkeepingRevenueReport } from './models/bookkeeping-revenue-report.model';
+import { BookkeepingSettingsChange } from './models/bookkeeping-settings-change.model';
+import { BookkeepingSettings } from './models/bookkeeping-settings.model';
 import { BookkeepingStatementFormChoices } from './models/bookkeeping-statement-form-choices.model';
 import { BookkeepingStatement } from './models/bookkeeping-statement.model';
 import { BookkeepingTrialBalance } from './models/bookkeeping-trial-balance.model';
-import { BookkeepingSettingsChange } from './models/bookkeeping-settings-change.model';
-import { BookkeepingSettings } from './models/bookkeeping-settings.model';
 import { BookkeepingVerification } from './models/bookkeeping-verification.model';
 import { ExpenseData } from './models/expense-data.model';
 import { ExpenseReceiptUpload } from './models/expense-receipt-upload.model';
@@ -79,6 +80,11 @@ import { type PostingRuleServiceInterface } from './services/posting-rule-servic
  * The most rows a page of the entries or the expenses holds.
  */
 const MAX_LIMIT: number = 100;
+
+/**
+ * The route of one expense.
+ */
+const EXPENSE_ROUTE: Route = '/expenses/:id';
 
 const READ: AnyLevelPermissions = {
     permission: ZibriBookkeepingPermissions.BOOKKEEPING_READ,
@@ -413,7 +419,12 @@ export class BookkeepingController {
         @CurrentUser()
         user: CurrentUser
     ): Promise<BookkeepingTrialBalance> {
-        return await this.runInTenantOfFiscalYear(user, READ, fiscalYearId, async () => await this.reportService.resolveTrialBalance(fiscalYearId, until));
+        return await this.runInTenantOfFiscalYear(
+            user,
+            READ,
+            fiscalYearId,
+            async () => await this.reportService.resolveTrialBalance(fiscalYearId, until)
+        );
     }
 
     @Auth.hasAnyLevelPermission(READ)
@@ -444,7 +455,12 @@ export class BookkeepingController {
         @CurrentUser()
         user: CurrentUser
     ): Promise<BookkeepingStatement> {
-        return await this.runInTenantOfFiscalYear(user, READ, fiscalYearId, async () => await this.reportService.resolveBalanceSheet(fiscalYearId, form));
+        return await this.runInTenantOfFiscalYear(
+            user,
+            READ,
+            fiscalYearId,
+            async () => await this.reportService.resolveBalanceSheet(fiscalYearId, form)
+        );
     }
 
     @Auth.hasAnyLevelPermission(READ)
@@ -475,7 +491,12 @@ export class BookkeepingController {
         @CurrentUser()
         user: CurrentUser
     ): Promise<BookkeepingStatement> {
-        return await this.runInTenantOfFiscalYear(user, READ, fiscalYearId, async () => await this.reportService.resolveIncomeStatement(fiscalYearId, form));
+        return await this.runInTenantOfFiscalYear(
+            user,
+            READ,
+            fiscalYearId,
+            async () => await this.reportService.resolveIncomeStatement(fiscalYearId, form)
+        );
     }
 
     @Auth.hasAnyLevelPermission(READ)
@@ -700,7 +721,11 @@ export class BookkeepingController {
         return await this.runInTenantOfFiscalYear(user, EXPORT, id, async () => {
             const archive: BookkeepingExportArchive = await this.exportService.exportFiscalYear(id, { documents });
             // streamed as it is written: the documents of a year do not fit in memory
-            return FileResponse.fromStream({ stream: Readable.from(archive.content), filename: archive.fileName, mimeType: archive.mimeType });
+            return FileResponse.fromStream({
+                stream: Readable.from(archive.content),
+                filename: archive.fileName,
+                mimeType: archive.mimeType
+            });
         });
     }
 
@@ -838,7 +863,7 @@ export class BookkeepingController {
 
     @Auth.hasAnyLevelPermission(READ)
     @Response.object(Expense)
-    @Get('/expenses/:id')
+    @Get(EXPENSE_ROUTE)
     async findExpense(
         @Param.path('id', { type: 'string', format: 'uuid' })
         id: string,
@@ -864,7 +889,7 @@ export class BookkeepingController {
 
     @Auth.hasAnyLevelPermission(EXPENSES)
     @Response.object(Expense)
-    @Put('/expenses/:id')
+    @Put(EXPENSE_ROUTE)
     async updateExpense(
         @Param.path('id', { type: 'string', format: 'uuid' })
         id: string,
@@ -879,7 +904,7 @@ export class BookkeepingController {
     @Auth.hasAnyLevelPermission(EXPENSES)
     @Response.error(HttpStatus.NOT_FOUND)
     @Response.empty()
-    @Delete('/expenses/:id')
+    @Delete(EXPENSE_ROUTE)
     async deleteExpense(
         @Param.path('id', { type: 'string', format: 'uuid' })
         id: string,

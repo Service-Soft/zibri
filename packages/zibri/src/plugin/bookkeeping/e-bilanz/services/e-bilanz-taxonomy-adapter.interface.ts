@@ -61,9 +61,21 @@ export interface EBilanzTaxonomyAdapterInterface {
      * which needs to equal the balance sheet.
      */
     readonly fixedAssetColumns: {
+        /**
+         * The column of the acquisition costs at the start of the year.
+         */
         readonly grossBeginning: string,
+        /**
+         * The column of the additions of the year.
+         */
         readonly additions: string,
+        /**
+         * The column of the accumulated depreciation at the start of the year.
+         */
         readonly depreciationBeginning: string,
+        /**
+         * The column of the book value at the end of the year.
+         */
         readonly bookValue: string
     },
     /**

@@ -40,7 +40,9 @@ export class ProjectCalendarUsageFinder implements TenantWebDavConnectionUsageFi
             })
         ]);
         return [
-            ...projects.length ? [$ts`It is the calendar of the due dates of the projects ${projects.map(project => project.name).join(', ')}.`] : [],
+            ...projects.length
+                ? [$ts`It is the calendar of the due dates of the projects ${projects.map(project => project.name).join(', ')}.`]
+                : [],
             ...tenantUses ? [$ts`It is the calendar of the due dates of every project that sets none of its own.`] : []
         ];
     }

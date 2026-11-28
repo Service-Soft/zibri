@@ -88,7 +88,9 @@ export class ProjectService implements ProjectServiceInterface {
     async findProjects(page: number, limit: number, filter: ProjectFilter): Promise<PaginationResult<Project>> {
         const where: Where<Project> = {
             ...filter.parentId == undefined ? {} : { parentId: filter.parentId },
-            ...filter.search == undefined || filter.search === '' ? {} : { name: { iLike: `%${FilterUtilities.escapeLike(filter.search)}%` } },
+            ...filter.search == undefined || filter.search === ''
+                ? {}
+                : { name: { iLike: `%${FilterUtilities.escapeLike(filter.search)}%` } },
             // a project below an archived one is archived with it, so this leaves out what is below as well
             ...filter.includeArchived === true ? {} : { archivedAt: null }
         };
@@ -198,7 +200,12 @@ export class ProjectService implements ProjectServiceInterface {
         await this.resolveWritable(projectId, 'editor');
         const created: ProjectColumn = await ProjectPositionUtilities.withPlacementLease(`board:${projectId}`, async () => {
             const placement: PositionPlacement = await this.resolveColumnPlacement(projectId, undefined, column.afterColumnId);
-            return await this.columnRepository.create({ projectId, name: column.name, isDone: column.isDone ?? false, position: placement.position });
+            return await this.columnRepository.create({
+                projectId,
+                name: column.name,
+                isDone: column.isDone ?? false,
+                position: placement.position
+            });
         });
         await this.boardUpdateService.publish({ type: 'column-created', projectId, column: created });
         return created;
@@ -274,7 +281,10 @@ export class ProjectService implements ProjectServiceInterface {
     async deleteLabel(labelId: string): Promise<void> {
         const label: TaskLabel = await this.labelRepository.findById(labelId);
         await this.resolveWritable(label.projectId, 'editor');
-        const carrying: Task[] = await this.taskRepository.findAll({ where: { projectId: label.projectId, labelIds: { includes: [labelId] } }, limit: 'all' });
+        const carrying: Task[] = await this.taskRepository.findAll({
+            where: { projectId: label.projectId, labelIds: { includes: [labelId] } },
+            limit: 'all'
+        });
         // each task carries labels of its own, so each is written on its own, in one transaction with the delete
         const updated: Task[] = await this.labelRepository.dataSource.runInTransaction(async (transaction: Transaction) => {
             const res: Task[] = await Promise.all(carrying.map(async task => await this.taskRepository.updateById(
@@ -286,7 +296,9 @@ export class ProjectService implements ProjectServiceInterface {
             return res;
         }, { maxAttempts: 3 });
         await this.boardUpdateService.publish({ type: 'label-deleted', projectId: label.projectId, labelId });
-        await Promise.all(updated.map(async task => await this.boardUpdateService.publish({ type: 'task-updated', projectId: task.projectId, task })));
+        await Promise.all(updated.map(
+            async task => await this.boardUpdateService.publish({ type: 'task-updated', projectId: task.projectId, task })
+        ));
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -321,10 +333,9 @@ export class ProjectService implements ProjectServiceInterface {
             },
             undefined
         );
-        if (res.share == undefined) {
-            return { share: null, invitationId: res.invitation.id };
-        }
-        return { share: await this.toProjectShare(res.share), invitationId: null };
+        return res.share == undefined
+            ? { share: null, invitationId: res.invitation.id }
+            : { share: await this.toProjectShare(res.share), invitationId: null };
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -355,7 +366,11 @@ export class ProjectService implements ProjectServiceInterface {
      * @returns Where it goes.
      * @throws A BadRequestError for a column to put it after that is not on the board.
      */
-    private async resolveColumnPlacement(projectId: string, columnId: string | undefined, afterColumnId: string | null | undefined): Promise<PositionPlacement> {
+    private async resolveColumnPlacement(
+        projectId: string,
+        columnId: string | undefined,
+        afterColumnId: string | null | undefined
+    ): Promise<PositionPlacement> {
         const others: PositionedRow[] = await this.columnRepository.findAll({
             where: columnId == undefined ? { projectId } : { projectId, id: { notOneOf: [columnId] } },
             select: { id: true, position: true },
@@ -380,7 +395,9 @@ export class ProjectService implements ProjectServiceInterface {
             { doneAt: column.isDone ? new Date() : null },
             { returnUpdated: true }
         );
-        await Promise.all(changed.map(async task => await this.boardUpdateService.publish({ type: 'task-updated', projectId: task.projectId, task })));
+        await Promise.all(changed.map(
+            async task => await this.boardUpdateService.publish({ type: 'task-updated', projectId: task.projectId, task })
+        ));
         if (column.isDone) {
             await ProjectEventUtilities.emit(this.options.eventNames.taskDone, changed);
         }
@@ -412,7 +429,9 @@ export class ProjectService implements ProjectServiceInterface {
      * @param projects - The projects, as they are now.
      */
     private async publishUpdated(projects: Project[]): Promise<void> {
-        await Promise.all(projects.map(async project => await this.boardUpdateService.publish({ type: 'project-updated', projectId: project.id, project })));
+        await Promise.all(projects.map(
+            async project => await this.boardUpdateService.publish({ type: 'project-updated', projectId: project.id, project })
+        ));
     }
 
     /**
@@ -439,7 +458,9 @@ export class ProjectService implements ProjectServiceInterface {
             // one of the roles Project declares, which the share service refuses any other than
             const role: ProjectRole | undefined = PROJECT_ROLES.find(r => r === share.role);
             if (role == undefined) {
-                throw new InternalError(`The share ${share.id} of a Project is in the role '${share.role}', which Project does not declare.`);
+                throw new InternalError(
+                    `The share ${share.id} of a Project is in the role '${share.role}', which Project does not declare.`
+                );
             }
             return {
                 id: share.id,

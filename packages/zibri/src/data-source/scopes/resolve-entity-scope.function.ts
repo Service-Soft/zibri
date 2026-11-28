@@ -37,7 +37,9 @@ export async function resolveEntityScope<T extends BaseEntity>(
     }
     const scopeContext: EntityScopeContext = await resolveEntityScopeContext(entityClass);
     // the scope's answer typed by the entity it was declared for, which `scopeFor` checked
-    const own: Where<T> | DenyAll | undefined = restrictedTo ? await restrictedTo(scopeContext) as Where<T> | DenyAll | undefined : undefined;
+    const own: Where<T> | DenyAll | undefined = restrictedTo
+        ? await restrictedTo(scopeContext) as Where<T> | DenyAll | undefined
+        : undefined;
     if (!shared || own === denyAll) {
         return own;
     }

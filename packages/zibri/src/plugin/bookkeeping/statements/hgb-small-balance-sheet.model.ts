@@ -1,7 +1,7 @@
 import { $t } from '../../../localization/translate.function';
 import { BookkeepingStatementUtilities } from '../bookkeeping-statement.utilities';
-import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { type BookkeepingStatementStructure } from '../models/bookkeeping-statement-structure.model';
+import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { HGB_BALANCE_SHEET } from './hgb-balance-sheet.model';
 
 /**
@@ -17,10 +17,18 @@ export const HGB_SMALL_BALANCE_SHEET: BookkeepingStatementStructure = {
     rollsUpFrom: HGB_BALANCE_SHEET.id,
     positions: [
         BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, 'assets', [
-            BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, 'assets.A', ['assets.A.I', 'assets.A.II', 'assets.A.III']
-                .map(id => BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, id))),
-            BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, 'assets.B', ['assets.B.I', 'assets.B.II', 'assets.B.III', 'assets.B.IV']
-                .map(id => BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, id))),
+            BookkeepingStatementUtilities.resolveRolledUpPosition(
+                HGB_BALANCE_SHEET,
+                'assets.A',
+                ['assets.A.I', 'assets.A.II', 'assets.A.III']
+                    .map(id => BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, id))
+            ),
+            BookkeepingStatementUtilities.resolveRolledUpPosition(
+                HGB_BALANCE_SHEET,
+                'assets.B',
+                ['assets.B.I', 'assets.B.II', 'assets.B.III', 'assets.B.IV']
+                    .map(id => BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, id))
+            ),
             ...['assets.C', 'assets.D', 'assets.E'].map(id => BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, id))
         ]),
         BookkeepingStatementUtilities.resolveRolledUpPosition(HGB_BALANCE_SHEET, 'equity-and-liabilities', [

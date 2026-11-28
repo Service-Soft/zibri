@@ -8,17 +8,17 @@ import { Repository } from '../../data-source/repository/repository';
 import { repositoryTokenFor } from '../../di/decorators/inject-repository.decorator';
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
+import { DiProvider, defineProvider } from '../../di/models/di-provider.model';
 import { type XmlElementNode } from '../../document/xml-element-node.model';
 import { XmlReaderUtilities } from '../../document/xml-reader.utilities';
 import { XmlUtilities } from '../../document/xml.utilities';
+import { BaseEntity } from '../../entity/base-entity.model';
 import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { type FileRecord } from '../../file/file-record.model';
-import { FsUtilities } from '../../utilities/fs.utilities';
-import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
-import { DiProvider, defineProvider } from '../../di/models/di-provider.model';
-import { BaseEntity } from '../../entity/base-entity.model';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
+import { FsUtilities } from '../../utilities/fs.utilities';
+import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { ZIBRI_BANK_PLUGIN_DI_TOKENS } from '../bank/bank.tokens';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing/invoicing.tokens';
 import { InvoiceDocument } from '../invoicing/models/invoice-document.model';
@@ -67,34 +67,80 @@ export const exportTestProviders: DiProvider<unknown>[] = [
 ];
 
 /**
+ * The table of the fiscal years.
+ */
+const FISCAL_YEARS_TABLE: string = 'fiscal-years';
+
+/**
+ * The table of the journal entries.
+ */
+const JOURNAL_ENTRIES_TABLE: string = 'journal-entries';
+
+/**
+ * The table of the lines of the journal entries.
+ */
+const JOURNAL_ENTRY_LINES_TABLE: string = 'journal-entry-lines';
+
+/**
+ * The table of the bank statements.
+ */
+const BANK_STATEMENTS_TABLE: string = 'bank-statements';
+
+/**
+ * The table of the archived statements of the fiscal year.
+ */
+const FISCAL_YEAR_STATEMENTS_TABLE: string = 'fiscal-year-statements';
+
+/**
+ * The table of the result of checking the books.
+ */
+const VERIFICATION_TABLE: string = 'verification';
+
+/**
+ * The table of the problems checking the books found.
+ */
+const VERIFICATION_PROBLEMS_TABLE: string = 'verification-problems';
+
+/**
  * The tables every export holds, with the plugins of the cases registered, in the order they are written.
  */
 const TABLES: string[] = [
-    'fiscal-years',
+    FISCAL_YEARS_TABLE,
     'accounts',
-    'journal-entries',
-    'journal-entry-lines',
+    JOURNAL_ENTRIES_TABLE,
+    JOURNAL_ENTRY_LINES_TABLE,
     'invoices',
     'expenses',
     'bank-matches',
-    'bank-statements',
-    'fiscal-year-statements',
-    'verification',
-    'verification-problems'
+    BANK_STATEMENTS_TABLE,
+    FISCAL_YEAR_STATEMENTS_TABLE,
+    VERIFICATION_TABLE,
+    VERIFICATION_PROBLEMS_TABLE
 ];
 
 /**
  * The elements of a `Table` in the order `gdpdu-01-09-2004.dtd` declares them, as far as the export writes them.
  */
-const TABLE_ELEMENTS: string[] = ['URL', 'Name', 'Description', 'Validity', 'UTF8', 'DecimalSymbol', 'DigitGroupingSymbol', 'Range', 'VariableLength'];
+const TABLE_ELEMENTS: string[] = [
+    'URL',
+    'Name',
+    'Description',
+    'Validity',
+    // eslint-disable-next-line unicorn/text-encoding-identifier-case -- the name of an element of the GDPdU DTD, not an encoding
+    'UTF8',
+    'DecimalSymbol',
+    'DigitGroupingSymbol',
+    'Range',
+    'VariableLength'
+];
 
 /**
  * An archive of an export, read back.
  */
 export type ReadExport = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     fileName: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     mimeType: string,
     /**
      * Every file, by its path.
@@ -247,7 +293,8 @@ function textOf(element: XmlElementNode | undefined, name: string): string {
  */
 function validateIndex(read: ReadExport): XmlElementNode {
     expect(XmlUtilities.resolveXmlString(read.index)).toBe(read.index);
-    expect(read.index.split('\n').slice(0, 2)).toEqual(['<?xml version="1.0" encoding="UTF-8"?>', '<!DOCTYPE DataSet SYSTEM "gdpdu-01-09-2004.dtd">']);
+    expect(read.index.split('\n').slice(0, 2))
+        .toEqual(['<?xml version="1.0" encoding="UTF-8"?>', '<!DOCTYPE DataSet SYSTEM "gdpdu-01-09-2004.dtd">']);
     const root: XmlElementNode = XmlReaderUtilities.resolveRootElement(read.index);
     expect(root.name).toBe('DataSet');
     expect(childrenOf(root).map(c => c.name)).toEqual(['Version', 'DataSupplier', 'Media']);
@@ -258,41 +305,76 @@ function validateIndex(read: ReadExport): XmlElementNode {
     // every CSV file of the archive described, and nothing else
     expect(tables.map(t => textOf(t, 'URL')).sort()).toEqual([...read.tables.keys()].map(name => `${name}.csv`).sort());
     for (const table of tables) {
-        const name: string = textOf(table, 'Name');
-        expect([name, childrenOf(table).map(c => c.name)]).toEqual([name, TABLE_ELEMENTS]);
-        expect([name, textOf(table, 'Description')]).toEqual([name, expect.stringMatching(/\S/)]);
-        expect([textOf(table, 'DecimalSymbol'), textOf(table, 'DigitGroupingSymbol')]).toEqual([',', '.']);
-        expect(textOf(childrenOf(table, 'Range')[0], 'From')).toBe('2');
-        const validity: XmlElementNode | undefined = childrenOf(table, 'Validity')[0];
-        expect(childrenOf(validity).map(c => c.name)).toEqual(['Range', 'Format']);
-        expect(textOf(validity, 'Format')).toBe('DD.MM.YYYY');
-        const layout: XmlElementNode | undefined = childrenOf(table, 'VariableLength')[0];
-        expect([textOf(layout, 'ColumnDelimiter'), textOf(layout, 'TextEncapsulator')]).toEqual([';', '"']);
-        const layoutNames: string[] = childrenOf(layout).map(c => c.name);
-        // the primary key, then the columns, then the foreign keys, as the definition orders them
-        expect(layoutNames.join(' ')).toMatch(/^ColumnDelimiter TextEncapsulator (VariablePrimaryKey )?(VariableColumn ?)+( ForeignKey)*$/);
-        const columns: XmlElementNode[] = childrenOf(layout).filter(c => c.name === 'VariablePrimaryKey' || c.name === 'VariableColumn');
-        const [header, ...records] = read.tables.get(name) ?? [];
-        expect([name, columns.map(c => textOf(c, 'Name'))]).toEqual([name, header]);
-        columns.forEach((column, index) => {
-            const kinds: string[] = childrenOf(column).map(c => c.name).filter(n => n !== 'Name' && n !== 'Description');
-            expect([name, textOf(column, 'Name'), kinds.length, textOf(column, 'Description')])
-                .toEqual([name, textOf(column, 'Name'), 1, expect.stringMatching(/\S/)]);
-            const pattern: RegExp | undefined = kinds[0] === 'Numeric'
-                ? new RegExp(`^-?\\d+${Number(textOf(childrenOf(column, 'Numeric')[0], 'Accuracy')) > 0 ? `,\\d{${textOf(childrenOf(column, 'Numeric')[0], 'Accuracy')}}` : ''}$`)
-                : kinds[0] === 'Date' ? /^\d{2}\.\d{2}\.\d{4}$/ : undefined;
-            for (const record of records) {
-                const value: string = record[index] ?? '';
-                if (pattern != undefined && value !== '') {
-                    expect([name, textOf(column, 'Name'), value]).toEqual([name, textOf(column, 'Name'), expect.stringMatching(pattern)]);
-                }
-            }
-        });
-        for (const key of childrenOf(layout, 'ForeignKey')) {
-            expect(tables.map(t => textOf(t, 'Name'))).toContain(textOf(key, 'References'));
-        }
+        validateTable(read, tables, table);
     }
     return root;
+}
+
+/**
+ * Validates the description of one table in `index.xml` against the description standard and its CSV file.
+ * @param read - The export.
+ * @param tables - Every table `index.xml` describes, for the foreign keys.
+ * @param table - The table.
+ */
+function validateTable(read: ReadExport, tables: XmlElementNode[], table: XmlElementNode): void {
+    const name: string = textOf(table, 'Name');
+    expect([name, childrenOf(table).map(c => c.name)]).toEqual([name, TABLE_ELEMENTS]);
+    expect([name, textOf(table, 'Description')]).toEqual([name, expect.stringMatching(/\S/)]);
+    expect([textOf(table, 'DecimalSymbol'), textOf(table, 'DigitGroupingSymbol')]).toEqual([',', '.']);
+    expect(textOf(childrenOf(table, 'Range')[0], 'From')).toBe('2');
+    const validity: XmlElementNode | undefined = childrenOf(table, 'Validity')[0];
+    expect(childrenOf(validity).map(c => c.name)).toEqual(['Range', 'Format']);
+    expect(textOf(validity, 'Format')).toBe('DD.MM.YYYY');
+    const layout: XmlElementNode | undefined = childrenOf(table, 'VariableLength')[0];
+    expect([textOf(layout, 'ColumnDelimiter'), textOf(layout, 'TextEncapsulator')]).toEqual([';', '"']);
+    const layoutNames: string[] = childrenOf(layout).map(c => c.name);
+    // the primary key, then the columns, then the foreign keys, as the definition orders them
+    expect(layoutNames.join(' ')).toMatch(/^ColumnDelimiter TextEncapsulator (VariablePrimaryKey )?(VariableColumn ?)+( ForeignKey)*$/);
+    const columns: XmlElementNode[] = childrenOf(layout).filter(c => c.name === 'VariablePrimaryKey' || c.name === 'VariableColumn');
+    const [header, ...records] = read.tables.get(name) ?? [];
+    expect([name, columns.map(c => textOf(c, 'Name'))]).toEqual([name, header]);
+    for (const [index, column] of columns.entries()) {
+        validateColumn(name, column, records.map(record => record[index] ?? ''));
+    }
+    for (const key of childrenOf(layout, 'ForeignKey')) {
+        expect(tables.map(t => textOf(t, 'Name'))).toContain(textOf(key, 'References'));
+    }
+}
+
+/**
+ * Validates the description of one column in `index.xml`: of exactly one kind, and its values written the way it
+ * describes.
+ * @param tableName - The name of the table of the column.
+ * @param column - The column.
+ * @param values - The values of the column in the CSV file.
+ */
+function validateColumn(tableName: string, column: XmlElementNode, values: string[]): void {
+    const kinds: string[] = childrenOf(column).map(c => c.name)
+        .filter(n => n !== 'Name' && n !== 'Description');
+    expect([tableName, textOf(column, 'Name'), kinds.length, textOf(column, 'Description')])
+        .toEqual([tableName, textOf(column, 'Name'), 1, expect.stringMatching(/\S/)]);
+    const pattern: RegExp | undefined = resolveValuePattern(column, kinds[0]);
+    for (const value of values) {
+        if (pattern != undefined && value !== '') {
+            expect([tableName, textOf(column, 'Name'), value])
+                .toEqual([tableName, textOf(column, 'Name'), expect.stringMatching(pattern)]);
+        }
+    }
+}
+
+/**
+ * The pattern every value of a column matches, by the kind `index.xml` describes it as.
+ * @param column - The column.
+ * @param kind - The kind of the column.
+ * @returns The pattern, none for a kind whose values are not checked.
+ */
+function resolveValuePattern(column: XmlElementNode, kind: string | undefined): RegExp | undefined {
+    if (kind === 'Numeric') {
+        const accuracy: string = textOf(childrenOf(column, 'Numeric')[0], 'Accuracy');
+        const decimals: string = Number(accuracy) > 0 ? `,\\d{${accuracy}}` : '';
+        return new RegExp(`^-?\\d+${decimals}$`);
+    }
+    return kind === 'Date' ? /^\d{2}\.\d{2}\.\d{4}$/ : undefined;
 }
 
 /**
@@ -304,8 +386,16 @@ function validateIndex(read: ReadExport): XmlElementNode {
 async function recordExpenseWithReceipt(books: PostingBooks, content: Buffer): Promise<[ExpenseReceipt, Expense]> {
     return await inTenant(books.tenantId, async () => {
         const expenses: ExpenseServiceInterface = inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.EXPENSE_SERVICE);
-        const receipt: ExpenseReceipt = await expenses.createReceipt({ name: 'Büro Miete März.pdf', mimeType: 'application/pdf', data: content });
-        const draft: Expense = await expenses.createExpense(rentOf(books, { documentNumber: 'R-78', documentDate: day('2026-03-10'), receiptId: receipt.id }));
+        const receipt: ExpenseReceipt = await expenses.createReceipt({
+            name: 'Büro Miete März.pdf',
+            mimeType: 'application/pdf',
+            data: content
+        });
+        const draft: Expense = await expenses.createExpense(rentOf(books, {
+            documentNumber: 'R-78',
+            documentDate: day('2026-03-10'),
+            receiptId: receipt.id
+        }));
         return [receipt, await expenses.recordExpense(draft.id)];
     });
 }
@@ -323,46 +413,69 @@ export function describeBookkeepingExport(dataSourceName: string): void {
 
             expect([read.fileName, read.mimeType]).toEqual(['gobd-export-2026.zip', 'application/zip']);
             expect([...read.tables.keys()]).toEqual(TABLES);
-            const entries: JournalEntry[] = await inTenant(books.tenantId, async () => await inject<Repository<JournalEntry>>(repositoryTokenFor(JournalEntry))
-                .findAll({ where: { fiscalYearId: books.fiscalYear.id }, limit: 'all' }));
-            const exportedEntries: Record<string, string>[] = rowsOf(read, 'journal-entries');
+            const entries: JournalEntry[] = await inTenant(
+                books.tenantId,
+                async () => await inject<Repository<JournalEntry>>(repositoryTokenFor(JournalEntry))
+                    .findAll({ where: { fiscalYearId: books.fiscalYear.id }, limit: 'all' })
+            );
+            const exportedEntries: Record<string, string>[] = rowsOf(read, JOURNAL_ENTRIES_TABLE);
             expect(exportedEntries.map(e => e['id']).sort()).toEqual(entries.map(e => e.id).sort());
             expect(new Set(exportedEntries.map(e => e['id'])).size).toBe(exportedEntries.length);
             expect(exportedEntries.map(e => e['sequence'])).toEqual(entries.map((_, index) => String(index + 1)));
-            expect(exportedEntries[0]).toMatchObject({ postingDate: '02.01.2026', documentReference: 'Notary 2026-1', text: 'Share capital' });
+            expect(exportedEntries[0])
+                .toMatchObject({ postingDate: '02.01.2026', documentReference: 'Notary 2026-1', text: 'Share capital' });
 
             // the trial balance, added up from the lines and the accounts alone
             const numbers: Map<string, string> = new Map(rowsOf(read, 'accounts').map(a => [a['id'] ?? '', a['number'] ?? '']));
             const totals: Map<string, [BigNumber, BigNumber]> = new Map();
-            for (const line of rowsOf(read, 'journal-entry-lines')) {
+            for (const line of rowsOf(read, JOURNAL_ENTRY_LINES_TABLE)) {
                 const number: string = numbers.get(line['accountId'] ?? '') ?? '';
                 expect(line['accountNumber']).toBe(number);
                 const [debit, credit] = totals.get(number) ?? [new BigNumber(0), new BigNumber(0)];
-                totals.set(number, [NumberUtilities.add(debit, amountOf(line['debit'] ?? '')), NumberUtilities.add(credit, amountOf(line['credit'] ?? ''))]);
+                totals.set(number, [
+                    NumberUtilities.add(debit, amountOf(line['debit'] ?? '')),
+                    NumberUtilities.add(credit, amountOf(line['credit'] ?? ''))
+                ]);
             }
             const trialBalance: BookkeepingTrialBalance = await inTenant(
                 books.tenantId,
-                async () => await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_SERVICE).resolveTrialBalance(books.fiscalYear.id, undefined)
+                async () => await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_SERVICE)
+                    .resolveTrialBalance(books.fiscalYear.id, undefined)
             );
-            expect([...totals.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([number, [debit, credit]]) => [number, debit.toFixed(2), credit.toFixed(2)]))
+            expect([...totals.entries()]
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([number, [debit, credit]]) => [number, debit.toFixed(2), credit.toFixed(2)]))
                 .toEqual(trialBalance.rows.map(r => [r.account.number, r.debit.toFixed(2), r.credit.toFixed(2)]));
             expect(trialBalance.debit.toFixed(2)).toBe('29301.00');
 
             // what posted the entries
-            expect(rowsOf(read, 'invoices').map(i => [i['number'], i['type'], i['date'], i['net'], i['tax'], i['gross']]).sort()).toEqual([
+            expect(rowsOf(read, 'invoices').map(i => [i['number'], i['type'], i['date'], i['net'], i['tax'], i['gross']])
+                .sort()).toEqual([
                 ['2026-SIEMEN-0001', 'INVOICE', '01.03.2026', '1000,00', '190,00', '1190,00'],
                 ['2026-SIEMEN-0002', 'INVOICE', '01.03.2026', '500,00', '95,00', '595,00'],
                 [expect.any(String), 'CREDIT_NOTE', '01.04.2026', '200,00', '38,00', '238,00']
             ]);
-            expect(rowsOf(read, 'expenses').map(e => [e['documentNumber'], e['documentDate'], e['supplier'], e['net'], e['tax'], e['receipt']]))
+            expect(rowsOf(read, 'expenses')
+                .map(e => [e['documentNumber'], e['documentDate'], e['supplier'], e['net'], e['tax'], e['receipt']]))
                 .toEqual([['R-77', '05.03.2026', 'Office Supplies GmbH', '100,00', '19,00', '']]);
-            expect(rowsOf(read, 'bank-matches').map(m => [m['bookingDate'], m['transactionAmount'], m['amount']]).sort()).toEqual([
+            expect(rowsOf(read, 'bank-matches').map(m => [m['bookingDate'], m['transactionAmount'], m['amount']])
+                .sort()).toEqual([
                 ['20.03.2026', '-119,00', '119,00'],
                 ['20.03.2026', '1190,00', '1190,00']
             ]);
-            expect(rowsOf(read, 'fiscal-years')).toEqual([{ id: books.fiscalYear.id, start: '01.01.2026', end: '31.12.2026', closedAt: '', reopenings: '0', currency: 'EUR' }]);
-            expect(rowsOf(read, 'verification')).toEqual([expect.objectContaining({ intact: 'true', problems: '0', unreadableDocuments: '0' })]);
-            expect(rowsOf(read, 'verification-problems')).toEqual([]);
+            expect(rowsOf(read, FISCAL_YEARS_TABLE)).toEqual([
+                {
+                    id: books.fiscalYear.id,
+                    start: '01.01.2026',
+                    end: '31.12.2026',
+                    closedAt: '',
+                    reopenings: '0',
+                    currency: 'EUR'
+                }
+            ]);
+            expect(rowsOf(read, VERIFICATION_TABLE))
+                .toEqual([expect.objectContaining({ intact: 'true', problems: '0', unreadableDocuments: '0' })]);
+            expect(rowsOf(read, VERIFICATION_PROBLEMS_TABLE)).toEqual([]);
 
             const root: XmlElementNode = validateIndex(read);
             expect(textOf(childrenOf(root, 'DataSupplier')[0], 'Name')).toBe('Example GmbH');
@@ -374,7 +487,9 @@ export function describeBookkeepingExport(dataSourceName: string): void {
             const receiptContent: Buffer = Buffer.from('%PDF-1.4 rent of March');
             const [receipt, expense] = await recordExpenseWithReceipt(books, receiptContent);
             // archived with its XRechnung, as its customer has an email
-            const electronic: Invoice = await inTenant(books.tenantId, async () => await inject<Repository<Invoice, OmitStrict<Invoice, 'id' | 'tenantId'>>>(
+            const electronic: Invoice = await inTenant(books.tenantId, async () => await inject<
+                Repository<Invoice, OmitStrict<Invoice, 'id' | 'tenantId'>>
+            >(
                 repositoryTokenFor(Invoice)
             ).create({
                 number: '2026-GREATC-0001',
@@ -400,7 +515,9 @@ export function describeBookkeepingExport(dataSourceName: string): void {
                 textAfterItems: [],
                 issuedAt: new Date()
             }));
-            const statementContent: Buffer = Buffer.from(await FsUtilities.readFile(FsUtilities.getPath(__dirname, '..', 'bank', '__testing__', 'camt053-001-08.sample.xml')));
+            const statementContent: Buffer = Buffer.from(await FsUtilities.readFile(
+                FsUtilities.getPath(__dirname, '..', 'bank', '__testing__', 'camt053-001-08.sample.xml')
+            ));
             await inTenant(books.tenantId, async () => await inject(ZIBRI_BANK_PLUGIN_DI_TOKENS.BANK_STATEMENT_SERVICE)
                 .importStatements({ name: 'statement-2026-11-03.xml', data: statementContent }));
             await inTenant(books.tenantId, async () => {
@@ -411,30 +528,40 @@ export function describeBookkeepingExport(dataSourceName: string): void {
             const read: ReadExport = await exportYear(books.tenantId, books.fiscalYear.id);
 
             // the line of the closing carrying the result into equity, and no other, says so
-            expect(rowsOf(read, 'journal-entry-lines').filter(l => l['role'] !== '').map(l => [l['accountId'], l['role']]))
+            expect(rowsOf(read, JOURNAL_ENTRY_LINES_TABLE).filter(l => l['role'] !== '')
+                .map(l => [l['accountId'], l['role']]))
                 .toEqual([[books.accounts.result.id, 'result']]);
             const receiptPath: string = `documents/expense-receipts/${receipt.id}-B_ro_Miete_M_rz.pdf`;
             expect(rowsOf(read, 'expenses').find(e => e['id'] === expense.id)?.['receipt']).toBe(receiptPath);
             expect(read.files.get(receiptPath)?.equals(receiptContent)).toBe(true);
-            const [statement] = rowsOf(read, 'bank-statements');
+            const [statement] = rowsOf(read, BANK_STATEMENTS_TABLE);
             // from midnight in Berlin, the day before in UTC, the defaultTimezone of the cases
-            expect(statement).toMatchObject({ periodStart: '02.11.2026', periodEnd: '03.11.2026', file: expect.stringMatching(/^documents\/bank-statements\/.+-statement-2026-11-03\.xml$/) });
+            expect(statement).toMatchObject({
+                periodStart: '02.11.2026',
+                periodEnd: '03.11.2026',
+                file: expect.stringMatching(/^documents\/bank-statements\/.+-statement-2026-11-03\.xml$/)
+            });
             expect(read.files.get(statement?.['file'] ?? '')?.equals(statementContent)).toBe(true);
-            const archived: Record<string, string>[] = rowsOf(read, 'fiscal-year-statements');
+            const archived: Record<string, string>[] = rowsOf(read, FISCAL_YEAR_STATEMENTS_TABLE);
             expect(archived).toHaveLength(4);
             for (const row of archived) {
-                expect(read.files.get(row['file'] ?? '')?.subarray(0, 5).toString()).toBe('%PDF-');
+                expect(read.files.get(row['file'] ?? '')?.subarray(0, 5)
+                    .toString()).toBe('%PDF-');
             }
-            expect(rowsOf(read, 'fiscal-years')[0]?.['closedAt']).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+            expect(rowsOf(read, FISCAL_YEARS_TABLE)[0]?.['closedAt']).toMatch(/^\d{4}-\d{2}-\d{2}T/);
             // the pdf archived at the issue of each invoice and credit note, and the xml of the one that has one
             const invoiceRows: Record<string, string>[] = rowsOf(read, 'invoices');
             expect(invoiceRows).toHaveLength(4);
-            const archivedInvoices: InvoiceDocument[] = await inTenant(books.tenantId, async () => await inject<Repository<InvoiceDocument>>(
-                repositoryTokenFor(InvoiceDocument)
-            ).findAll({ limit: 'all' }));
+            const archivedInvoices: InvoiceDocument[] = await inTenant(
+                books.tenantId,
+                async () => await inject<Repository<InvoiceDocument>>(repositoryTokenFor(InvoiceDocument)).findAll({ limit: 'all' })
+            );
             for (const row of invoiceRows) {
                 const document: InvoiceDocument | undefined = archivedInvoices.find(d => d.invoiceId === row['id']);
-                const stored: Buffer = await inTenant(books.tenantId, async () => await inject(ZIBRI_DI_TOKENS.FILE_SERVICE).read(document?.pdf ?? ''));
+                const stored: Buffer = await inTenant(
+                    books.tenantId,
+                    async () => await inject(ZIBRI_DI_TOKENS.FILE_SERVICE).read(document?.pdf ?? '')
+                );
                 expect(row['pdf']).toMatch(/^documents\/invoices\/.+\.pdf$/);
                 expect(read.files.get(row['pdf'] ?? '')?.equals(stored)).toBe(true);
                 expect([row['number'], row['electronicInvoice'] !== '']).toEqual([row['number'], row['id'] === electronic.id]);
@@ -448,10 +575,12 @@ export function describeBookkeepingExport(dataSourceName: string): void {
 
             expect([...withoutDocuments.files.keys()].filter(name => name.startsWith('documents/'))).toEqual([]);
             expect([...withoutDocuments.tables.keys()]).toEqual(TABLES);
-            expect(rowsOf(withoutDocuments, 'expenses').find(e => e['id'] === expense.id)).toMatchObject({ receiptId: receipt.id, receipt: '' });
-            expect(rowsOf(withoutDocuments, 'bank-statements').map(s => s['file'])).toEqual(['']);
-            expect(rowsOf(withoutDocuments, 'fiscal-year-statements').map(s => s['file'])).toEqual(['', '', '', '']);
-            expect(rowsOf(withoutDocuments, 'invoices').map(i => [i['pdf'], i['electronicInvoice']])).toEqual([['', ''], ['', ''], ['', ''], ['', '']]);
+            expect(rowsOf(withoutDocuments, 'expenses').find(e => e['id'] === expense.id))
+                .toMatchObject({ receiptId: receipt.id, receipt: '' });
+            expect(rowsOf(withoutDocuments, BANK_STATEMENTS_TABLE).map(s => s['file'])).toEqual(['']);
+            expect(rowsOf(withoutDocuments, FISCAL_YEAR_STATEMENTS_TABLE).map(s => s['file'])).toEqual(['', '', '', '']);
+            expect(rowsOf(withoutDocuments, 'invoices').map(i => [i['pdf'], i['electronicInvoice']]))
+                .toEqual([['', ''], ['', ''], ['', ''], ['', '']]);
             validateIndex(withoutDocuments);
         });
 
@@ -467,14 +596,21 @@ export function describeBookkeepingExport(dataSourceName: string): void {
 
             const read: ReadExport = await exportYear(books.tenantId, books.fiscalYear.id);
 
-            expect(rowsOf(read, 'journal-entries').find(e => e['id'] === changed?.id)?.['text']).toBe('Rewritten');
-            expect(rowsOf(read, 'verification')).toEqual([expect.objectContaining({ intact: 'false', newestEntrySequence: '', newestEntryHash: '', problems: '1' })]);
-            expect(rowsOf(read, 'verification-problems')).toEqual([
-                { entryId: changed?.id, lineId: '', document: '', reason: 'The row is not as it was written.' }
-            ]);
+            expect(rowsOf(read, JOURNAL_ENTRIES_TABLE).find(e => e['id'] === changed?.id)?.['text']).toBe('Rewritten');
+            const verificationRow: Record<string, string> = {
+                intact: 'false',
+                newestEntrySequence: '',
+                newestEntryHash: '',
+                problems: '1'
+            };
+            expect(rowsOf(read, VERIFICATION_TABLE)).toEqual([expect.objectContaining(verificationRow)]);
+            expect(rowsOf(read, VERIFICATION_PROBLEMS_TABLE))
+                .toEqual([{ entryId: changed?.id, lineId: '', document: '', reason: 'The row is not as it was written.' }]);
             const root: XmlElementNode = validateIndex(read);
-            expect(textOf(childrenOf(root, 'DataSupplier')[0], 'Comment')).toMatch(/^Checking the books found that the chains .* do not hold/);
-            const verification: XmlElementNode | undefined = childrenOf(childrenOf(root, 'Media')[0], 'Table').find(t => textOf(t, 'Name') === 'verification');
+            expect(textOf(childrenOf(root, 'DataSupplier')[0], 'Comment'))
+                .toMatch(/^Checking the books found that the chains .* do not hold/);
+            const verification: XmlElementNode | undefined = childrenOf(childrenOf(root, 'Media')[0], 'Table')
+                .find(t => textOf(t, 'Name') === VERIFICATION_TABLE);
             expect(textOf(verification, 'Description')).toContain('do not hold');
         });
 
@@ -482,7 +618,10 @@ export function describeBookkeepingExport(dataSourceName: string): void {
             const books: PostingBooks = await createPostingBooks();
             const [receipt] = await recordExpenseWithReceipt(books, Buffer.from('%PDF-1.4 a receipt'));
             // the bytes of the file changed in its store, past the archive
-            const record: FileRecord | undefined = await inTenant(books.tenantId, async () => await inject(ZIBRI_DI_TOKENS.FILE_SERVICE).findFile(receipt.file));
+            const record: FileRecord | undefined = await inTenant(
+                books.tenantId,
+                async () => await inject(ZIBRI_DI_TOKENS.FILE_SERVICE).findFile(receipt.file)
+            );
             await new ReceiptsFileStore().put(record?.key ?? '', Readable.from([Buffer.from('%PDF-1.4 another receipt')]));
 
             const read: ReadExport = await exportYear(books.tenantId, books.fiscalYear.id);
@@ -490,9 +629,14 @@ export function describeBookkeepingExport(dataSourceName: string): void {
             const path: string = rowsOf(read, 'expenses')[0]?.['receipt'] ?? '';
             expect(path).toContain(receipt.id);
             expect(read.files.has(path)).toBe(false);
-            expect(rowsOf(read, 'verification')).toEqual([expect.objectContaining({ intact: 'true', unreadableDocuments: '1' })]);
-            expect(rowsOf(read, 'verification-problems')).toEqual([
-                { entryId: '', lineId: '', document: path, reason: expect.stringContaining('The document could not be read unchanged') }
+            expect(rowsOf(read, VERIFICATION_TABLE)).toEqual([expect.objectContaining({ intact: 'true', unreadableDocuments: '1' })]);
+            expect(rowsOf(read, VERIFICATION_PROBLEMS_TABLE)).toEqual([
+                {
+                    entryId: '',
+                    lineId: '',
+                    document: path,
+                    reason: expect.stringContaining('The document could not be read unchanged')
+                }
             ]);
             validateIndex(read);
         });
@@ -508,8 +652,10 @@ export function describeBookkeepingExport(dataSourceName: string): void {
             for (const account of Object.values(other.accounts)) {
                 expect(text).not.toContain(account.id);
             }
-            const otherEntries: JournalEntry[] = await inTenant(other.tenantId, async () => await inject<Repository<JournalEntry>>(repositoryTokenFor(JournalEntry))
-                .findAll({ limit: 'all' }));
+            const otherEntries: JournalEntry[] = await inTenant(
+                other.tenantId,
+                async () => await inject<Repository<JournalEntry>>(repositoryTokenFor(JournalEntry)).findAll({ limit: 'all' })
+            );
             for (const entry of otherEntries) {
                 expect(text).not.toContain(entry.id);
             }

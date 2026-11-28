@@ -50,11 +50,15 @@ export class ZibriMcpPlugin extends ZibriPlugin {
             return;
         }
         // the approval request a write tool proposes is one of an action the approval plugin knows
-        validateTokensRegistered(`${this.constructor.name}, for its write tools,`, { APPROVAL_REQUEST_SERVICE: ZIBRI_APPROVAL_PLUGIN_DI_TOKENS.APPROVAL_REQUEST_SERVICE });
+        validateTokensRegistered(
+            `${this.constructor.name}, for its write tools,`,
+            { APPROVAL_REQUEST_SERVICE: ZIBRI_APPROVAL_PLUGIN_DI_TOKENS.APPROVAL_REQUEST_SERVICE }
+        );
         for (const tool of writing) {
             if (inject(ZIBRI_APPROVAL_PLUGIN_DI_TOKENS.APPROVAL_REQUEST_SERVICE).findAction(tool.action.name) !== tool.action) {
                 throw new InternalError(
-                    `The MCP tool "${tool.name}" proposes the approval action "${tool.action.name}", which needs to be registered with provideApprovalAction.`
+                    `The MCP tool "${tool.name}" proposes the approval action "${tool.action.name}", `
+                    + 'which needs to be registered with provideApprovalAction.'
                 );
             }
         }

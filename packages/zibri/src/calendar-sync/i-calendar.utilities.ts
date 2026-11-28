@@ -15,7 +15,7 @@ const MAX_LINE_OCTETS: number = 75;
 /**
  * The characters a text value cannot hold, the control characters but the tab (RFC 5545, section 3.3.11).
  */
-// eslint-disable-next-line no-control-regex
+
 const CONTROL_CHARACTERS: RegExp = /[\u0000-\u0008\u000B-\u001F\u007F]/g;
 
 /**
@@ -108,7 +108,8 @@ export abstract class ICalendarUtilities {
      * @returns It, to the second.
      */
     private static formatDateTime(date: Date): string {
-        return date.toISOString().replaceAll(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z');
+        return date.toISOString().replaceAll(/[-:]/g, '')
+            .replace(/\.\d{3}Z$/, 'Z');
     }
 
     /**
@@ -117,7 +118,8 @@ export abstract class ICalendarUtilities {
      * @returns Its day.
      */
     private static formatDate(date: Date): string {
-        return date.toISOString().slice(0, 10).replaceAll('-', '');
+        return date.toISOString().slice(0, 10)
+            .replaceAll('-', '');
     }
 
     /**

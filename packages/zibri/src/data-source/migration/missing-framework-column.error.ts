@@ -12,11 +12,13 @@ export class MissingFrameworkColumnError extends InternalError {
     readonly columns: readonly MissingFrameworkColumn[];
 
     constructor(feature: string, columns: readonly MissingFrameworkColumn[]) {
+        const named: string = columns.map(c => `the column "${c.column}" of "${c.table}"`).join(', ');
         super([
-            `${feature} needs ${columns.map(c => `the column "${c.column}" of "${c.table}"`).join(', ')}, which the database lacks.`,
+            `${feature} needs ${named}, which the database lacks.`,
             'The data source issues no DDL with schemaManagement: \'external\'. Add the columns, and start the application again:',
             ...columns.flatMap(c => c.statements.map(statement => `${statement};`))
         ]);
+        this.name = 'MissingFrameworkColumnError';
         this.columns = columns;
     }
 }

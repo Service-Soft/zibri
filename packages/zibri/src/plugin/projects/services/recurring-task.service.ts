@@ -113,7 +113,11 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findRecurringTasks(projectId: string): Promise<RecurringTask[]> {
         const access: ProjectAccess = await this.accessService.resolveAccess(projectId);
-        return await this.recurringTaskRepository.findAll({ where: { projectId: access.project.id }, order: { title: 'ASC', id: 'ASC' }, limit: 'all' });
+        return await this.recurringTaskRepository.findAll({
+            where: { projectId: access.project.id },
+            order: { title: 'ASC', id: 'ASC' },
+            limit: 'all'
+        });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -160,8 +164,7 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
         const today: Date = RecurrenceUtilities.resolveDay(now, change.timezone ?? stored.timezone);
         // what decides the days, changed: the days due before today are not created after the fact, and neither are
         // those due while it was paused
-        const restarts: boolean = change.recurrence != undefined || change.startsOn != undefined || change.timezone != undefined
-            || change.paused === false && stored.pausedAt != undefined;
+        const restarts: boolean = this.isRestartedBy(change, stored);
         const data: Partial<RecurringTask> = {
             ...change.title === undefined ? {} : { title: change.title },
             ...change.description === undefined ? {} : { description: change.description },
@@ -176,10 +179,7 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
             ...change.paused === false ? { pausedAt: null } : {},
             ...restarts ? { activeFrom: today } : {}
         };
-        if (!Object.keys(data).length) {
-            return stored;
-        }
-        return await this.recurringTaskRepository.updateById(recurringTaskId, data);
+        return !Object.keys(data).length ? stored : await this.recurringTaskRepository.updateById(recurringTaskId, data);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -196,7 +196,11 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
     // eslint-disable-next-line jsdoc/require-jsdoc
     async createDueOccurrences(now: Date): Promise<Task[]> {
         // as the application: nobody is the caller, and what a recurring task creates is what its editor set up
-        const recurringTasks: RecurringTask[] = await this.recurringTaskRepository.findAll({ where: { pausedAt: null }, unscoped: true, limit: 'all' });
+        const recurringTasks: RecurringTask[] = await this.recurringTaskRepository.findAll({
+            where: { pausedAt: null },
+            unscoped: true,
+            limit: 'all'
+        });
         const created: Task[] = [];
         // one after the other: each takes the lease on the columns it writes in, which two of one project share
         for (const recurringTask of recurringTasks) {
@@ -212,13 +216,29 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
     }
 
     /**
+     * Whether a change restarts a recurring task from today: it changes what decides the days, or ends its pause.
+     * @param change - The change.
+     * @param stored - The recurring task, as it is stored.
+     * @returns True when it restarts.
+     */
+    private isRestartedBy(change: RecurringTaskChange, stored: RecurringTask): boolean {
+        return change.recurrence != undefined
+            || change.startsOn != undefined
+            || change.timezone != undefined
+            || (change.paused === false && stored.pausedAt != undefined);
+    }
+
+    /**
      * Creates the occurrences of a recurring task that are due and were not created before.
      * @param recurringTask - The recurring task.
      * @param now - The moment its lead time counts from.
      * @returns The tasks created.
      */
     private async createOccurrencesOf(recurringTask: RecurringTask, now: Date): Promise<Task[]> {
-        const project: Project | undefined = await this.projectRepository.findById(recurringTask.projectId, { unscoped: true, required: false });
+        const project: Project | undefined = await this.projectRepository.findById(
+            recurringTask.projectId,
+            { unscoped: true, required: false }
+        );
         if (project == undefined || project.archivedAt != undefined) {
             return [];
         }
@@ -244,7 +264,8 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
         });
         if (column == undefined) {
             inject(ZIBRI_DI_TOKENS.LOGGER).warn(
-                `The recurring task ${recurringTask.id} is due, and its project ${project.id} has no column whose tasks are not done to create it in.`
+                `The recurring task ${recurringTask.id} is due, and its project ${project.id} `
+                + 'has no column whose tasks are not done to create it in.'
             );
             return [];
         }
@@ -255,7 +276,9 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
                 tasks.push(task);
             }
         }
-        await Promise.all(tasks.map(async task => await this.boardUpdateService.publish({ type: 'task-created', projectId: task.projectId, task })));
+        await Promise.all(tasks.map(
+            async task => await this.boardUpdateService.publish({ type: 'task-created', projectId: task.projectId, task })
+        ));
         await ProjectEventUtilities.emit(this.options.eventNames.taskCreated, tasks);
         await ProjectEventUtilities.emit(this.options.eventNames.taskDueDateChanged, tasks);
         return tasks;
@@ -270,20 +293,20 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
      */
     private async resolveDueOccurrences(recurringTask: RecurringTask, now: Date): Promise<DueOccurrence[]> {
         const today: Date = RecurrenceUtilities.resolveDay(now, recurringTask.timezone);
-        const horizon: Date = new Date(today.getTime() + recurringTask.leadTimeInDays * Ms.DAY);
-        const earliest: Date = new Date(Math.max(recurringTask.activeFrom.getTime(), today.getTime() - CATCH_UP_DAYS * Ms.DAY));
+        const horizon: Date = new Date(today.getTime() + (recurringTask.leadTimeInDays * Ms.DAY));
+        const earliest: Date = new Date(Math.max(recurringTask.activeFrom.getTime(), today.getTime() - (CATCH_UP_DAYS * Ms.DAY)));
         const calendar: WorkingCalendar = await this.calendarService.resolveCalendar(recurringTask.projectId);
         const rule: NonWorkingDayRule = recurringTask.nonWorkingDay ?? calendar.nonWorkingDay;
         const isWorkingDay: (day: Date) => boolean = await this.calendarService.resolveIsWorkingDay(
             calendar,
-            new Date(earliest.getTime() - 2 * SHIFT_MARGIN_DAYS * Ms.DAY),
-            new Date(horizon.getTime() + 2 * SHIFT_MARGIN_DAYS * Ms.DAY)
+            new Date(earliest.getTime() - (2 * SHIFT_MARGIN_DAYS * Ms.DAY)),
+            new Date(horizon.getTime() + (2 * SHIFT_MARGIN_DAYS * Ms.DAY))
         );
         // a day of the recurrence just past the horizon may move before it, to the previous working day
         return RecurrenceUtilities.resolveOccurrences(
             recurringTask.recurrence,
             recurringTask.startsOn,
-            new Date(horizon.getTime() + SHIFT_MARGIN_DAYS * Ms.DAY)
+            new Date(horizon.getTime() + (SHIFT_MARGIN_DAYS * Ms.DAY))
         )
             .map(occurrenceOn => ({ occurrenceOn, dueOn: RecurrenceUtilities.resolveWorkingDay(occurrenceOn, rule, isWorkingDay) }))
             .filter(d => d.dueOn.getTime() <= horizon.getTime() && d.dueOn.getTime() >= earliest.getTime());
@@ -296,9 +319,15 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
      * @param occurrence - The occurrence.
      * @returns The task, or undefined when another run created the occurrence first.
      */
-    private async createOccurrence(recurringTask: RecurringTask, column: ProjectColumn, occurrence: DueOccurrence): Promise<Task | undefined> {
+    private async createOccurrence(
+        recurringTask: RecurringTask,
+        column: ProjectColumn,
+        occurrence: DueOccurrence
+    ): Promise<Task | undefined> {
         // those of the template who see the project as it is created, and the labels the project still has
-        const sees: boolean[] = await Promise.all(recurringTask.assigneeIds.map(async userId => await this.accessService.resolveSeesProject(userId, recurringTask.projectId)));
+        const sees: boolean[] = await Promise.all(recurringTask.assigneeIds.map(
+            async userId => await this.accessService.resolveSeesProject(userId, recurringTask.projectId)
+        ));
         const assigneeIds: string[] = recurringTask.assigneeIds.filter((_, index) => sees[index] === true);
         const labels: Pick<TaskLabel, 'id'>[] = recurringTask.labelIds.length
             ? await this.labelRepository.findAll({
@@ -310,36 +339,39 @@ export class RecurringTaskService implements RecurringTaskServiceInterface {
             : [];
         const labelIds: string[] = recurringTask.labelIds.filter(id => labels.some(label => label.id === id));
         try {
-            return await ProjectPositionUtilities.withPlacementLease(`column:${column.id}`, async () => await this.taskRepository.dataSource.runInTransaction(
-                async (transaction: Transaction) => {
-                    const placement: PositionPlacement = await ProjectPositionUtilities.resolveTaskPlacement(
-                        column.id,
-                        undefined,
-                        undefined,
-                        { transaction, unscoped: true }
-                    );
-                    const task: Task = await this.taskRepository.create({
-                        projectId: recurringTask.projectId,
-                        columnId: column.id,
-                        title: recurringTask.title,
-                        description: recurringTask.description ?? null,
-                        position: placement.position,
-                        dueOn: occurrence.dueOn,
-                        assigneeIds,
-                        labelIds,
-                        doneAt: null,
-                        parentTaskId: null,
-                        recurringTaskId: recurringTask.id
-                    }, { transaction, unscoped: true });
-                    // in the transaction of the task, whose unique refuses the second run creating the same one
-                    await this.occurrenceRepository.create(
-                        { recurringTaskId: recurringTask.id, occurrenceOn: occurrence.occurrenceOn, taskId: task.id },
-                        { transaction, unscoped: true }
-                    );
-                    return task;
-                },
-                { maxAttempts: 1 }
-            ));
+            return await ProjectPositionUtilities.withPlacementLease(
+                `column:${column.id}`,
+                async () => await this.taskRepository.dataSource.runInTransaction(
+                    async (transaction: Transaction) => {
+                        const placement: PositionPlacement = await ProjectPositionUtilities.resolveTaskPlacement(
+                            column.id,
+                            undefined,
+                            undefined,
+                            { transaction, unscoped: true }
+                        );
+                        const task: Task = await this.taskRepository.create({
+                            projectId: recurringTask.projectId,
+                            columnId: column.id,
+                            title: recurringTask.title,
+                            description: recurringTask.description ?? null,
+                            position: placement.position,
+                            dueOn: occurrence.dueOn,
+                            assigneeIds,
+                            labelIds,
+                            doneAt: null,
+                            parentTaskId: null,
+                            recurringTaskId: recurringTask.id
+                        }, { transaction, unscoped: true });
+                        // in the transaction of the task, whose unique refuses the second run creating the same one
+                        await this.occurrenceRepository.create(
+                            { recurringTaskId: recurringTask.id, occurrenceOn: occurrence.occurrenceOn, taskId: task.id },
+                            { transaction, unscoped: true }
+                        );
+                        return task;
+                    },
+                    { maxAttempts: 1 }
+                )
+            );
         }
         catch (error) {
             if (error instanceof UniqueConstraintViolationError) {

@@ -21,7 +21,7 @@ import { WebDavPutOptions } from './web-dav-put-options.model';
 
 // what the answers of a WebDAV server look like to the client, from a server in this process: how a listing is
 // read, which status becomes which error, what each request carries, and which hosts a tenant's connection
-// reaches. What real servers do is held by web-dav-client.test.ts and web-dav-client.nextcloud.test.ts
+// reaches. What real servers do is held by web-dav-client.container.test.ts and web-dav-client.nextcloud.test.ts
 
 /**
  * A request the server received.
@@ -70,6 +70,7 @@ type Answering = (request: ReceivedRequest) => Answer;
 
 const USERNAME: string = 'ada';
 const PASSWORD: string = 'Lovelace-app-password';
+const CREDENTIALS: string = `${USERNAME}:${PASSWORD}`;
 const FILES_PATH: string = '/remote.php/dav/files/ada/';
 const OWNCLOUD_NAMESPACE: string = 'http://owncloud.org/ns';
 
@@ -269,12 +270,14 @@ describe('WebDavClient, listing a folder', () => {
             url: request.url,
             depth: request.headers['depth'],
             authorization: request.headers.authorization
-        }))).toEqual([{
-            method: 'PROPFIND',
-            url: `${FILES_PATH}Invoices/`,
-            depth: '1',
-            authorization: `Basic ${Buffer.from(`${USERNAME}:${PASSWORD}`).toString('base64')}`
-        }]);
+        }))).toEqual([
+            {
+                method: 'PROPFIND',
+                url: `${FILES_PATH}Invoices/`,
+                depth: '1',
+                authorization: `Basic ${Buffer.from(CREDENTIALS).toString('base64')}`
+            }
+        ]);
         expect(received[0]?.body.toString()).toContain('<d:prop><d:resourcetype/><d:getcontentlength/><d:getetag/><d:getlastmodified/></d:prop>');
     });
 
@@ -285,15 +288,17 @@ describe('WebDavClient, listing a folder', () => {
             fileId: { namespace: OWNCLOUD_NAMESPACE, name: 'fileid' }
         });
 
-        expect(entries).toEqual([{
-            name: 'Rückerstattung #1.pdf',
-            path: 'Invoices/Rückerstattung #1.pdf',
-            kind: 'file',
-            size: 2048,
-            etag: '"6745a2"',
-            modifiedAt: new Date('2026-11-26T08:30:00Z'),
-            properties: { fileId: '13' }
-        }]);
+        expect(entries).toEqual([
+            {
+                name: 'Rückerstattung #1.pdf',
+                path: 'Invoices/Rückerstattung #1.pdf',
+                kind: 'file',
+                size: 2048,
+                etag: '"6745a2"',
+                modifiedAt: new Date('2026-11-26T08:30:00Z'),
+                properties: { fileId: '13' }
+            }
+        ]);
         expect(received[0]?.body.toString()).toContain(`xmlns:p0="${OWNCLOUD_NAMESPACE}"`);
         expect(received[0]?.body.toString()).toContain('<p0:fileid/>');
     });
@@ -306,6 +311,24 @@ describe('WebDavClient, listing a folder', () => {
         });
 
         expect(entries.map(entry => entry.properties)).toEqual([{ favorite: undefined }]);
+    });
+
+    it('reads a further property holding one element as the text of that element, such as the checksums of Nextcloud', async () => {
+        answering = () => ({
+            status: 207,
+            headers: XML_HEADERS,
+            body: '<?xml version="1.0"?>\n<d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">'
+                + `<d:response><d:href>${FILES_PATH}Invoices/2026-001.pdf</d:href><d:propstat><d:prop><d:resourcetype/>`
+                + '<d:getetag>&quot;e1&quot;</d:getetag><oc:checksums><oc:checksum>SHA256:abc MD5:def</oc:checksum></oc:checksums></d:prop>'
+                + '<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>'
+        });
+
+        const entry: WebDavEntry<'checksums'> | undefined = await createClient().findEntry('Invoices/2026-001.pdf', {
+            checksums: { namespace: OWNCLOUD_NAMESPACE, name: 'checksums', child: 'checksum' }
+        });
+
+        expect(entry?.properties.checksums).toBe('SHA256:abc MD5:def');
+        expect(received[0]?.body.toString()).toContain('checksums');
     });
 
     it('lists the folder of the connection for an empty path', async () => {
@@ -440,14 +463,16 @@ describe('WebDavClient, reading and writing a file', () => {
             ifMatch: request.headers['if-match'],
             ifNoneMatch: request.headers['if-none-match'],
             body: request.body.toString()
-        }))).toEqual([{
-            method: 'PUT',
-            contentType: 'application/pdf',
-            contentLength: '8',
-            ifMatch: '"e1"',
-            ifNoneMatch: undefined,
-            body: '%PDF-1.7'
-        }]);
+        }))).toEqual([
+            {
+                method: 'PUT',
+                contentType: 'application/pdf',
+                contentLength: '8',
+                ifMatch: '"e1"',
+                ifNoneMatch: undefined,
+                body: '%PDF-1.7'
+            }
+        ]);
     });
 
     it('writes text only where there is no file', async () => {
@@ -473,8 +498,9 @@ describe('WebDavClient, reading and writing a file', () => {
         expect(error).toMatchObject({ path: 'Invoices/2026-001.pdf' });
     });
 
-    it('throws a WebDavConflictError for a file in a folder that does not exist', async () => {
-        answering = () => ({ status: HttpStatus.CONFLICT });
+    // Nextcloud answers it with a 404 naming the folder, where RFC 4918 says 409: a put needs nothing at its own path
+    it.each([HttpStatus.CONFLICT, HttpStatus.NOT_FOUND])('throws a WebDavConflictError for a file in a folder that does not exist, answered with %s', async status => {
+        answering = () => ({ status });
 
         expect(await failureOf(createClient().put('Missing/2026-001.pdf', 'x', { contentType: 'text/plain', overwrite: true })))
             .toBeInstanceOf(WebDavConflictError);
@@ -548,6 +574,31 @@ describe('WebDavClient, deleting and moving', () => {
         expect(noFolder).toBeInstanceOf(WebDavConflictError);
         expect(noFolder).toMatchObject({ path: 'Archive/a.pdf' });
     });
+
+    // Apache renames, and answers the folder that is not there with a 500 rather than a 409
+    it('throws a WebDavConflictError for a move refused otherwise into a folder that does not exist', async () => {
+        answering = request => request.method === 'MOVE' ? { status: HttpStatus.INTERNAL_SERVER_ERROR } : { status: HttpStatus.NOT_FOUND };
+
+        const noFolder: unknown = await failureOf(createClient().move('Invoices/a.pdf', 'Archive/a.pdf', { overwrite: false }));
+
+        expect(noFolder).toBeInstanceOf(WebDavConflictError);
+        expect(noFolder).toMatchObject({ path: 'Archive/a.pdf' });
+        expect(received.map(request => [request.method, request.url])).toEqual([
+            ['MOVE', `${FILES_PATH}Invoices/a.pdf`],
+            ['PROPFIND', `${FILES_PATH}Archive`]
+        ]);
+    });
+
+    it('throws what a move was refused with where the folder it goes into exists', async () => {
+        answering = request => request.method === 'MOVE'
+            ? { status: HttpStatus.INTERNAL_SERVER_ERROR }
+            : { status: 207, headers: XML_HEADERS, body: nextcloudFolder('Archive') };
+
+        const refused: unknown = await failureOf(createClient().move('Invoices/a.pdf', 'Archive/a.pdf', { overwrite: false }));
+
+        expect(refused).toBeInstanceOf(HttpClientError);
+        expect(refused).not.toBeInstanceOf(WebDavConflictError);
+    });
 });
 
 describe('WebDavClient, creating a folder', () => {
@@ -591,12 +642,61 @@ describe('WebDavClient, creating a folder', () => {
         expect(received.map(request => request.method)).toEqual(['MKCOL', 'PROPFIND']);
     });
 
-    it('throws a WebDavConflictError where a file is', async () => {
+    // Apache answers a folder another request created between its check and its own with a 403
+    it('leaves a folder that exists as it is, whatever the server refused it with', async () => {
         answering = request => request.method === 'MKCOL'
-            ? { status: HttpStatus.METHOD_NOT_ALLOWED }
-            : { status: 207, headers: XML_HEADERS, body: NEXTCLOUD_FILE };
+            ? { status: HttpStatus.FORBIDDEN }
+            : { status: 207, headers: XML_HEADERS, body: nextcloudFolder('Invoices') };
 
-        expect(await failureOf(createClient().createFolder('Invoices/2026-001.pdf'))).toBeInstanceOf(WebDavConflictError);
+        await createClient().createFolder('Invoices');
+
+        expect(received.map(request => request.method)).toEqual(['MKCOL', 'PROPFIND']);
+    });
+
+    it.each([HttpStatus.METHOD_NOT_ALLOWED, HttpStatus.FORBIDDEN, HttpStatus.NOT_FOUND, HttpStatus.BAD_REQUEST])(
+        'throws a WebDavConflictError where a file is, refused with %s',
+        async status => {
+            answering = request => request.method === 'MKCOL'
+                ? { status }
+                : { status: 207, headers: XML_HEADERS, body: NEXTCLOUD_FILE };
+
+            expect(await failureOf(createClient().createFolder('Invoices/2026-001.pdf'))).toBeInstanceOf(WebDavConflictError);
+        }
+    );
+
+    // the puts of a backup into one new folder each created it, which Nextcloud answered all but one of with a 423
+    it('creates a folder several calls of one client create at once with one request', async () => {
+        answering = () => ({ status: HttpStatus.CREATED });
+        const client: WebDavClient = createClient();
+
+        await Promise.all(Array.from({ length: 8 }, async () => await client.createFolder('Invoices')));
+
+        expect(received.map(request => [request.method, request.url])).toEqual([['MKCOL', `${FILES_PATH}Invoices/`]]);
+    });
+
+    it('creates a folder the server holds locked while another instance creates it, once the lock is gone', async () => {
+        let locked: number = 2;
+        answering = () => locked-- > 0 ? { status: HttpStatus.LOCKED } : { status: HttpStatus.CREATED };
+
+        await createClient().createFolder('Invoices');
+
+        expect(received.map(request => request.method)).toEqual(['MKCOL', 'MKCOL', 'MKCOL']);
+    });
+
+    it('throws the 423 of a folder the server holds locked for good, after a few attempts', async () => {
+        answering = request => request.method === 'MKCOL' ? { status: HttpStatus.LOCKED } : { status: HttpStatus.NOT_FOUND };
+
+        const refused: unknown = await failureOf(createClient().createFolder('Invoices'));
+
+        expect(refused).toBeInstanceOf(HttpClientError);
+        expect(refused).toMatchObject({ responseData: { status: HttpStatus.LOCKED } });
+        expect(received.map(request => request.method)).toEqual(['MKCOL', 'MKCOL', 'MKCOL', 'MKCOL', 'MKCOL', 'PROPFIND']);
+    });
+
+    it('throws what a folder was refused with where nothing is', async () => {
+        answering = request => request.method === 'MKCOL' ? { status: HttpStatus.FORBIDDEN } : { status: HttpStatus.NOT_FOUND };
+
+        expect(await failureOf(createClient().createFolder('Shared'))).toBeInstanceOf(WebDavForbiddenError);
     });
 
     it('throws a WebDavConflictError when the folder of the connection does not exist', async () => {

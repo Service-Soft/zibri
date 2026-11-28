@@ -11,7 +11,7 @@ import { describeFileStore } from './file-store.cases';
 import { S3FileStore } from './s3.file-store';
 
 // against the stand-in, which runs wherever the suites run: what is checked is what the store asks of a bucket.
-// What a real service accepts of it is checked against one in file-store.containers.test.ts
+// What a real service accepts of it is checked against one in file-store.container.test.ts
 
 const standIn: S3StandIn = new S3StandIn(FsUtilities.getPath(testFileFolder, `s3-file-store-${UUIDUtilities.generate()}`));
 let server: StartedTestServer | undefined;

@@ -57,7 +57,11 @@ export class EBilanzConformanceService implements BookkeepingConformanceServiceI
      * @param reopening - The fiscal year being reopened.
      */
     async validateReopening(reopening: BookkeepingReopening): Promise<void> {
-        await inject(ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.E_BILANZ_SERVICE).validateReopening(reopening.fiscalYear.id, reopening.forCorrection, reopening.transaction);
+        await inject(ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.E_BILANZ_SERVICE).validateReopening(
+            reopening.fiscalYear.id,
+            reopening.forCorrection,
+            reopening.transaction
+        );
     }
 
     /**
@@ -77,12 +81,17 @@ export class EBilanzConformanceService implements BookkeepingConformanceServiceI
         });
         const filed: EBilanzFiling | undefined = filings.find(f => (f.kind === EBilanzFilingKind.TRANSMISSION && f.succeeded)
             || f.kind === EBilanzFilingKind.MANUAL_FILING);
-        return [{
-            conformance: this.name,
-            name: 'e-bilanz',
-            description: $ts`Prepare the E-Bilanz of the fiscal year and file it with the tax administration, § 5b EStG.`,
-            dueOn: EBilanzDeadlineUtilities.resolveDeadline(context.fiscalYear.end, EBilanzUtilities.findGermanCompany(context.settings.company)?.taxAdvisor ?? false),
-            fulfilledAt: filed?.createdAt ?? null
-        }];
+        return [
+            {
+                conformance: this.name,
+                name: 'e-bilanz',
+                description: $ts`Prepare the E-Bilanz of the fiscal year and file it with the tax administration, § 5b EStG.`,
+                dueOn: EBilanzDeadlineUtilities.resolveDeadline(
+                    context.fiscalYear.end,
+                    EBilanzUtilities.findGermanCompany(context.settings.company)?.taxAdvisor ?? false
+                ),
+                fulfilledAt: filed?.createdAt ?? null
+            }
+        ];
     }
 }

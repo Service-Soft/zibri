@@ -5,9 +5,9 @@ import { TestTimeouts } from '../../../__testing__/constants';
 import { defaultTestServerEntities, defaultTestServerRepositories } from '../../../__testing__/test-server/create-test-data-source.function';
 import { defaultTestServerProviders } from '../../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../../__testing__/test-server/start-test-server.function';
-import { Property } from '../../../entity/decorators/property.decorator';
 import { inject } from '../../../di/inject.function';
 import { type DiProvider, defineProvider } from '../../../di/models/di-provider.model';
+import { Property } from '../../../entity/decorators/property.decorator';
 import { type Newable } from '../../../types/newable.type';
 import { FsUtilities } from '../../../utilities/fs.utilities';
 import { bookkeepingTestEntities, ReceiptsFileStore, receiptsFolder } from '../bookkeeping.cases';
@@ -22,7 +22,7 @@ import { GermanBookkeepingCompany } from './models/german-bookkeeping-company.mo
  * A company of another law, which knows nothing of the GCD module.
  */
 class AustrianBookkeepingCompany extends BookkeepingCompany {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     @Property.string({ required: false })
     companyRegisterNumber?: string | null;
 }
@@ -31,7 +31,7 @@ class AustrianBookkeepingCompany extends BookkeepingCompany {
  * The German company with what an application adds of its own.
  */
 class AppBookkeepingCompany extends GermanBookkeepingCompany {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     @Property.string({ required: false })
     customerNumber?: string | null;
 }

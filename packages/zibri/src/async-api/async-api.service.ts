@@ -325,13 +325,14 @@ export class AsyncApiService implements AsyncApiServiceInterface, OnAppStart {
      * @returns The schema of the message.
      */
     private buildEnvelope(data: OpenApiSchemaObject | OpenApiReferenceObject): OpenApiSchemaObject {
+        // without a seq: an answer, a replay that is incomplete and a deactivated tenant are not stored, so none of
+        // them is given one, and only a stored message is sent again to a client reconnecting from its seq
         return {
             type: 'object',
             title: 'ok',
             properties: {
                 ok: { const: true },
                 status: { type: 'integer' },
-                seq: { type: 'integer', description: 'The number of the message, which a reconnecting client sends as its offset' },
                 data
             },
             required: ['ok', 'status', 'data']

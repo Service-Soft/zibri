@@ -1,3 +1,4 @@
+/* eslint-disable sonar/no-duplicate-string -- the days, amounts and messages the cases repeat are the data of each case */
 import { describe, expect, it } from '@jest/globals';
 
 import { testFileFolder } from '../../__testing__/constants';
@@ -21,7 +22,8 @@ import { NotFoundError } from '../../error-handling/errors/not-found.error';
 import { FileStore } from '../../file/decorators/file-store.decorator';
 import { FileRecord } from '../../file/file-record.model';
 import { FsFileStore } from '../../file/stores/fs.file-store';
-import { getZonedDate, ZonedDate } from '../../localization/format-date.function';
+import { getZonedDate } from '../../localization/get-zoned-date.function';
+import { ZonedDate } from '../../localization/models/zoned-date.model';
 import { $ts } from '../../localization/translate.function';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Newable } from '../../types/newable.type';
@@ -29,30 +31,30 @@ import { FsPath, FsUtilities } from '../../utilities/fs.utilities';
 import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from './bookkeeping.tokens';
+import { type BookkeepingAccountFilter } from './models/bookkeeping-account-filter.model';
 import { BookkeepingAccountType } from './models/bookkeeping-account-type.enum';
 import { BookkeepingAccount, BookkeepingAccountCreateData } from './models/bookkeeping-account.model';
-import { type BookkeepingCompany } from './models/bookkeeping-company.model';
+import { type BookkeepingCarriedBalances } from './models/bookkeeping-carried-balances.model';
 import { type BookkeepingClosingProposal } from './models/bookkeeping-closing-proposal.model';
 import { type BookkeepingClosing } from './models/bookkeeping-closing.model';
+import { type BookkeepingCompany } from './models/bookkeeping-company.model';
+import { type BookkeepingJournalReport } from './models/bookkeeping-journal-report.model';
 import { type BookkeepingPluginOptionsInput } from './models/bookkeeping-plugin-options-input.model';
 import { BookkeepingSettings } from './models/bookkeeping-settings.model';
+import { BookkeepingStatementType } from './models/bookkeeping-statement-type.enum';
 import { type BookkeepingVerification } from './models/bookkeeping-verification.model';
 import { EXPENSE_RECEIPT_FILE_STORE_NAME } from './models/expense-receipt-file-store-name.model';
 import { ExpenseReceipt } from './models/expense-receipt.model';
 import { Expense } from './models/expense.model';
 import { type FiscalYearClosingResult } from './models/fiscal-year-closing-result.model';
 import { type FiscalYearReopeningResult } from './models/fiscal-year-reopening-result.model';
-import { type BookkeepingCarriedBalances } from './models/bookkeeping-carried-balances.model';
-import { BookkeepingStatementType } from './models/bookkeeping-statement-type.enum';
 import { FiscalYearStatement } from './models/fiscal-year-statement.model';
 import { FiscalYear } from './models/fiscal-year.model';
 import { type JournalEntryDetails } from './models/journal-entry-details.model';
 import { type JournalEntryFilter } from './models/journal-entry-filter.model';
-import { type JournalEntryPage } from './models/journal-entry-page.model';
-import { type BookkeepingAccountFilter } from './models/bookkeeping-account-filter.model';
-import { type BookkeepingJournalReport } from './models/bookkeeping-journal-report.model';
-import { JournalEntryLine } from './models/journal-entry-line.model';
 import { JournalEntryLineRole } from './models/journal-entry-line-role.enum';
+import { JournalEntryLine } from './models/journal-entry-line.model';
+import { type JournalEntryPage } from './models/journal-entry-page.model';
 import { type JournalEntryPosting } from './models/journal-entry-posting.model';
 import { JournalEntry } from './models/journal-entry.model';
 import { type NewJournalEntryLine } from './models/new-journal-entry-line.model';
@@ -114,20 +116,17 @@ export const testCompany: BookkeepingCompany = {
  * `Refusing GmbH`, and those naming it.
  */
 export class RefusingConformanceService implements BookkeepingConformanceServiceInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     readonly name: string = 'test-refusing';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     isApplicable(legalForm: string): boolean {
         return legalForm === 'Refusing GmbH';
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     resolveClosingProposals(): NewJournalEntry[] {
         return [];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     validateClosing(closing: BookkeepingClosing): void {
         throw new ConflictError($ts`The fiscal year ${closing.fiscalYear.id} needs to be closed by hand.`);
     }
@@ -138,15 +137,13 @@ export class RefusingConformanceService implements BookkeepingConformanceService
  * the reserve `2930`, proposed at closing and validated before the year is closed.
  */
 export class ReserveConformanceService implements BookkeepingConformanceServiceInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     readonly name: string = 'test-reserve';
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     isApplicable(legalForm: string): boolean {
         return legalForm === 'UG';
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     async resolveClosingProposals(closing: BookkeepingClosing): Promise<NewJournalEntry[]> {
         const reserve: BigNumber = this.resolveReserve(closing);
         if (!reserve.isGreaterThan(0) || this.resolveReserved(closing).isGreaterThanOrEqualTo(reserve)) {
@@ -157,16 +154,17 @@ export class ReserveConformanceService implements BookkeepingConformanceServiceI
             accounts.findOne({ where: { number: '2970' } }),
             accounts.findOne({ where: { number: '2930' } })
         ]);
-        return [{
-            documentDate: closing.fiscalYear.end,
-            postingDate: closing.fiscalYear.end,
-            documentReference: null,
-            text: 'Reserve',
-            lines: [{ accountId: from.id, debit: reserve, credit: null }, { accountId: to.id, debit: null, credit: reserve }]
-        }];
+        return [
+            {
+                documentDate: closing.fiscalYear.end,
+                postingDate: closing.fiscalYear.end,
+                documentReference: null,
+                text: 'Reserve',
+                lines: [{ accountId: from.id, debit: reserve, credit: null }, { accountId: to.id, debit: null, credit: reserve }]
+            }
+        ];
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     validateClosing(closing: BookkeepingClosing): void {
         if (this.resolveReserved(closing).isLessThan(this.resolveReserve(closing))) {
             throw new ConflictError($ts`The reserve needs to be posted before the fiscal year is closed.`);
@@ -211,11 +209,11 @@ type AccountName = 'bank' | 'receivables' | 'vat' | 'capital' | 'reserve' | 'res
  * The books of a tenant of its own.
  */
 export type TestBooks = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     tenantId: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     settings: BookkeepingSettings,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     accounts: Record<AccountName, BookkeepingAccount>,
     /**
      * The fiscal year 2026.
@@ -336,7 +334,12 @@ export function entryOf(books: TestBooks, postingDate: string, lines: TestLine[]
  * @param transaction - The transaction, one of its own by default.
  * @returns The entry.
  */
-export async function post(books: TestBooks, postingDate: string, lines: TestLine[], transaction?: Transaction): Promise<JournalEntryDetails> {
+export async function post(
+    books: TestBooks,
+    postingDate: string,
+    lines: TestLine[],
+    transaction?: Transaction
+): Promise<JournalEntryDetails> {
     return await inTenant(books.tenantId, async () => await journal().post(entryOf(books, postingDate, lines), transaction));
 }
 
@@ -347,7 +350,10 @@ export async function post(books: TestBooks, postingDate: string, lines: TestLin
  * @param lines - The lines.
  * @returns Each line as the name of its account, or its id for an account of other books, its side and its amount.
  */
-export function describeLines(books: { accounts: Record<string, BookkeepingAccount> }, lines: NewJournalEntryLine[]): [string, 'debit' | 'credit', string][] {
+export function describeLines(
+    books: { accounts: Record<string, BookkeepingAccount> },
+    lines: NewJournalEntryLine[]
+): [string, 'debit' | 'credit', string][] {
     const names: Map<string, string> = new Map(Object.entries(books.accounts).map(([name, a]) => [a.id, name]));
     return lines.map((line): [string, 'debit' | 'credit', string] => [
         names.get(line.accountId) ?? line.accountId,
@@ -393,16 +399,27 @@ export function describeBookkeeping(dataSourceName: string): void {
             it('are created once per tenant', async () => {
                 const [tenantId, settings] = await createSettings();
 
-                expect(settings).toMatchObject({ tenantId, currency: 'EUR', legalForms: [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }] });
-                const again: Promise<BookkeepingSettings> = inTenant(tenantId, async () => await journal().createSettings({ currency: 'USD', legalForms: [] }));
+                expect(settings).toMatchObject({
+                    tenantId,
+                    currency: 'EUR',
+                    legalForms: [{ legalForm: 'GmbH', validFrom: day('2020-01-01') }]
+                });
+                const again: Promise<BookkeepingSettings> = inTenant(
+                    tenantId,
+                    async () => await journal().createSettings({ currency: 'USD', legalForms: [] })
+                );
                 await expect(again).rejects.toThrow(ConflictError);
-                await expect(again).rejects.toThrow('The books of the tenant have settings already, which are changed rather than created again.');
+                await expect(again)
+                    .rejects.toThrow('The books of the tenant have settings already, which are changed rather than created again.');
             });
 
             it('change their currency until there is a fiscal year, and refuse it afterwards', async () => {
                 const [tenantId] = await createSettings();
 
-                const changed: BookkeepingSettings = await inTenant(tenantId, async () => await journal().updateSettings({ currency: 'USD' }));
+                const changed: BookkeepingSettings = await inTenant(
+                    tenantId,
+                    async () => await journal().updateSettings({ currency: 'USD' })
+                );
                 await inTenant(tenantId, async () => await journal().createFiscalYear({ start: day('2026-01-01') }));
 
                 expect(changed.currency).toBe('USD');
@@ -413,25 +430,44 @@ export function describeBookkeeping(dataSourceName: string): void {
 
             it('append a legal form valid after the end of the last closed fiscal year, and refuse one on or before it', async () => {
                 const books: TestBooks = await createBooks('UG');
-                await inTenant(books.tenantId, async () => await journal().closeFiscalYear(books.fiscalYear.id, { resultAccountId: books.accounts.result.id }));
+                await inTenant(books.tenantId, async () => await journal().closeFiscalYear(
+                    books.fiscalYear.id,
+                    { resultAccountId: books.accounts.result.id }
+                ));
 
-                await expect(inTenant(books.tenantId, async () => await journal().updateSettings({ legalForm: { legalForm: 'GmbH', validFrom: day('2026-12-31') } })))
-                    .rejects.toThrow('The legal form valid from 2026-12-31 needs to be valid from after 2026-12-31, the end of the last closed fiscal year.');
-                await expect(inTenant(books.tenantId, async () => await journal().updateSettings({ legalForm: { legalForm: 'GmbH', validFrom: day('2019-01-01') } })))
-                    .rejects.toThrow('The legal form valid from 2019-01-01 needs to be valid from after 2020-01-01, the day the latest legal form is valid from.');
+                await expect(inTenant(books.tenantId, async () => await journal().updateSettings({
+                    legalForm: { legalForm: 'GmbH', validFrom: day('2026-12-31') }
+                }))).rejects.toThrow(
+                    'The legal form valid from 2026-12-31 needs to be valid from after 2026-12-31, the end of the last closed fiscal year.'
+                );
+                await expect(inTenant(books.tenantId, async () => await journal().updateSettings({
+                    legalForm: { legalForm: 'GmbH', validFrom: day('2019-01-01') }
+                }))).rejects.toThrow(
+                    'The legal form valid from 2019-01-01 needs to be valid from after 2020-01-01, '
+                    + 'the day the latest legal form is valid from.'
+                );
                 const appended: BookkeepingSettings = await inTenant(books.tenantId, async () => await journal().updateSettings({
                     legalForm: { legalForm: 'GmbH', validFrom: day('2027-06-01') }
                 }));
 
-                expect(appended.legalForms).toEqual([{ legalForm: 'UG', validFrom: day('2020-01-01') }, { legalForm: 'GmbH', validFrom: day('2027-06-01') }]);
+                expect(appended.legalForms).toEqual([
+                    { legalForm: 'UG', validFrom: day('2020-01-01') },
+                    { legalForm: 'GmbH', validFrom: day('2027-06-01') }
+                ]);
             });
 
             it('replace their company with the one a change gives, keeping nothing of the one before', async () => {
                 const tenantId: string = UUIDUtilities.generate();
                 // of no legal form, whose company needs nothing but its name
-                await inTenant(tenantId, async () => await journal().createSettings({ currency: 'EUR', legalForms: [], company: testCompany }));
+                await inTenant(
+                    tenantId,
+                    async () => await journal().createSettings({ currency: 'EUR', legalForms: [], company: testCompany })
+                );
 
-                const changed: BookkeepingSettings = await inTenant(tenantId, async () => await journal().updateSettings({ company: { name: 'Example Holding' } }));
+                const changed: BookkeepingSettings = await inTenant(
+                    tenantId,
+                    async () => await journal().updateSettings({ company: { name: 'Example Holding' } })
+                );
                 const read: BookkeepingSettings | undefined = await inTenant(tenantId, async () => await journal().findSettings());
 
                 for (const company of [changed.company, read?.company]) {
@@ -457,7 +493,11 @@ export function describeBookkeeping(dataSourceName: string): void {
             it('numbers the entries of a fiscal year from 1, and keeps the lines in their own chain', async () => {
                 const books: TestBooks = await createBooks();
 
-                const first: JournalEntryDetails = await post(books, '2026-01-02', [['bank', 'debit', '25000'], ['capital', 'credit', '25000']]);
+                const first: JournalEntryDetails = await post(
+                    books,
+                    '2026-01-02',
+                    [['bank', 'debit', '25000'], ['capital', 'credit', '25000']]
+                );
                 const second: JournalEntryDetails = await post(books, '2026-03-01', [
                     ['receivables', 'debit', '1190.00'],
                     ['revenue', 'credit', '1000.00'],
@@ -465,8 +505,17 @@ export function describeBookkeeping(dataSourceName: string): void {
                 ]);
 
                 expect([first.entry.sequence, second.entry.sequence]).toEqual([1, 2]);
-                expect(second.entry).toMatchObject({ tenantId: books.tenantId, fiscalYearId: books.fiscalYear.id, text: 'Booked', chainSequence: 2 });
-                expect(describeLines(books, second.lines)).toEqual([['receivables', 'debit', '1190.00'], ['revenue', 'credit', '1000.00'], ['vat', 'credit', '190.00']]);
+                expect(second.entry).toMatchObject({
+                    tenantId: books.tenantId,
+                    fiscalYearId: books.fiscalYear.id,
+                    text: 'Booked',
+                    chainSequence: 2
+                });
+                expect(describeLines(books, second.lines)).toEqual([
+                    ['receivables', 'debit', '1190.00'],
+                    ['revenue', 'credit', '1000.00'],
+                    ['vat', 'credit', '190.00']
+                ]);
                 expect(second.lines.map(l => l.chainSequence)).toEqual([3, 4, 5]);
                 const stored: JournalEntryDetails = await inTenant(books.tenantId, async () => await journal().findEntry(second.entry.id));
                 expect(describeLines(books, stored.lines)).toEqual(describeLines(books, second.lines));
@@ -477,15 +526,23 @@ export function describeBookkeeping(dataSourceName: string): void {
 
                 const posted: JournalEntryDetails = await post(books, '2026-05-04', [['rent', 'debit', '500'], ['bank', 'credit', '500']]);
 
-                const retainUntil: ZonedDate = getZonedDate(posted.entry.retainUntil, inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).defaultTimezone);
+                const retainUntil: ZonedDate = getZonedDate(
+                    posted.entry.retainUntil,
+                    inject(ZIBRI_DI_TOKENS.LOCALIZE_OPTIONS).defaultTimezone
+                );
                 expect(retainUntil).toMatchObject({ year: 2037, month: 0, day: 1, hours: 0, minutes: 0 });
-                expect(posted.lines.map(l => l.retainUntil.getTime())).toEqual([posted.entry.retainUntil.getTime(), posted.entry.retainUntil.getTime()]);
+                expect(posted.lines.map(l => l.retainUntil.getTime()))
+                    .toEqual([posted.entry.retainUntil.getTime(), posted.entry.retainUntil.getTime()]);
             });
 
             it('refuses an entry whose debits do not add up to its credits', async () => {
                 const books: TestBooks = await createBooks();
 
-                const posting: Promise<JournalEntryDetails> = post(books, '2026-03-01', [['bank', 'debit', '100'], ['revenue', 'credit', '90']]);
+                const posting: Promise<JournalEntryDetails> = post(
+                    books,
+                    '2026-03-01',
+                    [['bank', 'debit', '100'], ['revenue', 'credit', '90']]
+                );
 
                 await expect(posting).rejects.toThrow(BadRequestError);
                 await expect(posting).rejects.toThrow('The debits of the entry, 100.00, need to add up to its credits, 90.00.');
@@ -494,7 +551,8 @@ export function describeBookkeeping(dataSourceName: string): void {
             it('refuses an entry of fewer than 2 lines, a line on both sides or none, and an amount not above 0', async () => {
                 const books: TestBooks = await createBooks();
 
-                await expect(post(books, '2026-03-01', [['bank', 'debit', '100']])).rejects.toThrow('A journal entry needs to have at least 2 lines.');
+                await expect(post(books, '2026-03-01', [['bank', 'debit', '100']]))
+                    .rejects.toThrow('A journal entry needs to have at least 2 lines.');
                 await expect(inTenant(books.tenantId, async () => await journal().post({
                     ...entryOf(books, '2026-03-01', [['bank', 'debit', '100'], ['revenue', 'credit', '100']]),
                     lines: [
@@ -522,12 +580,17 @@ export function describeBookkeeping(dataSourceName: string): void {
                     ...entryOf(books, '2026-03-01', [['bank', 'debit', '1'], ['revenue', 'credit', '1']]),
                     postingDate: new Date('2026-03-01T10:00:00.000Z')
                 }))).rejects.toThrow('The postingDate needs to be a day without a time, such as 2026-03-31.');
-                const outside: Promise<JournalEntryDetails> = post(books, '2027-01-01', [['bank', 'debit', '1'], ['revenue', 'credit', '1']]);
+                const outside: Promise<JournalEntryDetails> = post(
+                    books,
+                    '2027-01-01',
+                    [['bank', 'debit', '1'], ['revenue', 'credit', '1']]
+                );
                 await expect(outside).rejects.toThrow(ConflictError);
                 await expect(outside).rejects.toThrow('The posting date 2027-01-01 needs to fall into a fiscal year, and none covers it.');
             });
 
-            it('stores no role a line handed in from code holds beyond its type, as only the closing of a fiscal year sets one', async () => {
+            it('stores no role a line handed in from code holds beyond its type, '
+                + 'as only the closing of a fiscal year sets one', async () => {
                 const books: TestBooks = await createBooks();
                 const entry: JournalEntryPosting = entryOf(books, '2026-03-01', [['bank', 'debit', '1'], ['revenue', 'credit', '1']]);
 
@@ -537,24 +600,36 @@ export function describeBookkeeping(dataSourceName: string): void {
                     lines: entry.lines.map((line, index) => index === 1 ? { ...line, role: JournalEntryLineRole.RESULT } : line)
                 }));
                 expect(posted.lines.map(l => l.role ?? null)).toEqual([null, null]);
-                const stored: JournalEntryLine[] = await inTenant(books.tenantId, async () => await lines().findAll({ where: { entryId: posted.entry.id } }));
+                const stored: JournalEntryLine[] = await inTenant(
+                    books.tenantId,
+                    async () => await lines().findAll({ where: { entryId: posted.entry.id } })
+                );
                 expect(stored.map(l => l.role ?? null)).toEqual([null, null]);
             });
 
             it('refuses an account that does not exist, that another tenant has, or that is closed', async () => {
                 const books: TestBooks = await createBooks();
                 const other: TestBooks = await createBooks();
-                await inTenant(books.tenantId, async () => await inject<Repository<BookkeepingAccount>>(repositoryTokenFor(BookkeepingAccount))
-                    .updateById(books.accounts.rent.id, { closedAt: new Date() }));
+                await inTenant(
+                    books.tenantId,
+                    async () => await inject<Repository<BookkeepingAccount>>(repositoryTokenFor(BookkeepingAccount))
+                        .updateById(books.accounts.rent.id, { closedAt: new Date() })
+                );
                 const unknown: string = UUIDUtilities.generate();
 
                 await expect(inTenant(books.tenantId, async () => await journal().post({
                     ...entryOf(books, '2026-03-01', [['bank', 'debit', '1'], ['revenue', 'credit', '1']]),
-                    lines: [{ accountId: books.accounts.bank.id, debit: new BigNumber(1) }, { accountId: unknown, credit: new BigNumber(1) }]
+                    lines: [
+                        { accountId: books.accounts.bank.id, debit: new BigNumber(1) },
+                        { accountId: unknown, credit: new BigNumber(1) }
+                    ]
                 }))).rejects.toThrow(`Line 2 needs to name an account of the books, and "${unknown}" is none.`);
                 await expect(inTenant(books.tenantId, async () => await journal().post({
                     ...entryOf(books, '2026-03-01', [['bank', 'debit', '1'], ['revenue', 'credit', '1']]),
-                    lines: [{ accountId: books.accounts.bank.id, debit: new BigNumber(1) }, { accountId: other.accounts.revenue.id, credit: new BigNumber(1) }]
+                    lines: [
+                        { accountId: books.accounts.bank.id, debit: new BigNumber(1) },
+                        { accountId: other.accounts.revenue.id, credit: new BigNumber(1) }
+                    ]
                 }))).rejects.toThrow(`Line 2 needs to name an account of the books, and "${other.accounts.revenue.id}" is none.`);
                 await expect(post(books, '2026-03-01', [['bank', 'credit', '1'], ['rent', 'debit', '1']]))
                     .rejects.toThrow('Line 2 needs to name an open account, and the account 4210 Rent is closed.');
@@ -565,12 +640,20 @@ export function describeBookkeeping(dataSourceName: string): void {
                 await post(books, '2026-01-02', [['bank', 'debit', '1'], ['capital', 'credit', '1']]);
 
                 const transaction: Transaction = await entries().dataSource.startTransaction();
-                const abandoned: JournalEntryDetails = await post(books, '2026-01-03', [['bank', 'debit', '2'], ['capital', 'credit', '2']], transaction);
+                const abandoned: JournalEntryDetails = await post(
+                    books,
+                    '2026-01-03',
+                    [['bank', 'debit', '2'], ['capital', 'credit', '2']],
+                    transaction
+                );
                 await transaction.rollback();
                 const next: JournalEntryDetails = await post(books, '2026-01-04', [['bank', 'debit', '3'], ['capital', 'credit', '3']]);
 
                 expect([abandoned.entry.sequence, next.entry.sequence]).toEqual([2, 2]);
-                const stored: JournalEntry[] = await inTenant(books.tenantId, async () => await entries().findAll({ order: { sequence: 'ASC' }, limit: 'all' }));
+                const stored: JournalEntry[] = await inTenant(
+                    books.tenantId,
+                    async () => await entries().findAll({ order: { sequence: 'ASC' }, limit: 'all' })
+                );
                 expect(stored.map(e => e.sequence)).toEqual([1, 2]);
             });
 
@@ -602,10 +685,12 @@ export function describeBookkeeping(dataSourceName: string): void {
                 )));
 
                 expect(posted.map(p => p.entry.sequence).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 5, 6]);
-                expect((await inTenant(books.tenantId, async () => await fiscalYears().findById(books.fiscalYear.id))).lastSequence).toBe(6);
+                expect((await inTenant(books.tenantId, async () => await fiscalYears().findById(books.fiscalYear.id))).lastSequence)
+                    .toBe(6);
             });
 
-            it('gives each entry its own sequence when each runs in a transaction of its own, and one rolled back leaves no gap', async () => {
+            it('gives each entry its own sequence when each runs in a transaction of its own, '
+                + 'and one rolled back leaves no gap', async () => {
                 const books: TestBooks = await createBooks();
 
                 /**
@@ -615,12 +700,25 @@ export function describeBookkeeping(dataSourceName: string): void {
                  */
                 async function postInTransaction(amount: number, commit: boolean): Promise<void> {
                     const transaction: Transaction = await entries().dataSource.startTransaction();
-                    await post(books, '2026-02-01', [['bank', 'debit', String(amount)], ['capital', 'credit', String(amount)]], transaction);
+                    await post(
+                        books,
+                        '2026-02-01',
+                        [['bank', 'debit', String(amount)], ['capital', 'credit', String(amount)]],
+                        transaction
+                    );
                     await (commit ? transaction.commit() : transaction.rollback());
                 }
-                await Promise.all([postInTransaction(1, true), postInTransaction(2, false), postInTransaction(3, true), postInTransaction(4, true)]);
+                await Promise.all([
+                    postInTransaction(1, true),
+                    postInTransaction(2, false),
+                    postInTransaction(3, true),
+                    postInTransaction(4, true)
+                ]);
 
-                const stored: JournalEntry[] = await inTenant(books.tenantId, async () => await entries().findAll({ order: { sequence: 'ASC' }, limit: 'all' }));
+                const stored: JournalEntry[] = await inTenant(
+                    books.tenantId,
+                    async () => await entries().findAll({ order: { sequence: 'ASC' }, limit: 'all' })
+                );
                 expect(stored.map(e => e.sequence)).toEqual([1, 2, 3]);
                 expect(stored.map(e => e.chainSequence).sort((a, b) => a - b)).toEqual([1, 2, 3]);
             });
@@ -634,7 +732,10 @@ export function describeBookkeeping(dataSourceName: string): void {
                     [['bank', 'debit', String(amount)], ['capital', 'credit', String(amount)]]
                 )));
 
-                const stored: JournalEntry[] = await inTenant(books.tenantId, async () => await entries().findAll({ order: { chainSequence: 'ASC' }, limit: 'all' }));
+                const stored: JournalEntry[] = await inTenant(
+                    books.tenantId,
+                    async () => await entries().findAll({ order: { chainSequence: 'ASC' }, limit: 'all' })
+                );
                 expect(stored.map(e => e.chainSequence)).toEqual([1, 2, 3, 4]);
                 expect(await inTenant(books.tenantId, async () => (await journal().resolveVerification()).intact)).toBe(true);
             });
@@ -654,7 +755,11 @@ export function describeBookkeeping(dataSourceName: string): void {
 
                 await expect(post(books, '2026-06-02', [['rent', 'debit', '10'], ['bank', 'credit', '10']])).rejects.toThrow('is closed');
                 // the bank opens with the 100 paid in less the 10 of the posting the closing waited for
-                expect(describeLines(books, closed.openingEntry?.lines ?? [])).toEqual([['bank', 'debit', '90.00'], ['capital', 'credit', '100.00'], ['result', 'debit', '10.00']]);
+                expect(describeLines(books, closed.openingEntry?.lines ?? [])).toEqual([
+                    ['bank', 'debit', '90.00'],
+                    ['capital', 'credit', '100.00'],
+                    ['result', 'debit', '10.00']
+                ]);
             });
         });
 
@@ -683,7 +788,10 @@ export function describeBookkeeping(dataSourceName: string): void {
                 await storeOf(entries()).updateAll({ where: { id: second.entry.id }, data: { text: 'Rewritten' } });
 
                 expect(intact).toMatchObject({ intact: true, newestEntrySequence: 3, newestLineSequence: 6, problems: [] });
-                const verification: BookkeepingVerification = await inTenant(books.tenantId, async () => await journal().resolveVerification());
+                const verification: BookkeepingVerification = await inTenant(
+                    books.tenantId,
+                    async () => await journal().resolveVerification()
+                );
                 expect(verification).toMatchObject({
                     intact: false,
                     newestEntrySequence: null,
@@ -694,12 +802,19 @@ export function describeBookkeeping(dataSourceName: string): void {
 
             it('are checked: a line changed past the repository is named, and its entry no longer balances', async () => {
                 const books: TestBooks = await createBooks();
-                const posted: JournalEntryDetails = await post(books, '2026-03-01', [['bank', 'debit', '100'], ['revenue', 'credit', '100']]);
+                const posted: JournalEntryDetails = await post(
+                    books,
+                    '2026-03-01',
+                    [['bank', 'debit', '100'], ['revenue', 'credit', '100']]
+                );
                 const line: JournalEntryLine | undefined = posted.lines[0];
 
                 await storeOf(lines()).updateAll({ where: { id: line?.id }, data: { debit: new BigNumber(1000) } });
 
-                const verification: BookkeepingVerification = await inTenant(books.tenantId, async () => await journal().resolveVerification());
+                const verification: BookkeepingVerification = await inTenant(
+                    books.tenantId,
+                    async () => await journal().resolveVerification()
+                );
                 expect(verification.intact).toBe(false);
                 expect(verification.problems).toEqual([
                     { entryId: posted.entry.id, lineId: line?.id, reason: 'The row is not as it was written.' },
@@ -730,7 +845,11 @@ export function describeBookkeeping(dataSourceName: string): void {
                     text: 'Wrong customer',
                     createdBy: 'ada'
                 });
-                expect(describeLines(books, reversal.lines)).toEqual([['receivables', 'credit', '1190.00'], ['revenue', 'debit', '1000.00'], ['vat', 'debit', '190.00']]);
+                expect(describeLines(books, reversal.lines)).toEqual([
+                    ['receivables', 'credit', '1190.00'],
+                    ['revenue', 'debit', '1000.00'],
+                    ['vat', 'debit', '190.00']
+                ]);
             });
 
             it('refuses to reverse an entry twice, and to reverse a reversal', async () => {
@@ -746,7 +865,8 @@ export function describeBookkeeping(dataSourceName: string): void {
                     { postingDate: day('2026-03-06'), text: 'Again' }
                 ));
                 await expect(again).rejects.toThrow(ConflictError);
-                await expect(again).rejects.toThrow(`The entry "${original.entry.id}" is reversed already, and an entry is reversed at most once.`);
+                await expect(again)
+                    .rejects.toThrow(`The entry "${original.entry.id}" is reversed already, and an entry is reversed at most once.`);
                 await expect(inTenant(books.tenantId, async () => await journal().reverse(
                     reversal.entry.id,
                     { postingDate: day('2026-03-06'), text: 'Back' }
@@ -759,17 +879,24 @@ export function describeBookkeeping(dataSourceName: string): void {
                 const [tenantId] = await createSettings();
                 const books: TestBooks = await createBooks();
 
-                const first: FiscalYear = await inTenant(tenantId, async () => await journal().createFiscalYear({ start: day('2025-03-15') }));
+                const first: FiscalYear = await inTenant(
+                    tenantId,
+                    async () => await journal().createFiscalYear({ start: day('2025-03-15') })
+                );
                 const second: FiscalYear = await inTenant(tenantId, async () => await journal().createFiscalYear({}));
 
-                expect([first.start, first.end, second.start, second.end]).toEqual([day('2025-03-15'), day('2025-12-31'), day('2026-01-01'), day('2026-12-31')]);
+                expect([first.start, first.end, second.start, second.end])
+                    .toEqual([day('2025-03-15'), day('2025-12-31'), day('2026-01-01'), day('2026-12-31')]);
                 expect(books.fiscalYear).toMatchObject({ start: day('2026-01-01'), end: day('2026-12-31'), lastSequence: 0 });
             });
 
             it('keeps the rhythm of a fiscal year that is not the calendar year', async () => {
                 const [tenantId] = await createSettings();
 
-                await inTenant(tenantId, async () => await journal().createFiscalYear({ start: day('2025-07-01'), end: day('2026-06-30') }));
+                await inTenant(
+                    tenantId,
+                    async () => await journal().createFiscalYear({ start: day('2025-07-01'), end: day('2026-06-30') })
+                );
                 const next: FiscalYear = await inTenant(tenantId, async () => await journal().createFiscalYear({}));
 
                 expect([next.start, next.end]).toEqual([day('2026-07-01'), day('2027-06-30')]);
@@ -778,17 +905,27 @@ export function describeBookkeeping(dataSourceName: string): void {
             it('refuses a fiscal year that overlaps the one before, leaves a gap, or names no start for the first', async () => {
                 const books: TestBooks = await createBooks();
 
-                const overlapping: Promise<FiscalYear> = inTenant(books.tenantId, async () => await journal().createFiscalYear({ start: day('2026-12-01') }));
+                const overlapping: Promise<FiscalYear> = inTenant(
+                    books.tenantId,
+                    async () => await journal().createFiscalYear({ start: day('2026-12-01') })
+                );
                 await expect(overlapping).rejects.toThrow(ConflictError);
-                await expect(overlapping).rejects.toThrow('The fiscal year needs to start on 2027-01-01, the day after the fiscal year from 2026-01-01 to 2026-12-31 ends.');
+                await expect(overlapping).rejects.toThrow(
+                    'The fiscal year needs to start on 2027-01-01, the day after the fiscal year from 2026-01-01 to 2026-12-31 ends.'
+                );
                 await expect(inTenant(books.tenantId, async () => await journal().createFiscalYear({ start: day('2027-02-01') })))
                     .rejects.toThrow('The fiscal year needs to start on 2027-01-01');
-                await expect(inTenant(books.tenantId, async () => await journal().createFiscalYear({ start: day('2025-01-01'), end: day('2025-12-31') })))
-                    .rejects.toThrow('The fiscal year needs to start on 2027-01-01');
+                await expect(inTenant(
+                    books.tenantId,
+                    async () => await journal().createFiscalYear({ start: day('2025-01-01'), end: day('2025-12-31') })
+                )).rejects.toThrow('The fiscal year needs to start on 2027-01-01');
                 await expect(inTenant(books.tenantId, async () => await journal().createFiscalYear({ end: day('2026-12-31') })))
                     .rejects.toThrow('The end needs to be on or after the start, 2027-01-01.');
                 await expect(inTenant(books.tenantId, async () => await journal().createFiscalYear({ conformances: ['unknown'] })))
-                    .rejects.toThrow('The conformance "unknown" needs to be registered in ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.BOOKKEEPING_CONFORMANCE_SERVICES.');
+                    .rejects.toThrow(
+                        'The conformance "unknown" needs to be registered in '
+                        + 'ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.BOOKKEEPING_CONFORMANCE_SERVICES.'
+                    );
                 const [newTenantId] = await createSettings();
                 await expect(inTenant(newTenantId, async () => await journal().createFiscalYear({})))
                     .rejects.toThrow('The first fiscal year needs to name its start.');
@@ -802,13 +939,20 @@ export function describeBookkeeping(dataSourceName: string): void {
              */
             async function postYear(books: TestBooks): Promise<void> {
                 await post(books, '2026-01-02', [['bank', 'debit', '25000'], ['capital', 'credit', '25000']]);
-                await post(books, '2026-03-01', [['receivables', 'debit', '1190'], ['revenue', 'credit', '1000'], ['vat', 'credit', '190']]);
+                await post(
+                    books,
+                    '2026-03-01',
+                    [['receivables', 'debit', '1190'], ['revenue', 'credit', '1000'], ['vat', 'credit', '190']]
+                );
                 await post(books, '2026-03-20', [['bank', 'debit', '1190'], ['receivables', 'credit', '1190']]);
                 await post(books, '2026-04-01', [['rent', 'debit', '500'], ['bank', 'credit', '500']]);
             }
 
-            function close(books: TestBooks, fiscalYearId: string = books.fiscalYear.id): Promise<FiscalYearClosingResult> {
-                return inTenant(books.tenantId, async () => await journal().closeFiscalYear(fiscalYearId, { resultAccountId: books.accounts.result.id }));
+            async function close(books: TestBooks, fiscalYearId: string = books.fiscalYear.id): Promise<FiscalYearClosingResult> {
+                return inTenant(books.tenantId, async () => await journal().closeFiscalYear(
+                    fiscalYearId,
+                    { resultAccountId: books.accounts.result.id }
+                ));
             }
 
             it('carries the result into equity, and opens the next year with the balances it closes with', async () => {
@@ -820,11 +964,23 @@ export function describeBookkeeping(dataSourceName: string): void {
                 expect(closed.fiscalYear.closedAt).toBeInstanceOf(Date);
                 expect(closed.fiscalYear.lastSequence).toBe(5);
                 expect(closed.nextFiscalYear).toMatchObject({ start: day('2027-01-01'), end: day('2027-12-31'), lastSequence: 1 });
-                expect(closed.closingEntry?.entry).toMatchObject({ sequence: 5, postingDate: day('2026-12-31'), sourceType: 'bookkeeping.closing', sourceId: books.fiscalYear.id });
-                expect(describeLines(books, closed.closingEntry?.lines ?? [])).toEqual([['rent', 'credit', '500.00'], ['revenue', 'debit', '1000.00'], ['result', 'credit', '500.00']]);
+                expect(closed.closingEntry?.entry).toMatchObject({
+                    sequence: 5,
+                    postingDate: day('2026-12-31'),
+                    sourceType: 'bookkeeping.closing',
+                    sourceId: books.fiscalYear.id
+                });
+                expect(describeLines(books, closed.closingEntry?.lines ?? [])).toEqual([
+                    ['rent', 'credit', '500.00'],
+                    ['revenue', 'debit', '1000.00'],
+                    ['result', 'credit', '500.00']
+                ]);
                 // the line carrying the result is marked as such, as stored
                 expect(closed.closingEntry?.lines.map(l => l.role ?? null)).toEqual([null, null, JournalEntryLineRole.RESULT]);
-                const storedClosing: JournalEntryDetails = await inTenant(books.tenantId, async () => await journal().findEntry(closed.closingEntry?.entry.id ?? ''));
+                const storedClosing: JournalEntryDetails = await inTenant(
+                    books.tenantId,
+                    async () => await journal().findEntry(closed.closingEntry?.entry.id ?? '')
+                );
                 expect(storedClosing.lines.map(l => l.role ?? null)).toEqual([null, null, JournalEntryLineRole.RESULT]);
                 expect(closed.openingEntry?.entry).toMatchObject({
                     fiscalYearId: closed.nextFiscalYear.id,
@@ -847,14 +1003,23 @@ export function describeBookkeeping(dataSourceName: string): void {
                     where: { fiscalYearId: books.fiscalYear.id },
                     limit: 'all'
                 }));
-                const balanceSheet: Set<string> = new Set([books.accounts.bank, books.accounts.receivables, books.accounts.vat, books.accounts.capital, books.accounts.result].map(a => a.id));
+                const balanceSheet: Set<string> = new Set([
+                    books.accounts.bank,
+                    books.accounts.receivables,
+                    books.accounts.vat,
+                    books.accounts.capital,
+                    books.accounts.result
+                ].map(a => a.id));
                 for (const line of yearLines.filter(l => balanceSheet.has(l.accountId))) {
                     const before: BigNumber = new BigNumber(closingBalances.get(line.accountId) ?? 0);
-                    closingBalances.set(line.accountId, before.plus(line.debit ?? 0).minus(line.credit ?? 0).toFixed(2));
+                    closingBalances.set(line.accountId, before.plus(line.debit ?? 0).minus(line.credit ?? 0)
+                        .toFixed(2));
                 }
                 const opening: Map<string, string> = new Map((closed.openingEntry?.lines ?? []).map(l => [
                     l.accountId,
-                    new BigNumber(0).plus(l.debit ?? 0).minus(l.credit ?? 0).toFixed(2)
+                    new BigNumber(0).plus(l.debit ?? 0)
+                        .minus(l.credit ?? 0)
+                        .toFixed(2)
                 ]));
                 expect(opening).toEqual(new Map([...closingBalances].filter(([, balance]) => balance !== '0.00')));
             });
@@ -863,13 +1028,18 @@ export function describeBookkeeping(dataSourceName: string): void {
                 const books: TestBooks = await createBooks();
                 await postYear(books);
                 const closed: FiscalYearClosingResult = await close(books);
-                const resultLine: JournalEntryLine | undefined = closed.closingEntry?.lines.find(l => l.role === JournalEntryLineRole.RESULT);
+                const resultLine: JournalEntryLine | undefined = closed.closingEntry?.lines
+                    .find(l => l.role === JournalEntryLineRole.RESULT);
 
                 await storeOf(lines()).updateAll({ where: { id: resultLine?.id }, data: { role: null } });
 
-                const verification: BookkeepingVerification = await inTenant(books.tenantId, async () => await journal().resolveVerification());
+                const verification: BookkeepingVerification = await inTenant(
+                    books.tenantId,
+                    async () => await journal().resolveVerification()
+                );
                 expect(verification.intact).toBe(false);
-                expect(verification.problems).toEqual([{ entryId: closed.closingEntry?.entry.id, lineId: resultLine?.id, reason: 'The row is not as it was written.' }]);
+                const reason: string = 'The row is not as it was written.';
+                expect(verification.problems).toEqual([{ entryId: closed.closingEntry?.entry.id, lineId: resultLine?.id, reason }]);
             });
 
             it('refuses every posting into the closed year, and closing it again', async () => {
@@ -877,9 +1047,16 @@ export function describeBookkeeping(dataSourceName: string): void {
                 await postYear(books);
                 await close(books);
 
-                const posting: Promise<JournalEntryDetails> = post(books, '2026-06-01', [['bank', 'debit', '1'], ['revenue', 'credit', '1']]);
+                const posting: Promise<JournalEntryDetails> = post(
+                    books,
+                    '2026-06-01',
+                    [['bank', 'debit', '1'], ['revenue', 'credit', '1']]
+                );
                 await expect(posting).rejects.toThrow(ConflictError);
-                await expect(posting).rejects.toThrow('The posting date 2026-06-01 needs to fall into an open fiscal year, and the fiscal year from 2026-01-01 to 2026-12-31 is closed.');
+                await expect(posting).rejects.toThrow(
+                    'The posting date 2026-06-01 needs to fall into an open fiscal year, '
+                    + 'and the fiscal year from 2026-01-01 to 2026-12-31 is closed.'
+                );
                 await expect(close(books)).rejects.toThrow('The fiscal year from 2026-01-01 to 2026-12-31 is closed already.');
                 const next: JournalEntryDetails = await post(books, '2027-02-01', [['bank', 'debit', '1'], ['revenue', 'credit', '1']]);
                 expect(next.entry.sequence).toBe(2);
@@ -891,13 +1068,15 @@ export function describeBookkeeping(dataSourceName: string): void {
                 await post(books, '2026-01-02', [['bank', 'debit', '100'], ['capital', 'credit', '100']]);
                 await post(books, '2027-01-05', [['rent', 'debit', '10'], ['bank', 'credit', '10']]);
 
-                await expect(close(books, next.id)).rejects.toThrow('The fiscal year from 2026-01-01 to 2026-12-31 needs to be closed before the fiscal year after it.');
+                await expect(close(books, next.id))
+                    .rejects.toThrow('The fiscal year from 2026-01-01 to 2026-12-31 needs to be closed before the fiscal year after it.');
                 const closed: FiscalYearClosingResult = await close(books);
 
                 expect(closed.nextFiscalYear.id).toBe(next.id);
                 expect(closed.closingEntry).toBeNull();
                 expect(closed.openingEntry?.entry.sequence).toBe(2);
-                expect(describeLines(books, closed.openingEntry?.lines ?? [])).toEqual([['bank', 'debit', '100.00'], ['capital', 'credit', '100.00']]);
+                expect(describeLines(books, closed.openingEntry?.lines ?? []))
+                    .toEqual([['bank', 'debit', '100.00'], ['capital', 'credit', '100.00']]);
             });
 
             it('refuses a result account that is not an equity account of the books', async () => {
@@ -916,17 +1095,24 @@ export function describeBookkeeping(dataSourceName: string): void {
 
                 await expect(close(books)).rejects.toThrow(`The fiscal year ${books.fiscalYear.id} needs to be closed by hand.`);
 
-                const fiscalYear: FiscalYear = await inTenant(books.tenantId, async () => await fiscalYears().findById(books.fiscalYear.id));
+                const fiscalYear: FiscalYear = await inTenant(
+                    books.tenantId,
+                    async () => await fiscalYears().findById(books.fiscalYear.id)
+                );
                 expect(fiscalYear).toMatchObject({ closedAt: null, lastSequence: 4 });
                 expect(await inTenant(books.tenantId, async () => await fiscalYears().count())).toBe(1);
             });
 
             it('applies the conformances a fiscal year names in place of those of the legal form', async () => {
                 const books: TestBooks = await createBooks('UG');
-                await inTenant(books.tenantId, async () => await fiscalYears().updateById(books.fiscalYear.id, { conformances: ['test-refusing'] }));
+                await inTenant(
+                    books.tenantId,
+                    async () => await fiscalYears().updateById(books.fiscalYear.id, { conformances: ['test-refusing'] })
+                );
                 await postYear(books);
 
-                expect(await inTenant(books.tenantId, async () => await journal().resolveClosingProposals(books.fiscalYear.id))).toEqual([]);
+                expect(await inTenant(books.tenantId, async () => await journal().resolveClosingProposals(books.fiscalYear.id)))
+                    .toEqual([]);
                 await expect(close(books)).rejects.toThrow(`The fiscal year ${books.fiscalYear.id} needs to be closed by hand.`);
 
                 await inTenant(books.tenantId, async () => await fiscalYears().updateById(books.fiscalYear.id, { conformances: [] }));
@@ -937,7 +1123,10 @@ export function describeBookkeeping(dataSourceName: string): void {
                 const books: TestBooks = await createBooks('UG');
                 await postYear(books);
 
-                const proposals: BookkeepingClosingProposal[] = await inTenant(books.tenantId, async () => await journal().resolveClosingProposals(books.fiscalYear.id));
+                const proposals: BookkeepingClosingProposal[] = await inTenant(
+                    books.tenantId,
+                    async () => await journal().resolveClosingProposals(books.fiscalYear.id)
+                );
                 await expect(close(books)).rejects.toThrow('The reserve needs to be posted before the fiscal year is closed.');
                 expect(proposals).toHaveLength(1);
                 expect(proposals[0]?.conformance).toBe('test-reserve');
@@ -950,7 +1139,8 @@ export function describeBookkeeping(dataSourceName: string): void {
                 await inTenant(books.tenantId, async () => await journal().post(proposed ?? entryOf(books, '2026-12-31', [])));
                 const closed: FiscalYearClosingResult = await close(books);
 
-                expect(await inTenant(books.tenantId, async () => await journal().resolveClosingProposals(books.fiscalYear.id))).toEqual([]);
+                expect(await inTenant(books.tenantId, async () => await journal().resolveClosingProposals(books.fiscalYear.id)))
+                    .toEqual([]);
                 expect(describeLines(books, closed.openingEntry?.lines ?? [])).toEqual([
                     ['bank', 'debit', '25690.00'],
                     ['capital', 'credit', '25000.00'],
@@ -961,8 +1151,11 @@ export function describeBookkeeping(dataSourceName: string): void {
             });
 
             describe('reopening it', () => {
-                function reopen(books: TestBooks, fiscalYearId: string = books.fiscalYear.id): Promise<FiscalYearReopeningResult> {
-                    return inTenant(books.tenantId, async () => await journal().reopenFiscalYear(fiscalYearId, { reason: 'Rent refunded', createdBy: 'ada' }));
+                async function reopen(books: TestBooks, fiscalYearId: string = books.fiscalYear.id): Promise<FiscalYearReopeningResult> {
+                    return inTenant(books.tenantId, async () => await journal().reopenFiscalYear(
+                        fiscalYearId,
+                        { reason: 'Rent refunded', createdBy: 'ada' }
+                    ));
                 }
 
                 it('reverses the closing and the opening balances of the next year, and closes it again with a correction', async () => {
@@ -990,22 +1183,37 @@ export function describeBookkeeping(dataSourceName: string): void {
                         createdBy: 'ada',
                         text: 'Reopening of the fiscal year from 2026-01-01 to 2026-12-31: Rent refunded'
                     });
-                    expect(describeLines(books, reopened.closingReversal?.lines ?? [])).toEqual([['rent', 'debit', '500.00'], ['revenue', 'credit', '1000.00'], ['result', 'debit', '500.00']]);
+                    expect(describeLines(books, reopened.closingReversal?.lines ?? [])).toEqual([
+                        ['rent', 'debit', '500.00'],
+                        ['revenue', 'credit', '1000.00'],
+                        ['result', 'debit', '500.00']
+                    ]);
                     expect(reopened.openingReversal?.entry).toMatchObject({
                         fiscalYearId: first.nextFiscalYear.id,
                         postingDate: day('2027-01-01'),
                         reversesEntryId: first.openingEntry?.entry.id,
                         sourceType: 'bookkeeping.opening'
                     });
-                    expect(await inTenant(books.tenantId, async () => (await journal().resolveCarriedBalances(first.nextFiscalYear.id)).balances
-                        .filter(b => !b.debit.minus(b.credit).isZero()))).toEqual([]);
+                    expect(await inTenant(
+                        books.tenantId,
+                        async () => (await journal().resolveCarriedBalances(first.nextFiscalYear.id)).balances
+                            .filter(b => !b.debit.minus(b.credit).isZero())
+                    )).toEqual([]);
 
                     // posted into again, and closed again with the correction
                     await post(books, '2026-12-30', [['bank', 'debit', '100'], ['rent', 'credit', '100']]);
                     const second: FiscalYearClosingResult = await close(books);
 
-                    expect(second.closingEntry?.entry).toMatchObject({ sourceType: 'bookkeeping.closing', sourceId: `${books.fiscalYear.id}:closing-2`, reversesEntryId: null });
-                    expect(describeLines(books, second.closingEntry?.lines ?? [])).toEqual([['rent', 'credit', '400.00'], ['revenue', 'debit', '1000.00'], ['result', 'credit', '600.00']]);
+                    expect(second.closingEntry?.entry).toMatchObject({
+                        sourceType: 'bookkeeping.closing',
+                        sourceId: `${books.fiscalYear.id}:closing-2`,
+                        reversesEntryId: null
+                    });
+                    expect(describeLines(books, second.closingEntry?.lines ?? [])).toEqual([
+                        ['rent', 'credit', '400.00'],
+                        ['revenue', 'debit', '1000.00'],
+                        ['result', 'credit', '600.00']
+                    ]);
                     expect(second.nextFiscalYear.id).toBe(first.nextFiscalYear.id);
                     expect(describeLines(books, second.openingEntry?.lines ?? [])).toEqual([
                         ['bank', 'debit', '25790.00'],
@@ -1015,19 +1223,28 @@ export function describeBookkeeping(dataSourceName: string): void {
                     ]);
                     // the opening balances of the next year are those of the latest closing, and its own entry stays. The
                     // equity accounts of the cases are in no position, which reads them as carry-forward accounts
-                    const carried: BookkeepingCarriedBalances = await inTenant(books.tenantId, async () => await journal().resolveCarriedBalances(first.nextFiscalYear.id));
+                    const carried: BookkeepingCarriedBalances = await inTenant(
+                        books.tenantId,
+                        async () => await journal().resolveCarriedBalances(first.nextFiscalYear.id)
+                    );
                     expect(carried.balances.map(b => [b.account.number, b.debit.minus(b.credit).toFixed(2)])).toEqual([
                         ['1200', '25790.00'],
                         ['3806', '-190.00']
                     ]);
-                    expect(await inTenant(books.tenantId, async () => await entries().count({ where: { fiscalYearId: first.nextFiscalYear.id, sourceType: null } }))).toBe(1);
+                    expect(await inTenant(
+                        books.tenantId,
+                        async () => await entries().count({ where: { fiscalYearId: first.nextFiscalYear.id, sourceType: null } })
+                    )).toBe(1);
 
                     // the statements of the first closing stay archived as they were, beside those of the second, which count
                     const after: FiscalYearStatement[] = await statements();
                     expect(after.slice(0, archived.length)).toEqual(archived);
                     expect(after.map(s => s.closing)).toEqual([...archived.map(() => 1), ...archived.map(() => 2)]);
-                    const balanceSheet: FiscalYearStatement | undefined = await inTenant(books.tenantId, async () => await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_SERVICE)
-                        .findArchivedStatement(second.fiscalYear, BookkeepingStatementType.BALANCE_SHEET, undefined));
+                    const balanceSheet: FiscalYearStatement | undefined = await inTenant(
+                        books.tenantId,
+                        async () => await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_SERVICE)
+                            .findArchivedStatement(second.fiscalYear, BookkeepingStatementType.BALANCE_SHEET, undefined)
+                    );
                     expect(balanceSheet?.closing).toBe(2);
                     expect((await inTenant(books.tenantId, async () => await journal().resolveVerification())).intact).toBe(true);
                 });
@@ -1036,31 +1253,37 @@ export function describeBookkeeping(dataSourceName: string): void {
                     const books: TestBooks = await createBooks();
                     await postYear(books);
                     const closed: FiscalYearClosingResult = await close(books);
-                    const reverse = async (entryId: string | undefined): Promise<JournalEntryDetails> => await inTenant(
+                    const reverse: (entryId?: string) => Promise<JournalEntryDetails> = async (entryId = '') => await inTenant(
                         books.tenantId,
-                        async () => await journal().reverse(entryId ?? '', { postingDate: day('2027-01-05'), text: 'Undone by hand' })
+                        async () => await journal().reverse(entryId, { postingDate: day('2027-01-05'), text: 'Undone by hand' })
                     );
 
                     await expect(reverse(closed.closingEntry?.entry.id)).rejects.toThrow(ConflictError);
-                    await expect(reverse(closed.closingEntry?.entry.id)).rejects.toThrow('is reversed only by reopening that fiscal year');
-                    await expect(reverse(closed.openingEntry?.entry.id)).rejects.toThrow('Reopen it with POST /fiscal-years/:id/reopening.');
+                    await expect(reverse(closed.closingEntry?.entry.id))
+                        .rejects.toThrow('is reversed only by reopening that fiscal year');
+                    await expect(reverse(closed.openingEntry?.entry.id))
+                        .rejects.toThrow('Reopen it with POST /fiscal-years/:id/reopening.');
                     // and so is the reversal a reopening posted
                     const reopened: FiscalYearReopeningResult = await reopen(books);
-                    await expect(reverse(reopened.openingReversal?.entry.id)).rejects.toThrow('is reversed only by reopening that fiscal year');
-                    expect(await inTenant(books.tenantId, async () => await entries().count({ where: { text: 'Undone by hand' } }))).toBe(0);
+                    await expect(reverse(reopened.openingReversal?.entry.id))
+                        .rejects.toThrow('is reversed only by reopening that fiscal year');
+                    expect(await inTenant(books.tenantId, async () => await entries().count({ where: { text: 'Undone by hand' } })))
+                        .toBe(0);
                 });
 
                 it('refuses an open year, and one whose next year is closed, which is reopened first, the latest first', async () => {
                     const books: TestBooks = await createBooks();
                     await postYear(books);
 
-                    await expect(reopen(books)).rejects.toThrow('The fiscal year from 2026-01-01 to 2026-12-31 is open, and only a closed one is reopened.');
+                    await expect(reopen(books))
+                        .rejects.toThrow('The fiscal year from 2026-01-01 to 2026-12-31 is open, and only a closed one is reopened.');
                     const first: FiscalYearClosingResult = await close(books);
                     await close(books, first.nextFiscalYear.id);
 
                     await expect(reopen(books)).rejects.toThrow(ConflictError);
                     await expect(reopen(books)).rejects.toThrow(
-                        'The fiscal year from 2027-01-01 to 2027-12-31 needs to be reopened before the fiscal year before it, as it opened with its closing.'
+                        'The fiscal year from 2027-01-01 to 2027-12-31 needs to be reopened before the fiscal year before it, '
+                        + 'as it opened with its closing.'
                     );
                     expect((await reopen(books, first.nextFiscalYear.id)).fiscalYear.closedAt).toBeNull();
                     expect((await reopen(books)).fiscalYear.reopenings).toBe(1);
@@ -1071,22 +1294,43 @@ export function describeBookkeeping(dataSourceName: string): void {
         });
 
         describe('listing the entries', () => {
-            it('answers a page by posting date and sequence, narrowed by fiscal year, days and account, with the count of every entry matching', async () => {
+            it('answers a page by posting date and sequence, narrowed by fiscal year, days and account, '
+                + 'with the count of every entry matching', async () => {
                 const books: TestBooks = await createBooks();
-                const capital: JournalEntryDetails = await post(books, '2026-01-10', [['bank', 'debit', '1000'], ['capital', 'credit', '1000']]);
-                const sale: JournalEntryDetails = await post(books, '2026-02-01', [['bank', 'debit', '119'], ['revenue', 'credit', '100'], ['vat', 'credit', '19']]);
+                const capital: JournalEntryDetails = await post(
+                    books,
+                    '2026-01-10',
+                    [['bank', 'debit', '1000'], ['capital', 'credit', '1000']]
+                );
+                const sale: JournalEntryDetails = await post(
+                    books,
+                    '2026-02-01',
+                    [['bank', 'debit', '119'], ['revenue', 'credit', '100'], ['vat', 'credit', '19']]
+                );
                 const rent: JournalEntryDetails = await post(books, '2026-02-15', [['rent', 'debit', '50'], ['bank', 'credit', '50']]);
-                const invoice: JournalEntryDetails = await post(books, '2026-03-01', [['receivables', 'debit', '20'], ['revenue', 'credit', '20']]);
+                const invoice: JournalEntryDetails = await post(
+                    books,
+                    '2026-03-01',
+                    [['receivables', 'debit', '20'], ['revenue', 'credit', '20']]
+                );
                 // posted later on the same day as the sale, so after it by sequence
                 const second: JournalEntryDetails = await post(books, '2026-02-01', [['bank', 'debit', '5'], ['capital', 'credit', '5']]);
-                const find: (page: number, limit: number, filter: JournalEntryFilter) => Promise<[number, string[]]> = async (page, limit, filter) => {
-                    const found: PaginationResult<JournalEntryDetails> = await inTenant(books.tenantId, async () => await journal().findEntries(page, limit, filter));
+                const find: (page: number, limit: number, filter: JournalEntryFilter) => Promise<[number, string[]]> = async (
+                    page,
+                    limit,
+                    filter
+                ) => {
+                    const found: PaginationResult<JournalEntryDetails> = await inTenant(
+                        books.tenantId,
+                        async () => await journal().findEntries(page, limit, filter)
+                    );
                     return [found.totalAmount, found.items.map(i => i.entry.id)];
                 };
 
                 expect(await find(1, 2, {})).toEqual([5, [capital.entry.id, sale.entry.id]]);
                 expect(await find(2, 2, { fiscalYearId: books.fiscalYear.id })).toEqual([5, [second.entry.id, rent.entry.id]]);
-                expect(await find(1, 10, { from: day('2026-02-01'), until: day('2026-02-28') })).toEqual([3, [sale.entry.id, second.entry.id, rent.entry.id]]);
+                expect(await find(1, 10, { from: day('2026-02-01'), until: day('2026-02-28') }))
+                    .toEqual([3, [sale.entry.id, second.entry.id, rent.entry.id]]);
                 expect(await find(1, 10, { from: day('2026-02-16') })).toEqual([1, [invoice.entry.id]]);
                 expect(await find(1, 10, { until: day('2026-01-31') })).toEqual([1, [capital.entry.id]]);
                 expect(await find(1, 10, { accountId: books.accounts.revenue.id })).toEqual([2, [sale.entry.id, invoice.entry.id]]);
@@ -1101,7 +1345,11 @@ export function describeBookkeeping(dataSourceName: string): void {
                     books.tenantId,
                     async () => await journal().findEntries(1, 1, { accountId: books.accounts.vat.id })
                 );
-                expect(describeLines(books, page.items[0]?.lines ?? [])).toEqual([['bank', 'debit', '119.00'], ['revenue', 'credit', '100.00'], ['vat', 'credit', '19.00']]);
+                expect(describeLines(books, page.items[0]?.lines ?? [])).toEqual([
+                    ['bank', 'debit', '119.00'],
+                    ['revenue', 'credit', '100.00'],
+                    ['vat', 'credit', '19.00']
+                ]);
             });
 
             it('adds up the lines of every entry matching, not only of the page, and those on the account named', async () => {
@@ -1122,13 +1370,21 @@ export function describeBookkeeping(dataSourceName: string): void {
 
             it('names the entry reversing an entry, read from the reversal, on every read of it', async () => {
                 const books: TestBooks = await createBooks();
-                const sale: JournalEntryDetails = await post(books, '2026-02-01', [['bank', 'debit', '119'], ['revenue', 'credit', '100'], ['vat', 'credit', '19']]);
+                const sale: JournalEntryDetails = await post(
+                    books,
+                    '2026-02-01',
+                    [['bank', 'debit', '119'], ['revenue', 'credit', '100'], ['vat', 'credit', '19']]
+                );
                 const rent: JournalEntryDetails = await post(books, '2026-02-15', [['rent', 'debit', '50'], ['bank', 'credit', '50']]);
 
-                const reversal: JournalEntryDetails = await inTenant(books.tenantId, async () => await journal().reverse(sale.entry.id, { postingDate: day('2026-02-20'), text: 'Wrong' }));
+                const reversal: JournalEntryDetails = await inTenant(books.tenantId, async () => await journal().reverse(
+                    sale.entry.id,
+                    { postingDate: day('2026-02-20'), text: 'Wrong' }
+                ));
 
                 expect([sale.reversedByEntryId, reversal.reversedByEntryId]).toEqual([null, null]);
-                expect((await inTenant(books.tenantId, async () => await journal().findEntry(sale.entry.id))).reversedByEntryId).toBe(reversal.entry.id);
+                expect((await inTenant(books.tenantId, async () => await journal().findEntry(sale.entry.id))).reversedByEntryId)
+                    .toBe(reversal.entry.id);
                 const page: JournalEntryPage = await inTenant(books.tenantId, async () => await journal().findEntries(1, 10, {}));
                 expect(page.items.map(i => [i.entry.id, i.reversedByEntryId])).toEqual([
                     [sale.entry.id, reversal.entry.id],
@@ -1137,7 +1393,8 @@ export function describeBookkeeping(dataSourceName: string): void {
                 ]);
                 const report: BookkeepingJournalReport = await inTenant(
                     books.tenantId,
-                    async () => await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_SERVICE).resolveJournal(day('2026-02-01'), day('2026-02-28'))
+                    async () => await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_SERVICE)
+                        .resolveJournal(day('2026-02-01'), day('2026-02-28'))
                 );
                 expect(report.entries.map(i => i.reversedByEntryId)).toEqual([reversal.entry.id, null, null]);
             });
@@ -1146,8 +1403,11 @@ export function describeBookkeeping(dataSourceName: string): void {
         describe('finding the accounts of the books', () => {
             it('finds them by the start of their number or by their name, whatever its case, and open or closed', async () => {
                 const books: TestBooks = await createBooks();
-                await inTenant(books.tenantId, async () => await inject<Repository<BookkeepingAccount>>(repositoryTokenFor(BookkeepingAccount))
-                    .updateById(books.accounts.reserve.id, { closedAt: new Date() }));
+                await inTenant(
+                    books.tenantId,
+                    async () => await inject<Repository<BookkeepingAccount>>(repositoryTokenFor(BookkeepingAccount))
+                        .updateById(books.accounts.reserve.id, { closedAt: new Date() })
+                );
                 const find: (filter: BookkeepingAccountFilter) => Promise<string[]> = async filter => (await inTenant(
                     books.tenantId,
                     async () => await journal().findAccounts(filter)
@@ -1175,9 +1435,12 @@ export function describeBookkeeping(dataSourceName: string): void {
                 );
 
                 await expect(find({ from: new Date('2026-02-01T12:00:00.000Z') })).rejects.toThrow(BadRequestError);
-                await expect(find({ from: new Date('2026-02-01T12:00:00.000Z') })).rejects.toThrow('The from needs to be a day without a time, such as 2026-03-31.');
-                await expect(find({ until: new Date('2026-02-01T12:00:00.000Z') })).rejects.toThrow('The until needs to be a day without a time, such as 2026-03-31.');
-                await expect(find({ from: day('2026-02-01'), until: day('2026-01-31') })).rejects.toThrow('The until needs to be on or after the from, 2026-02-01.');
+                await expect(find({ from: new Date('2026-02-01T12:00:00.000Z') }))
+                    .rejects.toThrow('The from needs to be a day without a time, such as 2026-03-31.');
+                await expect(find({ until: new Date('2026-02-01T12:00:00.000Z') }))
+                    .rejects.toThrow('The until needs to be a day without a time, such as 2026-03-31.');
+                await expect(find({ from: day('2026-02-01'), until: day('2026-01-31') }))
+                    .rejects.toThrow('The until needs to be on or after the from, 2026-02-01.');
                 await expect(find({ accountId: other.accounts.bank.id })).rejects.toThrow(BadRequestError);
                 await expect(find({ accountId: other.accounts.bank.id }))
                     .rejects.toThrow(`The accountId needs to be an account of the books, and "${other.accounts.bank.id}" is none.`);
@@ -1191,10 +1454,16 @@ export function describeBookkeeping(dataSourceName: string): void {
                 const posted: JournalEntryDetails = await post(books, '2026-03-01', [['bank', 'debit', '1'], ['revenue', 'credit', '1']]);
                 const own: JournalEntryDetails = await post(other, '2026-03-01', [['bank', 'debit', '2'], ['revenue', 'credit', '2']]);
 
-                await expect(inTenant(other.tenantId, async () => await journal().findEntry(posted.entry.id))).rejects.toThrow(NotFoundError);
-                await expect(inTenant(other.tenantId, async () => await journal().reverse(posted.entry.id, { postingDate: day('2026-03-02'), text: 'x' })))
+                await expect(inTenant(other.tenantId, async () => await journal().findEntry(posted.entry.id)))
                     .rejects.toThrow(NotFoundError);
-                const page: PaginationResult<JournalEntryDetails> = await inTenant(other.tenantId, async () => await journal().findEntries(1, 10, {}));
+                await expect(inTenant(other.tenantId, async () => await journal().reverse(
+                    posted.entry.id,
+                    { postingDate: day('2026-03-02'), text: 'x' }
+                ))).rejects.toThrow(NotFoundError);
+                const page: PaginationResult<JournalEntryDetails> = await inTenant(
+                    other.tenantId,
+                    async () => await journal().findEntries(1, 10, {})
+                );
                 expect(page.items.map(i => i.entry.id)).toEqual([own.entry.id]);
                 expect(page.items[0]?.lines).toHaveLength(2);
                 // each tenant's entries are a chain of their own

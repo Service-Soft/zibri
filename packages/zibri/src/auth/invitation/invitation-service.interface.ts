@@ -83,7 +83,11 @@ export interface InvitationServiceInterface {
      * @throws What `accept` throws, and a BadRequestError for a password given for an invitation without one.
      */
     // optional, as a service written against 3.2 has none: it creates no invitation without a password
-    acceptForLogin?: (token: string, acceptance: InvitationAcceptance, transaction: RepositoryTransaction | undefined) => Promise<string | undefined>,
+    acceptForLogin?: (
+        token: string,
+        acceptance: InvitationAcceptance,
+        transaction: RepositoryTransaction | undefined
+    ) => Promise<string | undefined>,
     /**
      * Declines an invitation, and undoes what it created like `revoke`.
      * @param token - The token of the link.

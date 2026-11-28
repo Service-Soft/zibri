@@ -45,7 +45,8 @@ function resolveMacOfThreeTwo(row: typeof STORED_BEFORE): string {
         const value: unknown = Reflect.get(row, column);
         return [column, value instanceof Date ? value.toISOString() : value ?? null];
     }));
-    return createHmac('sha256', KEY).update(JsonUtilities.stringify(['mac', ChainUtilities.getTableName(AuditEntry), content])).digest('base64url');
+    return createHmac('sha256', KEY).update(JsonUtilities.stringify(['mac', ChainUtilities.getTableName(AuditEntry), content]))
+        .digest('base64url');
 }
 
 describe('ChainUtilities', () => {

@@ -1,8 +1,8 @@
 import { type NewProjectShareModel } from 'zibri-contract';
 
 import { Property } from '../../../entity/decorators/property.decorator';
-import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 import { PROJECT_ROLE_VALUES, type ProjectRole } from './project-role.model';
+import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 
 /**
  * Whom to share a project with by email, as `POST /:projectId/shares` of the `ProjectsController` and `shareByEmail`

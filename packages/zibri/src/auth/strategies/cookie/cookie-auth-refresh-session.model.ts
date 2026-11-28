@@ -114,7 +114,11 @@ export class CookieAuthRefreshSession extends BaseEntity {
 }
 
 // added by the data source to a table that lacks it, so that the sessions of 3.2 take no migration of the application's
-FrameworkColumnRegistry.register({ entity: CookieAuthRefreshSession, property: 'countsAsRecentLogin', meansAbsent: value => value === true });
+FrameworkColumnRegistry.register({
+    entity: CookieAuthRefreshSession,
+    property: 'countsAsRecentLogin',
+    meansAbsent: value => value === true
+});
 
 /**
  * Data for creating a new cookie auth refresh session.

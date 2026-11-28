@@ -40,6 +40,7 @@ keywords: [kanban, board, boards, tasks, task tracker, project management, to do
 | `ProjectInvitee` | type | Who `invitationColumns` of the options is handed: the `email` and the `name` of the person invited |
 | `ProjectEventNames`, `TaskEventData` | type, type | Which changes of tasks are emitted as events of yours, and what they carry, see [hearing of changes of tasks](#hearing-of-changes-of-tasks) |
 | `ProjectBoardSubscription`, `ProjectBoardMessage`, `PROJECT_BOARD_WEBSOCKET_EVENT` | class, type, constant | What subscribing to a board takes, a change of a board as a subscriber receives it, and the event it arrives as |
+| `ProjectBoardMessageProject`, `ProjectBoardMessageTask`, `ProjectBoardMessageColumn`, `ProjectBoardMessageLabel`, `ProjectBoardMessageComment` | type, type, type, type, type | A project, a task, a column, a label and a comment as a `ProjectBoardMessage` carries them, without their relations |
 | `ProjectPositionUtilities`, `PositionedRow`, `PositionPlacement`, `TaskPlacementOptions` | class, type, type, type | Places a task among the tasks of its column, or a column among the columns of its board, see [ordering the tasks of a column](#ordering-the-tasks-of-a-column) |
 | `RecurringTask` | entity | A task that recurs: the template of its occurrences, its `recurrence`, `startsOn`, `timezone`, `leadTimeInDays`, `nonWorkingDay` and `pausedAt`. Stored by `ZibriProjectsPlugin` |
 | `RecurringTaskOccurrence` | entity | An occurrence of a recurring task created: the day of the recurrence it is for and its task, once per day. Stored by `ZibriProjectsPlugin` |
@@ -65,13 +66,14 @@ keywords: [kanban, board, boards, tasks, task tracker, project management, to do
 `zibri-contract` has the models of the routes for your frontend: `ProjectModel`, `NewProjectModel`, `ProjectChangeModel`, `ProjectQueryModel` for the query of `GET /`, `ProjectColumnModel`, `NewProjectColumnModel`, `ProjectColumnChangeModel`, `ProjectColumnMoveModel`, `TaskModel`, `NewTaskModel`, `TaskChangeModel`, `TaskMoveModel`, `TaskQueryModel` for the query of `GET /tasks`, `TaskLabelModel`, `NewTaskLabelModel`, `TaskLabelChangeModel`, `TaskCommentModel`, `NewTaskCommentModel`, `TaskCommentPageModel`, `ProjectUserModel`, `ProjectBoardModel`, `ProjectCallerAccessModel`, `ProjectWithAccessModel`, `ProjectShareModel`, `NewProjectShareModel`, `ProjectShareRoleModel`, `ProjectShareResultModel`, `ProjectBoardSubscriptionModel`, `ProjectBoardMessageModel` with a model for each kind of change, `TaskRecurrenceModel`, `RecurringTaskModel`, `NewRecurringTaskModel`, `RecurringTaskChangeModel`, `WorkingCalendarModel`, `WorkingCalendarChangeModel`, `ProjectCalendarModel`, `ProjectCalendarSyncModel`, `ProjectCalendarSyncTargetModel`, the roles, the units, the rules of non-working days, the limits, the event and the permissions.
 
 ## Setting it up
-Add `new ZibriProjectsPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `Project`, `ProjectColumn`, `Task`, `TaskLabel` and `TaskComment` to the `entities` of the data source of your users, beside `RowShare`, see [sharing rows with selected people](../data/sharing.md).
+Add `new ZibriProjectsPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `Project`, `ProjectColumn`, `Task`, `TaskLabel` and `TaskComment` to the `entities` of the data source of your users, beside `RowShare`, see [sharing rows with selected people](../data/sharing.md). You import the names of the plugin from `zibri/plugin/projects`.
 
 Extend `ProjectsController` with a `@Controller` of your own, at the path you choose:
 
 ```ts
 // src/controllers/projects.controller.ts
-import { Controller, ProjectsController } from 'zibri';
+import { Controller } from 'zibri';
+import { ProjectsController } from 'zibri/plugin/projects';
 
 @Controller('/projects', { versions: 'all' })
 export class AppProjectsController extends ProjectsController {}
@@ -81,7 +83,8 @@ Add it to your application:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, ZibriApplicationOptions, ZibriProjectsPlugin } from 'zibri';
+import { OmitStrict, ZibriApplicationOptions } from 'zibri';
+import { ZibriProjectsPlugin } from 'zibri/plugin/projects';
 
 import { AppProjectsController } from './controllers/projects.controller';
 
@@ -102,7 +105,8 @@ Provide the options. The guest roles, how a user is named and how long an invita
 
 ```ts
 // src/providers.ts
-import { defineProvider, inject, Ms, Repository, repositoryTokenFor, ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, inject, Ms, Repository, repositoryTokenFor } from 'zibri';
+import { ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri/plugin/projects';
 
 import { MemberRoles, User } from './models';
 
@@ -134,7 +138,8 @@ Spread `ZIBRI_PROJECTS_PERMISSIONS` into your tenant permissions, and `ZIBRI_PRO
 
 ```ts
 // src/models/permissions.ts
-import { DefinedPermissions, definePermissions, ZIBRI_PERMISSIONS, ZIBRI_PROJECTS_PERMISSIONS } from 'zibri';
+import { DefinedPermissions, definePermissions, ZIBRI_PERMISSIONS } from 'zibri';
+import { ZIBRI_PROJECTS_PERMISSIONS } from 'zibri/plugin/projects';
 
 const PERMISSIONS = [...ZIBRI_PERMISSIONS, ...ZIBRI_PROJECTS_PERMISSIONS] as const;
 
@@ -218,7 +223,8 @@ Creating and changing a project take `projects.write`, and archiving, deleting a
 
 ```ts
 // src/services/project-access.function.ts
-import { inject, ProjectAccess, ProjectAccessServiceInterface, ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { ProjectAccess, ProjectAccessServiceInterface, ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri/plugin/projects';
 
 export async function validateMayEdit(projectId: string): Promise<void> {
     const accessService: ProjectAccessServiceInterface = inject(ZIBRI_PROJECTS_PLUGIN_DI_TOKENS.PROJECT_ACCESS_SERVICE);
@@ -276,7 +282,7 @@ Declare an event type for each change you want to hear of, with a `TaskEventData
 
 ```ts
 // src/events/project-events.ts
-import { TaskEventData } from 'zibri';
+import { TaskEventData } from 'zibri/plugin/projects';
 
 declare module 'zibri' {
     interface ZibriEventMap {
@@ -292,7 +298,8 @@ and name them in `eventNames` of the options:
 
 ```ts
 // src/providers.ts
-import { defineProvider, Ms, ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, Ms } from 'zibri';
+import { ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri/plugin/projects';
 
 import { MemberRoles } from './models';
 
@@ -322,7 +329,8 @@ Extend `ProjectBoardWebsocketController` with a `@WebsocketController` of your o
 
 ```ts
 // src/controllers/project-board.websocket-controller.ts
-import { ProjectBoardWebsocketController, WebsocketController } from 'zibri';
+import { WebsocketController } from 'zibri';
+import { ProjectBoardWebsocketController } from 'zibri/plugin/projects';
 
 @WebsocketController({ eventPrefix: 'projects:' })
 export class AppProjectBoardWebsocketController extends ProjectBoardWebsocketController {}
@@ -333,7 +341,7 @@ A logged in connection subscribes to the board of a project it sees with `projec
 ```ts
 // src/board.ts, in the browser
 import { io } from 'socket.io-client';
-import type { ProjectBoardMessage } from 'zibri';
+import type { ProjectBoardMessage } from 'zibri/plugin/projects';
 
 const columnOfTask: Map<string, string> = new Map();
 
@@ -433,7 +441,8 @@ Holidays are your application's. Provide a `HolidayCalendarInterface` that answe
 
 ```ts
 // src/providers.ts
-import { defineProvider, HolidayCalendarInterface, ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider } from 'zibri';
+import { HolidayCalendarInterface, ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri/plugin/projects';
 
 const holidays: Record<string, string[]> = { 'de-by': ['2027-01-01', '2027-01-06', '2027-12-25', '2027-12-26'] };
 
@@ -456,7 +465,8 @@ Turn it on with `calendarSync` of the options, with the url of the page of a tas
 
 ```ts
 // src/providers.ts
-import { defineProvider, Ms, Task, ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, Ms } from 'zibri';
+import { Task, ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from 'zibri/plugin/projects';
 
 import { MemberRoles } from './models';
 

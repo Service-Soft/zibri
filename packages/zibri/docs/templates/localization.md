@@ -37,6 +37,7 @@ text.
 | `currencyCodes`, `currencyCodeEnum`, `CurrencyCode`, `isCurrencyCode` | constant, constant, type, function | The ISO 4217 currency codes as a list, as an enum shaped object for `@Property.string({ enum })`, and as a type, and whether a string is one of them, such as a currency to pass to `formatPrice` |
 | `Timezone` | type | Type of an IANA time zone name (such as `'UTC'`, `'Europe/Berlin'`) |
 | `timezones` | constant | Every name `Timezone` allows, as a list |
+| `getZonedDate`, `ZonedDate` | function, type | The year, month, day, weekday and time an instant falls on in a time zone |
 | `Month`, `monthLabels`, `Weekday`, `weekdayLabels` | enum, constant, enum, constant | The months and weekdays as a JavaScript `Date` numbers them, and a translatable label for each |
 
 ## Marking strings for translation

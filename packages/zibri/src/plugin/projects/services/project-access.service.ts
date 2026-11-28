@@ -16,13 +16,13 @@ import { InternalError } from '../../../error-handling/internal-error.model';
 import { $ts } from '../../../localization/translate.function';
 import { type RowShare } from '../../../sharing/row-share.model';
 import { type ShareServiceInterface } from '../../../sharing/share-service.interface';
-import { ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from '../projects.tokens';
 import { type ProjectAccess } from '../models/project-access.model';
 import { PROJECT_ROLES, type ProjectRole } from '../models/project-role.model';
 import { type ProjectUser } from '../models/project-user.model';
 import { Project } from '../models/project.model';
 import { ProjectsAccess } from '../models/projects-access.model';
 import { type ProjectsPluginOptions } from '../models/projects-plugin-options.model';
+import { ZIBRI_PROJECTS_PLUGIN_DI_TOKENS } from '../projects.tokens';
 import { type ProjectAccessServiceInterface } from './project-access-service.interface';
 
 /**
@@ -54,10 +54,12 @@ export class ProjectAccessService implements ProjectAccessServiceInterface {
         const context: EntityScopeContext = await resolveEntityScopeContext(Project);
         const fullAccess: boolean = await context.hasAnyLevelPermission(ProjectsAccess.READ);
         const byPermissions: ProjectRole | undefined = fullAccess
-            ? (await context.hasAnyLevelPermission(ProjectsAccess.WRITE) ? 'editor' : 'viewer')
+            ? await context.hasAnyLevelPermission(ProjectsAccess.WRITE) ? 'editor' : 'viewer'
             : undefined;
         const userId: string | undefined = context.currentUser?.id;
-        const shared: string | undefined = userId == undefined ? undefined : await this.shareService.resolveRole(Project, project.id, userId);
+        const shared: string | undefined = userId == undefined
+            ? undefined
+            : await this.shareService.resolveRole(Project, project.id, userId);
         // a share can give a member more than their permissions do, never less
         const role: ProjectRole | undefined = PROJECT_ROLES[Math.max(
             byPermissions == undefined ? -1 : PROJECT_ROLES.indexOf(byPermissions),
@@ -101,16 +103,16 @@ export class ProjectAccessService implements ProjectAccessServiceInterface {
             return false;
         }
         // what their roles carry outside a request, as no credential of theirs narrows it here
-        const permissions: (Permission | PlatformPermission)[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE).resolveUserPermissions(user, tenantId);
+        const permissions: (Permission | PlatformPermission)[] = await inject(ZIBRI_DI_TOKENS.AUTH_SERVICE)
+            .resolveUserPermissions(user, tenantId);
         if (permissions.includes(ProjectsAccess.READ.platformPermission)) {
             return true;
         }
         const membership: unknown = await inject(ZIBRI_DI_TOKENS.MEMBERSHIP_SERVICE).findActiveMembership(userId, tenantId);
-        if (membership == undefined) {
-            return false;
-        }
-        return permissions.includes(ProjectsAccess.READ.permission)
-            || await this.shareService.resolveRole(Project, projectId, userId) != undefined;
+        return membership == undefined
+            ? false
+            : permissions.includes(ProjectsAccess.READ.permission)
+                || await this.shareService.resolveRole(Project, projectId, userId) != undefined;
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -119,7 +121,9 @@ export class ProjectAccessService implements ProjectAccessServiceInterface {
         const sees: boolean[] = await Promise.all(unique.map(async userId => await this.resolveSeesProject(userId, projectId)));
         const refused: string | undefined = unique.find((_, index) => sees[index] !== true);
         if (refused != undefined) {
-            throw new BadRequestError($ts`The user "${refused}" does not see the project, and needs to before a task of it is assigned to them.`);
+            throw new BadRequestError(
+                $ts`The user "${refused}" does not see the project, and needs to before a task of it is assigned to them.`
+            );
         }
     }
 

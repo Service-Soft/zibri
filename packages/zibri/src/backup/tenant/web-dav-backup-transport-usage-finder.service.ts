@@ -27,7 +27,9 @@ export class WebDavBackupTransportUsageFinder implements TenantWebDavConnectionU
         );
         // of any kind naming it rather than of the kinds the application lists now: a transport of a kind taken out of
         // the options still holds backups, which a connection deleted would make unreachable for good
-        const names: string[] = transports.filter(transport => transport.settings['connectionId'] === connection.id).map(transport => transport.name);
+        const names: string[] = transports
+            .filter(transport => transport.settings['connectionId'] === connection.id)
+            .map(transport => transport.name);
         return names.length ? [$ts`Backups are kept through it by the transports ${names.join(', ')}.`] : [];
     }
 }

@@ -657,12 +657,14 @@ export function AuthController<
                 },
                 { isolationLevel: IsolationLevel.READ_COMMITTED }
             );
-            if (loginUserId == undefined) {
-                return undefined;
-            }
             // once the account is there, in a transaction of its own: a login waiting for its second factor answers
             // with a refusal, which would take the account back with it
-            return await this.logInByLink(loginUserId, strategyClass ?? AuthControllerUtilities.resolveNamed(strategies, undefined, 'strategy'));
+            return loginUserId == undefined
+                ? undefined
+                : await this.logInByLink(
+                    loginUserId,
+                    strategyClass ?? AuthControllerUtilities.resolveNamed(strategies, undefined, 'strategy')
+                );
         }
 
         // eslint-disable-next-line jsdoc/require-jsdoc
@@ -1138,7 +1140,8 @@ export function AuthController<
             const authenticator: unknown = authenticatorClass == undefined ? undefined : inject(authenticatorClass);
             if (authenticatorClass == undefined || !isLoginLinkAuthenticator(authenticator)) {
                 throw new InternalError(
-                    'Accepting an invitation without a password logs its account in by a link, which needs LoginLinkAuthenticator among the authenticators of AuthController.'
+                    'Accepting an invitation without a password logs its account in by a link, which needs LoginLinkAuthenticator'
+                    + ' among the authenticators of AuthController.'
                 );
             }
             // stored before the login's transaction, which the authenticator spends it outside of

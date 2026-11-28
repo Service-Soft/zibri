@@ -41,7 +41,7 @@ type TenantTransportMethods = Required<Pick<
 // one says where the routes are. Every decorator is on a route rather than the class, which the application's class
 // would not inherit
 export class TenantBackupTransportController implements OnAppInit {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     onAppInit(app: ZibriApplication): void {
         validateEntitiesRegistered(TenantBackupTransportController.name, app, TenantBackupTransport);
         // at boot rather than per request: the methods are optional until 4.0, and a backup service of the
@@ -119,7 +119,12 @@ export class TenantBackupTransportController implements OnAppInit {
     // read when used rather than injected, for the reason MailingListController reads its repository so
     private resolveTenantTransportMethods(): TenantTransportMethods {
         const service: BackupServiceInterface = inject(ZIBRI_DI_TOKENS.BACKUP_SERVICE);
-        const { findTenantBackupTransports, createTenantBackupTransport, updateTenantBackupTransport, deleteTenantBackupTransport } = service;
+        const {
+            findTenantBackupTransports,
+            createTenantBackupTransport,
+            updateTenantBackupTransport,
+            deleteTenantBackupTransport
+        } = service;
         if (
             findTenantBackupTransports == undefined
             || createTenantBackupTransport == undefined

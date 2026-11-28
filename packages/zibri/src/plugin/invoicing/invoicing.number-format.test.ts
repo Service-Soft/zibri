@@ -16,7 +16,8 @@ import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { BaseEntity } from '../../entity/base-entity.model';
-import { getZonedDate, ZonedDate } from '../../localization/format-date.function';
+import { getZonedDate } from '../../localization/get-zoned-date.function';
+import { ZonedDate } from '../../localization/models/zoned-date.model';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
 import { Newable } from '../../types/newable.type';
 import { OmitStrict } from '../../types/omit-strict.type';
@@ -33,7 +34,7 @@ import { InvoiceCancellationServiceInterface } from './services/invoice-cancella
 import { InvoiceNumberService } from './services/invoice-number.service';
 
 // the formats invoice numbers are drawn in: the application's, and the one a tenant sets for itself. In memory;
-// whether a number drawn in a transaction that is rolled back leaves a gap is invoice-number.service.test.ts's
+// whether a number drawn in a transaction that is rolled back leaves a gap is invoice-number.service.container.test.ts's
 
 /**
  * A team numbering with the format of the application.

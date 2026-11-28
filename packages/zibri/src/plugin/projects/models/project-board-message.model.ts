@@ -1,37 +1,18 @@
-import { type ProjectColumn } from './project-column.model';
-import { type Project } from './project.model';
-import { type TaskComment } from './task-comment.model';
-import { type TaskLabel } from './task-label.model';
-import { type Task } from './task.model';
+import * as contract from 'zibri-contract';
 
-// from zibri-contract, so that a frontend listens for the same event
-// eslint-disable-next-line jsdoc/require-jsdoc
-export { PROJECT_BOARD_WEBSOCKET_EVENT } from 'zibri-contract';
+import { type ProjectBoardMessageColumn } from './project-board-message-column.model';
+import { type ProjectBoardMessageComment } from './project-board-message-comment.model';
+import { type ProjectBoardMessageLabel } from './project-board-message-label.model';
+import { type ProjectBoardMessageProject } from './project-board-message-project.model';
+import { type ProjectBoardMessageTask } from './project-board-message-task.model';
 
+// the value of zibri-contract, so that a frontend listens for the same event, declared here rather than re-exported
+// so that its JSDoc names the message as the server sends it, not the model of the contract
 /**
- * A project as a message carries it, without its relations.
+ * The websocket event a change of a board a connection subscribed to arrives as. The `data` of its message is a
+ * {@link ProjectBoardMessage}.
  */
-type ProjectRow = Omit<Project, 'parent' | 'children' | 'columns' | 'tasks' | 'labels' | 'recurringTasks'>;
-
-/**
- * A task as a message carries it, without its relations and change sets.
- */
-type TaskRow = Omit<Task, 'project' | 'column' | 'comments' | 'changeSets'>;
-
-/**
- * A column as a message carries it, without its relations.
- */
-type ColumnRow = Omit<ProjectColumn, 'project' | 'tasks'>;
-
-/**
- * A label as a message carries it, without its relation.
- */
-type LabelRow = Omit<TaskLabel, 'project'>;
-
-/**
- * A comment as a message carries it, without its relation.
- */
-type CommentRow = Omit<TaskComment, 'task'>;
+export const PROJECT_BOARD_WEBSOCKET_EVENT: typeof contract.PROJECT_BOARD_WEBSOCKET_EVENT = contract.PROJECT_BOARD_WEBSOCKET_EVENT;
 
 /**
  * A change of a board, as a connection subscribed to it through the `ProjectBoardWebsocketController` receives it as
@@ -44,7 +25,7 @@ export type ProjectBoardMessage = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     projectId: string,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    project: ProjectRow
+    project: ProjectBoardMessageProject
 } | {
     // eslint-disable-next-line jsdoc/require-jsdoc
     type: 'project-deleted',
@@ -56,7 +37,7 @@ export type ProjectBoardMessage = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     projectId: string,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    task: TaskRow
+    task: ProjectBoardMessageTask
 } | {
     // eslint-disable-next-line jsdoc/require-jsdoc
     type: 'task-deleted',
@@ -70,7 +51,7 @@ export type ProjectBoardMessage = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     projectId: string,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    column: ColumnRow
+    column: ProjectBoardMessageColumn
 } | {
     // eslint-disable-next-line jsdoc/require-jsdoc
     type: 'column-deleted',
@@ -84,7 +65,7 @@ export type ProjectBoardMessage = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     projectId: string,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    label: LabelRow
+    label: ProjectBoardMessageLabel
 } | {
     // eslint-disable-next-line jsdoc/require-jsdoc
     type: 'label-deleted',
@@ -98,7 +79,7 @@ export type ProjectBoardMessage = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     projectId: string,
     // eslint-disable-next-line jsdoc/require-jsdoc
-    comment: CommentRow
+    comment: ProjectBoardMessageComment
 } | {
     // eslint-disable-next-line jsdoc/require-jsdoc
     type: 'comment-deleted',

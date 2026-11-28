@@ -4,9 +4,6 @@ import { buffer } from 'node:stream/consumers';
 import { ArchiveUtilities } from '../../../archive/archive.utilities';
 import { Repository } from '../../../data-source/repository/repository';
 import { type Transaction } from '../../../data-source/transaction/transaction.model';
-import { type FileRecord } from '../../../file/file-record.model';
-import { MimeType } from '../../../http/mime-type.enum';
-import { type TranslationToken } from '../../../localization/translate.function';
 import { repositoryTokenFor } from '../../../di/decorators/inject-repository.decorator';
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
@@ -14,8 +11,10 @@ import { inject } from '../../../di/inject.function';
 import { BadRequestError } from '../../../error-handling/errors/bad-request.error';
 import { ConflictError } from '../../../error-handling/errors/conflict.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
+import { type FileRecord } from '../../../file/file-record.model';
+import { MimeType } from '../../../http/mime-type.enum';
 import { type LocaleCode } from '../../../localization/models/locale-code.model';
-import { $ts } from '../../../localization/translate.function';
+import { $ts, type TranslationToken } from '../../../localization/translate.function';
 import { BigNumber, NumberUtilities } from '../../../utilities/number.utilities';
 import { BookkeepingDayUtilities } from '../bookkeeping-day.utilities';
 import { BookkeepingStatementUtilities } from '../bookkeeping-statement.utilities';
@@ -103,7 +102,10 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
         if (entries.length) {
             // by the fiscal years rather than the ids of the entries, of which a year has more than a query takes
             const fiscalYearIds: string[] = [...new Set(entries.map(entry => entry.fiscalYearId))];
-            for await (const line of this.lineRepository.stream({ where: { fiscalYearId: { oneOf: fiscalYearIds } }, order: { chainSequence: 'ASC' } })) {
+            for await (const line of this.lineRepository.stream({
+                where: { fiscalYearId: { oneOf: fiscalYearIds } },
+                order: { chainSequence: 'ASC' }
+            })) {
                 lines.get(line.entryId)?.push(line);
             }
         }
@@ -217,7 +219,10 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
             credit: b.credit,
             balance: NumberUtilities.subtract(b.debit, b.credit)
         }));
-        const sum: (amounts: BigNumber[]) => BigNumber = amounts => amounts.reduce((total, amount) => NumberUtilities.add(total, amount), new BigNumber(0));
+        const sum: (amounts: BigNumber[]) => BigNumber = amounts => amounts.reduce(
+            (total, amount) => NumberUtilities.add(total, amount),
+            new BigNumber(0)
+        );
         return {
             fiscalYearId: fiscalYear.id,
             start: fiscalYear.start,
@@ -384,7 +389,8 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
             // the full form as well, which every other form rolls up from and the year after takes its figures from
             for (const structure of applying.id === full.id ? [applying] : [applying, full]) {
                 const statement: BookkeepingStatement = await this.computeStatement(fiscalYear, structure, type, transaction);
-                const pdf: Readable = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_PDF_SERVICE).resolveStatementDocument(statement, transaction);
+                const pdf: Readable = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.REPORT_PDF_SERVICE)
+                    .resolveStatementDocument(statement, transaction);
                 const record: FileRecord = await inject(ZIBRI_DI_TOKENS.FILE_SERVICE).store(
                     {
                         store: inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.RECEIPT_FILE_STORE),
@@ -425,7 +431,9 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
         // those of the latest closing: a reopening keeps those of the closings before it, which no longer count
         const closing: number = fiscalYear.reopenings + 1;
         return await this.statementRepository.findOne({
-            where: form == undefined ? { fiscalYearId: fiscalYear.id, closing, type, applies: true } : { fiscalYearId: fiscalYear.id, closing, type, form },
+            where: form == undefined
+                ? { fiscalYearId: fiscalYear.id, closing, type, applies: true }
+                : { fiscalYearId: fiscalYear.id, closing, type, form },
             required: false,
             transaction
         });
@@ -448,9 +456,21 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
         const balances: BookkeepingAccountBalance[] = await this.resolveBalances(fiscalYear, undefined, transaction);
         const result: BigNumber = BookkeepingStatementUtilities.resolveResult(balances);
         const translate: (label: TranslationToken) => string = this.resolveTranslate();
-        const { positions, unmapped } = BookkeepingStatementUtilities.resolveStatement(structure, this.structures, balances, result, translate);
+        const { positions, unmapped } = BookkeepingStatementUtilities.resolveStatement(
+            structure,
+            this.structures,
+            balances,
+            result,
+            translate
+        );
         const previousYear: FiscalYear | undefined = await this.findPreviousFiscalYear(fiscalYear, transaction);
-        const previous: BookkeepingStatementPosition[] | undefined = await this.resolvePreviousPositions(fiscalYear, structure, type, translate, transaction);
+        const previous: BookkeepingStatementPosition[] | undefined = await this.resolvePreviousPositions(
+            fiscalYear,
+            structure,
+            type,
+            translate,
+            transaction
+        );
         return {
             fiscalYearId: fiscalYear.id,
             start: fiscalYear.start,
@@ -534,6 +554,7 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
         const named: BookkeepingStatementStructure | undefined = this.structures.find(s => s.id === form && s.type === type);
         if (named == undefined) {
             throw new BadRequestError(
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 $ts`The form "${form}" needs to be a statement structure of the type ${type} in ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.STATEMENT_STRUCTURES.`
             );
         }
@@ -570,7 +591,10 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
             return this.resolveNamedStructure(type, form);
         }
         const forms: BookkeepingStatementForms = await this.resolveForms(settings, fiscalYear, transaction);
-        return this.resolveNamedStructure(type, type === BookkeepingStatementType.BALANCE_SHEET ? forms.balanceSheet : forms.incomeStatement);
+        return this.resolveNamedStructure(
+            type,
+            type === BookkeepingStatementType.BALANCE_SHEET ? forms.balanceSheet : forms.incomeStatement
+        );
     }
 
     /**
@@ -581,7 +605,11 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
      * @param transaction - The transaction the conformances read in, if any.
      * @returns The ids of the structures.
      */
-    protected async resolveForms(settings: BookkeepingSettings, fiscalYear: FiscalYear, transaction?: Transaction): Promise<BookkeepingStatementForms> {
+    protected async resolveForms(
+        settings: BookkeepingSettings,
+        fiscalYear: FiscalYear,
+        transaction?: Transaction
+    ): Promise<BookkeepingStatementForms> {
         const conformances: BookkeepingConformanceServiceInterface[] = BookkeepingConformanceUtilities.resolveConformances(
             this.conformanceServices,
             settings,
@@ -627,10 +655,16 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
      * @param transaction - The transaction to read in, if any.
      * @returns The balances, by the number of their account.
      */
-    protected async resolveBalances(fiscalYear: FiscalYear, until: Date | undefined, transaction?: Transaction): Promise<BookkeepingAccountBalance[]> {
+    protected async resolveBalances(
+        fiscalYear: FiscalYear,
+        until: Date | undefined,
+        transaction?: Transaction
+    ): Promise<BookkeepingAccountBalance[]> {
         const included: Set<string> = new Set();
         for await (const entry of this.entryRepository.stream({
-            where: until == undefined ? { fiscalYearId: fiscalYear.id } : { fiscalYearId: fiscalYear.id, postingDate: { beforeOrOn: until } },
+            where: until == undefined
+                ? { fiscalYearId: fiscalYear.id }
+                : { fiscalYearId: fiscalYear.id, postingDate: { beforeOrOn: until } },
             select: { id: true, sourceType: true },
             transaction
         })) {
@@ -648,7 +682,11 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
      * @param transaction - The transaction to read in, if any.
      * @returns The balances, by the number of their account.
      */
-    protected async resolveSums(fiscalYearIds: string[], entryIds: Set<string>, transaction?: Transaction): Promise<BookkeepingAccountBalance[]> {
+    protected async resolveSums(
+        fiscalYearIds: string[],
+        entryIds: Set<string>,
+        transaction?: Transaction
+    ): Promise<BookkeepingAccountBalance[]> {
         const sums: Map<string, Sums> = new Map();
         if (!entryIds.size || !fiscalYearIds.length) {
             return [];
@@ -670,7 +708,11 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
         if (!sums.size) {
             return [];
         }
-        const accounts: BookkeepingAccount[] = await this.accountRepository.findAll({ where: { id: { oneOf: [...sums.keys()] } }, limit: 'all', transaction });
+        const accounts: BookkeepingAccount[] = await this.accountRepository.findAll({
+            where: { id: { oneOf: [...sums.keys()] } },
+            limit: 'all',
+            transaction
+        });
         return JournalEntryUtilities.sortBalances(accounts.map(account => ({
             account,
             debit: sums.get(account.id)?.debit ?? new BigNumber(0),
@@ -685,7 +727,8 @@ export class BookkeepingReportService implements BookkeepingReportServiceInterfa
      * @throws A ConflictError for a tenant that keeps no books.
      */
     protected async resolveSettings(transaction?: Transaction): Promise<BookkeepingSettings> {
-        const settings: BookkeepingSettings | undefined = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).findSettings(transaction);
+        const settings: BookkeepingSettings | undefined = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE)
+            .findSettings(transaction);
         if (settings == undefined) {
             throw new ConflictError($ts`The books of the tenant need settings, with the currency they are kept in, before they are kept.`);
         }

@@ -97,6 +97,22 @@ PdfmakeTestUtilities.describeOnEvery('the fonts of a pdf', () => {
         expect(embeddedFontsOf(pdf)).toEqual(['FakeBrand']);
     });
 
+    // pdfmake 0.3 reads a font once for every document set in it: one document leaving something in the font it
+    // read would show in the next
+    it('set a document the same, however many documents were set in its fonts before', async () => {
+        const at: Date = new Date('2026-01-01T00:00:00Z');
+        const invoice: PdfDocumentDefinition = { attachments: [], info: { creationDate: at }, defaultStyle: { font: 'Brand' }, content: ['Invoice 42', 'For 山田太郎'] };
+        const other: PdfDocumentDefinition = { attachments: [], info: { creationDate: at }, defaultStyle: { font: 'Brand' }, content: [{ text: 'Reminder 7: pay by MONDAY', bold: true }] };
+        const fontsOf: () => PdfFontOptions = () => ({ families: { Brand: { normal: BRAND_FONT }, Cjk: { normal: CJK_FONT } }, fallbacks: ['Cjk'] });
+        const used: PdfFontOptions = fontsOf();
+        await bytesOf(await PdfUtilities.resolve(other, undefined, used));
+        await bytesOf(await PdfUtilities.resolve(invoice, undefined, used));
+
+        const again: string = await bytesOf(await PdfUtilities.resolve(invoice, undefined, used));
+
+        expect(again).toBe(await bytesOf(await PdfUtilities.resolve(invoice, undefined, fontsOf())));
+    });
+
     it('refuse a fallback that names no registered family', async () => {
         const fonts: PdfFontOptions = { families: {}, fallbacks: ['Cjk'] };
 

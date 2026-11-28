@@ -9,8 +9,8 @@ import { BigNumber, NumberUtilities } from '../../utilities/number.utilities';
 import { BankMatchUtilities } from '../bank/bank-match.utilities';
 import { BankMatchReason } from '../bank/models/bank-match-reason.enum';
 import { type BankMatchScore } from '../bank/models/bank-match-score.model';
-import { type BankMatchTarget } from '../bank/models/bank-match-target.model';
 import { BankMatchTargetType } from '../bank/models/bank-match-target-type.enum';
+import { type BankMatchTarget } from '../bank/models/bank-match-target.model';
 import { BankMatch } from '../bank/models/bank-match.model';
 import { type BankMatcherSuggestion } from '../bank/models/bank-matcher-suggestion.model';
 import { type BankMatcherTransaction } from '../bank/models/bank-matcher-transaction.model';
@@ -67,7 +67,11 @@ export class ExpenseBankMatcher implements BankMatcherInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async resolveTarget(targetId: string, bankTransaction: BankTransaction, transaction: Transaction | undefined): Promise<BankMatchTarget> {
+    async resolveTarget(
+        targetId: string,
+        bankTransaction: BankTransaction,
+        transaction: Transaction | undefined
+    ): Promise<BankMatchTarget> {
         const expense: Expense = await this.expenseRepository.findById(targetId, { transaction });
         const documentNumber: string = expense.documentNumber;
         if (expense.recordedAt == undefined) {

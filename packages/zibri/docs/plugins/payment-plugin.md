@@ -24,7 +24,7 @@ keywords: [payments, pay, checkout, paypal, payment provider]
 | `PaymentReconciliationCronJob` | cron job | Asks the providers every hour what became of payments nobody confirmed, see [abandoned payments](#settling-abandoned-payments). Registered for you |
 
 ## Setting it up
-Add `new ZibriPaymentPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `Payment` to the `entities` of your data source.
+Add `new ZibriPaymentPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `Payment` to the `entities` of your data source. You import the names of the plugin from `zibri/plugin/payment`.
 
 You provide your payment methods and providers through `ZIBRI_PAYMENT_PLUGIN_DI_TOKENS.OPTIONS_INPUT`. It is required. Each method can go through a provider of its own, such as PayPal payments through `PayPalPaymentProvider` and card payments through another provider. The data, the payment and the steps of a method are typed by the provider that supports it. When several of your providers support a method, they are typed by all of them. The providers are the same for every tenant, and each payment belongs to the [tenant](../data/tenancy.md) it is made in: a `transactionId` is unique among the payments of its tenant.
 

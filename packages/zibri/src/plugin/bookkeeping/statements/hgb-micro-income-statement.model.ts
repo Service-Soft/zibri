@@ -1,7 +1,7 @@
-/* eslint-disable cspell/spellchecker */
+
 import { $t } from '../../../localization/translate.function';
-import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { type BookkeepingStatementStructure } from '../models/bookkeeping-statement-structure.model';
+import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { HGB_INCOME_STATEMENT } from './hgb-income-statement.model';
 
 /**
@@ -23,7 +23,14 @@ export const HGB_MICRO_INCOME_STATEMENT: BookkeepingStatementStructure = {
         {
             id: 'micro-income-statement.2',
             label: $t`Other income`,
-            sums: ['income-statement.2', 'income-statement.3', 'income-statement.4', 'income-statement.9', 'income-statement.10', 'income-statement.11']
+            sums: [
+                'income-statement.2',
+                'income-statement.3',
+                'income-statement.4',
+                'income-statement.9',
+                'income-statement.10',
+                'income-statement.11'
+            ]
         },
         { id: 'micro-income-statement.3', label: $t`Cost of materials`, sums: ['income-statement.5'] },
         { id: 'micro-income-statement.4', label: $t`Personnel expenses`, sums: ['income-statement.6'] },

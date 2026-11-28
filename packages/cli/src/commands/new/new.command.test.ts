@@ -420,7 +420,7 @@ describe('NewCommand', () => {
         // the paths stay, because an extended config resolves them against itself rather than the project
         expect(tsconfig).toEqual({
             extends: 'zibri/tsconfig.application.json',
-            compilerOptions: { outDir: 'dist' },
+            compilerOptions: { outDir: 'dist', rootDir: '.' },
             include: ['src']
         });
     });

@@ -145,7 +145,13 @@ export class InvoicingController {
         return await this.runInTenantOfInvoice(user, id, async () => {
             const invoice: Invoice = await this.invoiceRepository.findById(id);
             const rendering: InvoiceRendering = await this.resolveRendering(invoice);
-            const pdf: Readable = await this.documentService.resolvePdf(invoice, rendering.locale, rendering.timezone, rendering.conformance, undefined);
+            const pdf: Readable = await this.documentService.resolvePdf(
+                invoice,
+                rendering.locale,
+                rendering.timezone,
+                rendering.conformance,
+                undefined
+            );
             return FileResponse.fromStream({ stream: pdf, filename: `${invoice.number}.pdf`, mimeType: MimeType.PDF });
         });
     }
@@ -163,7 +169,9 @@ export class InvoicingController {
     ): Promise<FileResponse> {
         return await this.runInTenantOfInvoice(user, id, async () => {
             const invoice: Invoice = await this.invoiceRepository.findById(id);
-            const archived: InvoiceDocument | undefined = invoice.issuedAt == undefined ? undefined : await this.documentService.findDocument(id);
+            const archived: InvoiceDocument | undefined = invoice.issuedAt == undefined
+                ? undefined
+                : await this.documentService.findDocument(id);
             const rendering: InvoiceRendering = await this.resolveRendering(invoice);
             let rendered: InvoiceConformance;
             if (archived == undefined) {
@@ -211,7 +219,8 @@ export class InvoicingController {
         const company: CompanyInfo = await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE)
             .resolveCompanyInfo(invoice.tenantId);
         return {
-            locale: archive?.locale ?? inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT)),
+            locale: archive?.locale
+                ?? inject(ZIBRI_DI_TOKENS.LOCALIZE_SERVICE).resolveSupportedLocale(inject(ZIBRI_DI_TOKENS.CURRENT_REQUEST_CONTEXT)),
             timezone: company.timezone,
             conformance: archive?.resolveConformance(invoice)
         };

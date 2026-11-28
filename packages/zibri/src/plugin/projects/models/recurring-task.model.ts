@@ -3,8 +3,8 @@ import { Entity } from '../../../entity/decorators/entity.decorator';
 import { Property } from '../../../entity/decorators/property.decorator';
 import { type Timezone, timezoneEnum } from '../../../localization/models/timezone.model';
 import { NON_WORKING_DAY_RULE_VALUES, type NonWorkingDayRule } from './non-working-day-rule.model';
-import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 import { Project } from './project.model';
+import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 import { RecurringTaskOccurrence } from './recurring-task-occurrence.model';
 import { TaskRecurrence } from './task-recurrence.model';
 

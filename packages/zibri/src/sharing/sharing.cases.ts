@@ -11,8 +11,8 @@ import { DefaultTestServerMembershipRepository } from '../__testing__/test-serve
 import { defaultTestServerProviders, rolesAndPermissionsProviders, TestServerRole } from '../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../__testing__/test-server/start-test-server.function';
 import { OtpTwoFactorMethod } from '../auth/2fa/methods/otp/otp.two-factor-method';
-import { type AuthServiceInterface } from '../auth/auth-service.interface';
 import { AuthController } from '../auth/auth-controller/auth-controller.model';
+import { type AuthServiceInterface } from '../auth/auth-service.interface';
 import { LoginLinkEmailTemplate } from '../auth/authenticators/login-link/login-link-email-template.model';
 import { LoginLinkAuthenticator } from '../auth/authenticators/login-link/login-link.authenticator';
 import { PasswordAuthenticator } from '../auth/authenticators/password/password.authenticator';
@@ -215,9 +215,10 @@ type Caller = {
 /**
  * Thrown when the request running the work of a case was refused, with its status.
  */
-class ProbeRefusal extends Error {
-    constructor(readonly status: number) {
-        super(`refused with ${status}`);
+class ProbeRefusalError extends Error {
+    constructor(readonly status: number, options?: ErrorOptions) {
+        super(`refused with ${status}`, options);
+        this.name = 'ProbeRefusalError';
     }
 }
 
@@ -287,12 +288,18 @@ export function describeSharing(
                         token: ZIBRI_DI_TOKENS.LOGIN_LINK_OPTIONS,
                         useValue: {
                             loginLinkUrl: 'https://app.example.com/login-link',
-                            loginLinkEmail: compileTsxTemplate<LoginLinkEmailTemplate>('export const Email = ({ loginLink }) => <a href={loginLink}></a>;')
+                            loginLinkEmail: compileTsxTemplate<LoginLinkEmailTemplate>(
+                                'export const Email = ({ loginLink }) => <a href={loginLink}></a>;'
+                            )
                         }
                     }),
                     defineProvider({
                         token: ZIBRI_DI_TOKENS.EMAIL_CONFIG,
-                        useFactory: (): EmailConfigInput => ({ maxEmailsPerHour: 1000, defaultSender: 'Ada', failedRetentionInMs: 'forever' })
+                        useFactory: (): EmailConfigInput => ({
+                            maxEmailsPerHour: 1000,
+                            defaultSender: 'Ada',
+                            failedRetentionInMs: 'forever'
+                        })
                     }),
                     defineProvider({ token: ZIBRI_DI_TOKENS.EMAIL_TRANSPORT, useValue: transport })
                 ]
@@ -353,7 +360,8 @@ export function describeSharing(
                 .create({ email: `${UUIDUtilities.generate()}@sharing.test`, roles: platformRoles });
             for (const [tenant, memberRoles] of Object.entries(memberships)) {
                 await inTenant(
-                    async () => await inject(DefaultTestServerMembershipRepository).create({ tenantId: tenant, userId: user.id, roles: memberRoles }),
+                    async () => await inject(DefaultTestServerMembershipRepository)
+                        .create({ tenantId: tenant, userId: user.id, roles: memberRoles }),
                     tenant
                 );
             }
@@ -361,7 +369,14 @@ export function describeSharing(
             const permissions: (Permission | PlatformPermission)[] = await authService.resolveUserPermissions(user, undefined);
             const created: CreatedApiKey = await authService.createApiKey(
                 user.id,
-                { name: 'cases', permissions, expiresAt: undefined, tenantId: undefined, clientAuthentication: undefined, requireDpop: false },
+                {
+                    name: 'cases',
+                    permissions,
+                    expiresAt: undefined,
+                    tenantId: undefined,
+                    clientAuthentication: undefined,
+                    requireDpop: false
+                },
                 undefined
             );
             return { user, headers: { 'x-api-key': created.key, 'x-tenant-id': tenantId } };
@@ -377,16 +392,19 @@ export function describeSharing(
          * @param work - The work, whose answer is sent as json.
          * @param tenant - The tenant the request is for, the one of the suite unless given.
          * @returns What the work answered, as it arrives.
-         * @throws A ProbeRefusal when the request was refused.
+         * @throws A ProbeRefusalError when the request was refused.
          */
         async function as<T>(caller: Caller, work: () => Promise<T>, tenant: string = tenantId): Promise<T> {
             const id: string = UUIDUtilities.generate();
             probes.set(id, work);
             try {
-                const res: Response = await fetch(`${baseUrl}/share-probes/${id}`, { headers: { ...caller.headers, 'x-tenant-id': tenant } });
+                const res: Response = await fetch(
+                    `${baseUrl}/share-probes/${id}`,
+                    { headers: { ...caller.headers, 'x-tenant-id': tenant } }
+                );
                 if (res.status !== 200) {
                     await res.body?.cancel();
-                    throw new ProbeRefusal(res.status);
+                    throw new ProbeRefusalError(res.status);
                 }
                 // what the work answered, which the case typed
                 return (await res.json() as { value: T }).value;
@@ -408,7 +426,7 @@ export function describeSharing(
                 return 200;
             }
             catch (error) {
-                if (error instanceof ProbeRefusal) {
+                if (error instanceof ProbeRefusalError) {
                     return error.status;
                 }
                 throw error;
@@ -422,7 +440,10 @@ export function describeSharing(
         }
 
         async function createProject(name: string, parentId?: string, tenant: string = tenantId): Promise<SharedProject> {
-            return await inTenant(async () => await projects().create({ tenantId: tenant, name, parentId: parentId ?? null }, { unscoped: true }), tenant);
+            return await inTenant(
+                async () => await projects().create({ tenantId: tenant, name, parentId: parentId ?? null }, { unscoped: true }),
+                tenant
+            );
         }
 
         async function createTask(title: string, projectId: string): Promise<SharedTask> {
@@ -457,7 +478,19 @@ export function describeSharing(
             const financeComment: SharedComment = await createComment('Due in July', financeTask.id);
             await share(marketing.id, guest.user.id, 'viewer');
             await share(blog.id, guest.user.id, 'editor');
-            return { internal, marketing, blog, drafts, finance, customer, marketingTask, blogTask, financeTask, marketingComment, financeComment };
+            return {
+                internal,
+                marketing,
+                blog,
+                drafts,
+                finance,
+                customer,
+                marketingTask,
+                blogTask,
+                financeTask,
+                marketingComment,
+                financeComment
+            };
         }
 
         function sorted(ids: string[]): string[] {
@@ -492,13 +525,16 @@ export function describeSharing(
                 });
                 expect(page).toEqual({ ids: [tree.drafts.id, tree.marketing.id], total: 3 });
                 expect(await as(guest, async () => await projects().count())).toBe(3);
-                expect(await as(guest, async () => (await projects().findAll({ where: { name: { like: '%n%' } } })).map(p => p.name).sort()))
-                    .toEqual(['Marketing']);
+                expect(await as(
+                    guest,
+                    async () => (await projects().findAll({ where: { name: { like: '%n%' } } })).map(p => p.name).sort()
+                )).toEqual(['Marketing']);
             });
 
             it('resolves the relations to the rows it sees alone', async () => {
                 const read: { parent: string | null, children: string[], tasks: string[] } = await as(guest, async () => {
-                    const marketing: SharedProject = await projects().findById(tree.marketing.id, { relations: ['parent', 'children', 'tasks'] });
+                    const marketing: SharedProject = await projects()
+                        .findById(tree.marketing.id, { relations: ['parent', 'children', 'tasks'] });
                     return {
                         parent: marketing.parent?.id ?? null,
                         children: (marketing.children ?? []).map(c => c.id),
@@ -518,18 +554,31 @@ export function describeSharing(
                 expect(sorted(read.tasks)).toEqual(sorted([tree.marketingTask.id, tree.blogTask.id]));
                 expect(read.comments).toEqual([tree.marketingComment.id]);
                 expect(await statusAs(guest, async () => await comments().findById(tree.financeComment.id))).toBe(404);
-                expect(await as(guest, async () => await tasks().count({ where: { project: { where: { name: 'Finance' } } } }))).toBe(0);
+                expect(await as(guest, async () => await tasks().count({ where: { project: { where: { name: 'Finance' } } } })))
+                    .toBe(0);
             });
 
             it('writes within what it sees, and is refused outside of it', async () => {
-                const created: string = await as(guest, async () => (await tasks().create({ tenantId, title: 'Draft a post', done: false, projectId: tree.drafts.id })).id);
+                const created: string = await as(
+                    guest,
+                    async () => (await tasks().create({ tenantId, title: 'Draft a post', done: false, projectId: tree.drafts.id })).id
+                );
                 expect(await as(guest, async () => (await tasks().findById(created)).title)).toBe('Draft a post');
 
-                expect(await statusAs(guest, async () => await tasks().create({ tenantId, title: 'Pay', done: false, projectId: tree.finance.id }))).toBe(403);
+                expect(await statusAs(
+                    guest,
+                    async () => await tasks().create({ tenantId, title: 'Pay', done: false, projectId: tree.finance.id })
+                )).toBe(403);
                 expect(await statusAs(guest, async () => await projects().updateById(tree.finance.id, { name: 'Mine' }))).toBe(404);
                 expect(await statusAs(guest, async () => await projects().deleteById(tree.customer.id))).toBe(404);
-                expect(await statusAs(guest, async () => await projects().create({ tenantId, name: 'A root of my own', parentId: null }))).toBe(403);
-                expect(await statusAs(guest, async () => await tasks().updateById(tree.marketingTask.id, { projectId: tree.finance.id }))).toBe(403);
+                expect(await statusAs(
+                    guest,
+                    async () => await projects().create({ tenantId, name: 'A root of my own', parentId: null })
+                )).toBe(403);
+                expect(await statusAs(
+                    guest,
+                    async () => await tasks().updateById(tree.marketingTask.id, { projectId: tree.finance.id })
+                )).toBe(403);
             });
 
             it('creates a row below a row it sees, and sees it in the same request and after', async () => {
@@ -574,7 +623,8 @@ export function describeSharing(
 
             it('resolves the highest role along the rows above a row', async () => {
                 const resolved: (string | undefined)[] = await inTenant(async () => await Promise.all(
-                    [tree.marketing, tree.blog, tree.drafts, tree.finance].map(async p => await shares().resolveRole(SharedProject, p.id, guest.user.id))
+                    [tree.marketing, tree.blog, tree.drafts, tree.finance]
+                        .map(async p => await shares().resolveRole(SharedProject, p.id, guest.user.id))
                 ));
 
                 expect(resolved).toEqual(['viewer', 'editor', 'editor', undefined]);
@@ -602,8 +652,10 @@ export function describeSharing(
             });
 
             it('checks a role in the handler the way the route does', async () => {
-                expect(await statusAs(guest, async () => await shares().validateRole(SharedProject, tree.marketing.id, 'viewer'))).toBe(200);
-                expect(await statusAs(guest, async () => await shares().validateRole(SharedProject, tree.marketing.id, 'editor'))).toBe(403);
+                expect(await statusAs(guest, async () => await shares().validateRole(SharedProject, tree.marketing.id, 'viewer')))
+                    .toBe(200);
+                expect(await statusAs(guest, async () => await shares().validateRole(SharedProject, tree.marketing.id, 'editor')))
+                    .toBe(403);
                 expect(await statusAs(guest, async () => await shares().validateRole(SharedProject, tree.customer.id, 'viewer'))).toBe(404);
             });
 
@@ -630,7 +682,8 @@ export function describeSharing(
                     comments: (await comments().findAll()).length
                 }))).toEqual({ projects: 0, tasks: 0, comments: 0 });
                 const membership: TestMembership | undefined = await inTenant(
-                    async () => await inject(DefaultTestServerMembershipRepository).findOne({ where: { userId: guest.user.id }, required: false })
+                    async () => await inject(DefaultTestServerMembershipRepository)
+                        .findOne({ where: { userId: guest.user.id }, required: false })
                 );
                 expect(membership?.roles).toEqual([MemberRoles.USER]);
             });
@@ -644,7 +697,9 @@ export function describeSharing(
 
                 await inTenant(async () => await projects().deleteById(tree.blog.id, { unscoped: true }));
 
-                const left: string[] = await inTenant(async () => (await rowShares().findAll({ where: { userId: guest.user.id } })).map(s => s.rowId));
+                const left: string[] = await inTenant(
+                    async () => (await rowShares().findAll({ where: { userId: guest.user.id } })).map(s => s.rowId)
+                );
                 expect(left).toEqual([tree.marketing.id]);
             });
 
@@ -663,10 +718,12 @@ export function describeSharing(
                 const guest: Caller = await createGuest();
                 const tree: Tree = await createTree(guest);
 
-                await expect(inTenant(async () => await projects().updateById(tree.marketing.id, { parentId: tree.drafts.id }, { unscoped: true })))
-                    .rejects.toMatchObject({ status: 400 });
-                await expect(inTenant(async () => await projects().updateById(tree.marketing.id, { parentId: tree.marketing.id }, { unscoped: true })))
-                    .rejects.toMatchObject({ status: 400 });
+                await expect(inTenant(
+                    async () => await projects().updateById(tree.marketing.id, { parentId: tree.drafts.id }, { unscoped: true })
+                )).rejects.toMatchObject({ status: 400 });
+                await expect(inTenant(
+                    async () => await projects().updateById(tree.marketing.id, { parentId: tree.marketing.id }, { unscoped: true })
+                )).rejects.toMatchObject({ status: 400 });
                 await inTenant(async () => await projects().updateById(tree.drafts.id, { parentId: tree.customer.id }, { unscoped: true }));
                 expect(await as(guest, async () => (await projects().findAll()).length)).toBe(2);
             });
@@ -681,15 +738,27 @@ export function describeSharing(
                 platformPermissions: [PlatformPermissions.AUTH_ASSIGN_ROLE_IN_ANY_TENANT_WITH_ANY_PERMISSION]
             };
 
-            async function shareByEmail(projectId: string, email: string, withoutPassword: boolean): Promise<ShareByEmailResult<TestInvitation>> {
-                return await inTenant(async () => await shares().shareByEmail<TestInvitation>(operator, SharedProject, projectId, email, 'commenter', {
-                    name: 'Grace',
-                    roles: [MemberRoles.USER],
-                    createOn: 'accept',
-                    declinable: true,
-                    expiresInMs: undefined,
-                    withoutPassword
-                }, undefined));
+            async function shareByEmail(
+                projectId: string,
+                email: string,
+                withoutPassword: boolean
+            ): Promise<ShareByEmailResult<TestInvitation>> {
+                return await inTenant(async () => await shares().shareByEmail<TestInvitation>(
+                    operator,
+                    SharedProject,
+                    projectId,
+                    email,
+                    'commenter',
+                    {
+                        name: 'Grace',
+                        roles: [MemberRoles.USER],
+                        createOn: 'accept',
+                        declinable: true,
+                        expiresInMs: undefined,
+                        withoutPassword
+                    },
+                    undefined
+                ));
             }
 
             async function readToken(email: string): Promise<string> {
@@ -756,19 +825,27 @@ export function describeSharing(
             it('refuses a row the tenant does not hold', async () => {
                 const elsewhere: SharedProject = await createProject('Elsewhere', undefined, otherTenantId);
 
-                await expect(shareByEmail(elsewhere.id, `${UUIDUtilities.generate()}@customer.test`, false)).rejects.toMatchObject({ status: 404 });
+                await expect(shareByEmail(elsewhere.id, `${UUIDUtilities.generate()}@customer.test`, false))
+                    .rejects.toMatchObject({ status: 404 });
             });
         });
 
         describe('tenants', () => {
             it('keeps the shares of one tenant out of another', async () => {
-                const guest: Caller = await createCaller([Roles.USER], { [tenantId]: [MemberRoles.USER], [otherTenantId]: [MemberRoles.USER] });
+                const guest: Caller = await createCaller(
+                    [Roles.USER],
+                    { [tenantId]: [MemberRoles.USER], [otherTenantId]: [MemberRoles.USER] }
+                );
                 const tree: Tree = await createTree(guest);
                 const elsewhere: SharedProject = await createProject('Elsewhere', undefined, otherTenantId);
                 const otherManager: Caller = await createCaller([Roles.USER], { [otherTenantId]: [MemberRoles.ADMIN] });
 
                 expect(await as(guest, async () => (await projects().findAll()).length, otherTenantId)).toBe(0);
-                const seenElsewhere: string[] = await as(otherManager, async () => (await projects().findAll({ limit: 'all' })).map(p => p.id), otherTenantId);
+                const seenElsewhere: string[] = await as(
+                    otherManager,
+                    async () => (await projects().findAll({ limit: 'all' })).map(p => p.id),
+                    otherTenantId
+                );
                 expect(seenElsewhere).toContain(elsewhere.id);
                 expect(seenElsewhere).not.toContain(tree.marketing.id);
                 await expect(share(tree.marketing.id, guest.user.id, 'viewer', otherTenantId)).rejects.toMatchObject({ status: 404 });

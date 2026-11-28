@@ -12,6 +12,9 @@ WebDAV is the protocol Nextcloud, ownCloud and many other self-hosted storages s
 | `WebDavClientOptions` | type | What a client connects to, what its hosts are checked by, its `timeoutInMs` and `attempts` |
 | `WebDavConnection` | type | The `url` of a folder, and the `username` and `password` that log in to it |
 | `WebDavPutOptions` | type | The `contentType` of a file, and the one condition it is written under: `ifMatch`, `ifNoneMatch` or `overwrite` |
+| `WebDavPutIfMatch` | type | Writes a file only while it is the version of the ETag in `ifMatch` |
+| `WebDavPutIfNoneMatch` | type | Writes a file only where there is none: `ifNoneMatch: '*'` |
+| `WebDavPutOverwrite` | type | Writes a file whatever is there: `overwrite: true` |
 | `WebDavMoveOptions` | type | Whether a move replaces what is at its destination. Required |
 | `WebDavEntry` | type | A file or a folder a listing names: its `name`, `path`, `kind`, `size`, `etag`, `modifiedAt` and further `properties` |
 | `WebDavProperty` | type | A further property a listing asks for, by its `namespace` and `name` |
@@ -142,12 +145,12 @@ export async function findInvoiceIds(folder: WebDavClient): Promise<Map<string, 
 }
 ```
 
-A further property is read as its text, and is `undefined` where the server does not give it, or holds elements rather than text. Its name may not be one of those every entry is read from, such as `getetag`.
+A further property is read as its text, and is `undefined` where the server does not give it, or holds elements rather than text. One holding a single element is read as the text of that element, named as its `child`, such as `{ namespace: 'http://owncloud.org/ns', name: 'checksums', child: 'checksum' }`. Its name may not be one of those every entry is read from, such as `getetag`.
 
 `findEntries` fails with a `WebDavNotFoundError` for a folder that does not exist, and with an `InternalError` for a path that is a file. A listing is one answer, without pages, of at most 32 MB, some ten thousand entries.
 
 ## Creating folders
-`createFolder` creates a folder, with the folders above it that do not exist. A folder that exists is left as it is, and a file where the folder would be fails with a `WebDavConflictError`. A folder whose parent exists takes one request, and each folder above that is missing two more.
+`createFolder` creates a folder, with the folders above it that do not exist. A folder that exists is left as it is, one another call creates at the same time included, and a file where the folder would be fails with a `WebDavConflictError`. A folder whose parent exists takes one request, and each folder above that is missing two more. Calls of one client creating the same folder at once share those requests. A folder the server answers as locked with a `423`, as Nextcloud does while another instance creates it, is tried again for about a second and a half before the `423` is thrown.
 
 A put into a folder that does not exist fails with a `WebDavConflictError`. A file that usually goes into a folder that exists can be put first, and the folders created only for that error.
 
@@ -159,10 +162,12 @@ A put into a folder that does not exist fails with a `WebDavConflictError`. A fi
 import { WebDavClient } from 'zibri';
 
 export async function uploadExport(folder: WebDavClient, name: string, content: Buffer): Promise<void> {
-    await folder.put(`Exports/.${name}.part`, content, { contentType: 'application/zip', overwrite: true });
-    await folder.move(`Exports/.${name}.part`, `Exports/${name}`, { overwrite: true });
+    await folder.put(`Exports/.${name}.upload`, content, { contentType: 'application/zip', overwrite: true });
+    await folder.move(`Exports/.${name}.upload`, `Exports/${name}`, { overwrite: true });
 }
 ```
+
+Nextcloud refuses a name ending in `.part`, which it keeps for uploads of its own.
 
 `delete` deletes a file, or a folder with everything in it. Both fail with a `WebDavNotFoundError` for a path that holds nothing.
 
@@ -177,6 +182,8 @@ A request the server refuses throws an error of the status it answered with. Eac
 | `WebDavForbiddenError` | `403` | A request the user may not make, such as a write to a folder shared with them to read |
 
 Any other status, such as a `401` for a wrong password or a `507` for a full storage, throws the `HttpClientError` itself.
+
+A server answering a folder or a move with another status, such as Apache with a `403` for a folder that exists or a `500` for a move into a folder that does not exist, is answered by what it holds: the client reads the path once more, and throws the error of the table for what it finds. A put answered with a `404`, as Nextcloud answers one into a folder that does not exist, throws a `WebDavConflictError` too.
 
 ## Using Nextcloud
 Log in with an app password rather than the password of the user. A user creates one under Settings, Security, Devices and sessions. It works with two factor authentication turned on, and is revoked on its own.

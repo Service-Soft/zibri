@@ -1054,6 +1054,19 @@ export function describeWhereConformance(dataSourceName: string, repositoriesOf:
             ])).toStrictEqual([]);
         });
 
+        // a store bound the undefined of a bound left open, such as a range from a day on, and failed
+        it('leaves out a comparison or a property whose value is undefined the same way', async () => {
+            expect(await mismatchesOf([
+                { when: { afterOrOn: d1, beforeOrOn: undefined } },
+                { when: { after: undefined, before: d3 } },
+                { when: { afterOrOn: undefined } },
+                { amount: { greaterThan: 0, lesserThan: undefined } },
+                { text: { like: undefined, not: 'a' } },
+                { details: { where: { score: { greaterThan: 0, lesserThan: undefined } } } },
+                { details: { where: { color: undefined, score: { greaterThan: 0 } } } }
+            ])).toStrictEqual([]);
+        });
+
         it('answers a value no row can hold the way the evaluator does', async () => {
             await seed();
             const first: Probe | undefined = rows[0];

@@ -13,7 +13,13 @@ import { type EBilanzTaxonomyAdapterInterface } from './services/e-bilanz-taxono
 /**
  * The statements of a taxonomy, in the order they are stated.
  */
-const STATEMENT_NAMES: EBilanzStatementName[] = ['balanceSheet', 'incomeStatement', 'microIncomeStatement', 'appropriationOfProfits', 'businessAssetComparison'];
+const STATEMENT_NAMES: EBilanzStatementName[] = [
+    'balanceSheet',
+    'incomeStatement',
+    'microIncomeStatement',
+    'appropriationOfProfits',
+    'businessAssetComparison'
+];
 
 /**
  * The versions of the HGB taxonomy as data: resolves a version from the one before it and its positions from their
@@ -41,11 +47,14 @@ export abstract class EBilanzTaxonomyUtilities {
         for (const name of STATEMENT_NAMES) {
             const { removed, rows } = change.statements[name];
             const changed: Set<string> = new Set(rows.map(r => r.row[0]));
-            const res: EBilanzTaxonomyPositionRow[] = base.statements[name].filter(r => !removed.includes(r[0]) && !changed.has(r[0]));
+            const res: EBilanzTaxonomyPositionRow[] = base.statements[name]
+                .filter(r => !removed.includes(r[0]) && !changed.has(r[0]));
             for (const { after, row } of rows) {
                 const index: number = after == undefined ? -1 : res.findIndex(r => r[0] === after);
                 if (after != undefined && index === -1) {
-                    throw new InternalError(`The change of the taxonomy ${change.version} adds ${row[0]} after ${after}, which it does not have.`);
+                    throw new InternalError(
+                        `The change of the taxonomy ${change.version} adds ${row[0]} after ${after}, which it does not have.`
+                    );
                 }
                 res.splice(index + 1, 0, row);
             }
@@ -91,7 +100,10 @@ export abstract class EBilanzTaxonomyUtilities {
      */
     static resolveFixedAssetColumnSums(taxonomy: EBilanzTaxonomy): Map<string, EBilanzTaxonomyPosition['sums']> {
         const rows: readonly EBilanzTaxonomyColumnRow[] = taxonomy.fixedAssetColumns;
-        return new Map(rows.map(([name, , , , sums]) => [name, this.resolveSums(sums ?? rows.filter(r => r[1] === name).map(r => r[0]))]));
+        return new Map(rows.map(([name, , , , sums]) => [
+            name,
+            this.resolveSums(sums ?? rows.filter(r => r[1] === name).map(r => r[0]))
+        ]));
     }
 
     /**
@@ -108,10 +120,16 @@ export abstract class EBilanzTaxonomyUtilities {
             const named: EBilanzTaxonomy | undefined = taxonomies.find(t => t.version === version);
             const day: string = BookkeepingDayUtilities.formatDay(start);
             if (named == undefined) {
-                throw new ConflictError($ts`The taxonomy ${version} of the E-Bilanz needs to be registered in ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMIES.`);
+                throw new ConflictError(
+                    $ts`The taxonomy ${version} of the E-Bilanz needs to be registered in ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMIES.`
+                );
             }
             if (named.allowedFrom.getTime() > start.getTime()) {
-                throw new ConflictError($ts`The taxonomy ${version} of the E-Bilanz applies to fiscal years starting on ${BookkeepingDayUtilities.formatDay(named.allowedFrom)} or later, and the fiscal year starts on ${day}.`);
+                const allowedFrom: string = BookkeepingDayUtilities.formatDay(named.allowedFrom);
+                throw new ConflictError(
+                    // eslint-disable-next-line stylistic/max-len -- a translated text stays one template, the key of its translations
+                    $ts`The taxonomy ${version} of the E-Bilanz applies to fiscal years starting on ${allowedFrom} or later, and the fiscal year starts on ${day}.`
+                );
             }
             return named;
         }
@@ -143,27 +161,13 @@ export abstract class EBilanzTaxonomyUtilities {
         for (const taxonomy of taxonomies) {
             const adapter: EBilanzTaxonomyAdapterInterface | undefined = adapters.find(a => a.name === taxonomy.adapter);
             if (adapter == undefined) {
-                throw new InternalError(`The taxonomy ${taxonomy.version} of the E-Bilanz needs the adapter "${taxonomy.adapter}" in ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMY_ADAPTERS.`);
+                throw new InternalError(
+                    `The taxonomy ${taxonomy.version} of the E-Bilanz needs the adapter "${taxonomy.adapter}"`
+                    + ' in ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS.TAXONOMY_ADAPTERS.'
+                );
             }
-            const positions: Map<string, EBilanzTaxonomyPosition> = this.resolvePositions(taxonomy);
-            const rows: number = STATEMENT_NAMES.reduce((sum, name) => sum + taxonomy.statements[name].length, 0);
-            if (rows !== positions.size) {
-                throw new InternalError(`The taxonomy ${taxonomy.version} of the E-Bilanz names a position twice.`);
-            }
-            for (const position of positions.values()) {
-                const unknown: string | undefined = [...position.parent == undefined ? [] : [position.parent], ...position.sums.map(s => s.name)]
-                    .find(name => !positions.has(name));
-                if (unknown != undefined) {
-                    throw new InternalError(`The position ${position.name} of the taxonomy ${taxonomy.version} of the E-Bilanz names ${unknown}, which the taxonomy does not have.`);
-                }
-            }
-            const columns: Set<string> = new Set(taxonomy.fixedAssetColumns.map(([name]) => name));
-            for (const [column, sums] of this.resolveFixedAssetColumnSums(taxonomy)) {
-                const unknown: string | undefined = sums.map(s => s.name).find(name => !columns.has(name));
-                if (unknown != undefined) {
-                    throw new InternalError(`The column ${column} of the taxonomy ${taxonomy.version} of the E-Bilanz sums ${unknown}, which the taxonomy does not have.`);
-                }
-            }
+            this.validatePositions(taxonomy);
+            this.validateFixedAssetColumns(taxonomy);
             adapter.validateTaxonomy(taxonomy);
         }
     }
@@ -174,6 +178,50 @@ export abstract class EBilanzTaxonomyUtilities {
      */
     static getStatementNames(): readonly (keyof EBilanzTaxonomyStatements)[] {
         return STATEMENT_NAMES;
+    }
+
+    /**
+     * Validates that a version names each position once, and that every position it names below or sums with is one of it.
+     * @param taxonomy - The version.
+     * @throws An InternalError naming the first that does not hold.
+     */
+    private static validatePositions(taxonomy: EBilanzTaxonomy): void {
+        const positions: Map<string, EBilanzTaxonomyPosition> = this.resolvePositions(taxonomy);
+        const rows: number = STATEMENT_NAMES.reduce((sum, name) => sum + taxonomy.statements[name].length, 0);
+        if (rows !== positions.size) {
+            throw new InternalError(`The taxonomy ${taxonomy.version} of the E-Bilanz names a position twice.`);
+        }
+        for (const position of positions.values()) {
+            const named: string[] = [
+                ...position.parent == undefined ? [] : [position.parent],
+                ...position.sums.map(s => s.name)
+            ];
+            const unknown: string | undefined = named.find(name => !positions.has(name));
+            if (unknown != undefined) {
+                throw new InternalError(
+                    `The position ${position.name} of the taxonomy ${taxonomy.version} of the E-Bilanz names ${unknown},`
+                    + ' which the taxonomy does not have.'
+                );
+            }
+        }
+    }
+
+    /**
+     * Validates that every column each column of the statement of changes in fixed assets of a version sums is one of it.
+     * @param taxonomy - The version.
+     * @throws An InternalError naming the first that does not hold.
+     */
+    private static validateFixedAssetColumns(taxonomy: EBilanzTaxonomy): void {
+        const columns: Set<string> = new Set(taxonomy.fixedAssetColumns.map(([name]) => name));
+        for (const [column, sums] of this.resolveFixedAssetColumnSums(taxonomy)) {
+            const unknown: string | undefined = sums.map(s => s.name).find(name => !columns.has(name));
+            if (unknown != undefined) {
+                throw new InternalError(
+                    `The column ${column} of the taxonomy ${taxonomy.version} of the E-Bilanz sums ${unknown},`
+                    + ' which the taxonomy does not have.'
+                );
+            }
+        }
     }
 
     /**

@@ -26,7 +26,7 @@ export interface TaskCalendarSyncServiceInterface {
      * Syncs one task of the active tenant as it is now: writes its event into the calendar of its project, and
      * removes it from every other calendar it is in.
      * @param taskId - The id of the task, which may be deleted.
-     * @throws {HttpClientError} When the server of a calendar refuses the event or cannot be reached.
+     * @throws HttpClientError when the server of a calendar refuses the event or cannot be reached.
      */
     syncTask: (taskId: string) => Promise<void>
 }

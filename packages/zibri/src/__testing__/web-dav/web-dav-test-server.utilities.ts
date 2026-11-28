@@ -1,4 +1,7 @@
-import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
+import { Readable } from 'node:stream';
+
+import { GenericContainer, Network, StartedNetwork, StartedTestContainer, Wait } from 'testcontainers';
+import { createPostgresTestContainer, VALKEY_TEST_IMAGE } from 'zibri-testing';
 
 import { ZIBRI_DI_TOKENS } from '../../di/default/zibri-di-tokens.default';
 import { DiContainer } from '../../di/di-container';
@@ -6,12 +9,12 @@ import { initDiContainer } from '../../di/init-di-container.function';
 import { inject } from '../../di/inject.function';
 import { defineProvider } from '../../di/models/di-provider.model';
 import { register } from '../../di/register.function';
-import { Parser } from '../../parsing/parser';
-import { ParserInterface } from '../../parsing/parser.interface';
 // the parsers of the bodies a WebDAV client reads, and the share api of Nextcloud answers with, which register
 // themselves as they load, as the barrel loads them in an application
 // eslint-disable-next-line eslintImport/no-unassigned-import
 import '../../parsing/json/json.body-parser';
+import { Parser } from '../../parsing/parser';
+import { ParserInterface } from '../../parsing/parser.interface';
 // eslint-disable-next-line eslintImport/no-unassigned-import
 import '../../parsing/stream/stream.body-parser';
 // eslint-disable-next-line eslintImport/no-unassigned-import
@@ -24,16 +27,38 @@ import { WebDavTenantConnectionOptions } from '../../web-dav/web-dav-tenant-conn
  * implements RFC 4918 itself, ETags and conditional requests included, and refuses a listing of infinite depth, as
  * many servers do.
  *
- * Pinned rather than `latest`, so a suite that passes today passes tomorrow for the same reason.
+ * Pinned by its digest as well as its tag, so a suite that passes today passes tomorrow for the same reason: a tag is
+ * built again on a newer base image. The image built on Debian, whose apr-util holds the DBM drivers the lock
+ * database of mod_dav opens. The one on Alpine leaves the driver of its default DBM, gdbm, to a package it does not
+ * install, and failed every write with a 500.
  */
-const APACHE_TEST_IMAGE: string = 'httpd:2.4.70-alpine';
+const APACHE_TEST_IMAGE: string = 'httpd:2.4.70@sha256:f243c844139c880ddfe575049499ee5f0bf74ebacef7ef6ebbdeefeebd94917e';
 
 /**
- * The Nextcloud the suite of its own behaviour runs against, with SQLite and nothing else.
+ * The Nextcloud the suites of its own behaviour run against, installed as it is run: on Postgres, with its file locks
+ * in Valkey. On SQLite, which takes one write at a time, and with its locks in that database as well, every request
+ * waited for the others, and a case putting a thousand keys fifty at a time did not finish in two minutes.
  */
 const NEXTCLOUD_TEST_IMAGE: string = 'nextcloud:35.0.2-apache';
 
+/**
+ * The names Nextcloud reaches its database and its cache by, on the network of the three.
+ */
+const NEXTCLOUD_POSTGRES_ALIAS: string = 'postgres';
+const NEXTCLOUD_VALKEY_ALIAS: string = 'valkey';
+
+/**
+ * What valkey logs once it accepts connections.
+ */
+const VALKEY_READY_LOG: RegExp = /Ready to accept connections/;
+
 const HTTP_PORT: number = 80;
+
+/**
+ * A line of the error log of httpd at the level of an error or above, such as
+ * `[Sat Nov 28 04:19:14.401 2026] [dav:error] [pid 7] ...`.
+ */
+const APACHE_ERROR_LINE: RegExp = /\[[a-z_]+:(error|crit|alert|emerg)\]/;
 
 /**
  * How long Nextcloud may take to install itself on its first start.
@@ -100,9 +125,9 @@ export type WebDavTestServerOptions = {
  */
 export type StartedWebDavTestServer = {
     /**
-     * Its container.
+     * Stops it, with the containers it runs on, such as the database of a Nextcloud.
      */
-    container: StartedTestContainer,
+    stop: () => Promise<void>,
     /**
      * Where it is reached, without a trailing slash, such as `http://localhost:32768`.
      */
@@ -110,7 +135,11 @@ export type StartedWebDavTestServer = {
     /**
      * The folder of the user, who logs in with the password the server was started with.
      */
-    connection: WebDavConnection
+    connection: WebDavConnection,
+    /**
+     * The user with their own password, which Nextcloud asks for to administer it: an app password confirms nothing.
+     */
+    admin: WebDavTestServerOptions
 };
 
 /**
@@ -133,45 +162,94 @@ export abstract class WebDavTestServerUtilities {
             .withCommand(['sh', '-c', script, 'sh', options.username, options.password])
             .withExposedPorts(HTTP_PORT)
             .withWaitStrategy(Wait.forLogMessage(/resuming normal operations/))
+            .withLogConsumer(stream => WebDavTestServerUtilities.forwardApacheErrors(stream))
             .start();
         const origin: string = `http://${container.getHost()}:${container.getMappedPort(HTTP_PORT)}`;
-        return { container, origin, connection: { url: `${origin}/`, username: options.username, password: options.password } };
+        return {
+            stop: async () => {
+                await container.stop();
+            },
+            origin,
+            connection: { url: `${origin}/`, username: options.username, password: options.password },
+            admin: options
+        };
     }
 
     /**
-     * Starts Nextcloud, installed with SQLite, and creates an app password for its admin.
+     * Writes each error httpd logs to the output of the test. A request it fails answers a 500 saying nothing of
+     * why, which only its error log says. Nothing is written while it fails nothing.
+     * @param stream - What the container writes, its access log among it.
+     */
+    private static forwardApacheErrors(stream: Readable): void {
+        let unfinishedLine: string = '';
+        stream.on('data', (chunk: Buffer | string) => {
+            const lines: string[] = `${unfinishedLine}${chunk.toString()}`.split('\n');
+            unfinishedLine = lines.pop() ?? '';
+            for (const line of lines.filter(l => APACHE_ERROR_LINE.test(l))) {
+                process.stderr.write(`WebDAV test server: ${line}\n`);
+            }
+        });
+    }
+
+    /**
+     * Starts Nextcloud, installed on Postgres with its file locks in Valkey, and creates an app password for its admin.
      * @param options - The admin, who logs in to WebDAV with an app password rather than this password.
      * @returns The running server, its connection the files of the admin, logged in with the app password.
      * @throws When the app password cannot be created.
      */
     static async startNextcloud(options: WebDavTestServerOptions): Promise<StartedWebDavTestServer> {
-        const container: StartedTestContainer = await new GenericContainer(NEXTCLOUD_TEST_IMAGE)
-            .withEnvironment({
-                SQLITE_DATABASE: 'nextcloud',
-                NEXTCLOUD_ADMIN_USER: options.username,
-                NEXTCLOUD_ADMIN_PASSWORD: options.password,
-                // whatever host the tests reach it by
-                NEXTCLOUD_TRUSTED_DOMAINS: '*'
-            })
-            .withExposedPorts(HTTP_PORT)
-            .withWaitStrategy(Wait.forHttp('/status.php', HTTP_PORT).forResponsePredicate(body => body.includes('"installed":true')))
-            .withStartupTimeout(NEXTCLOUD_STARTUP_TIMEOUT_IN_MS)
-            .start();
-        const origin: string = `http://${container.getHost()}:${container.getMappedPort(HTTP_PORT)}`;
+        const network: StartedNetwork = await new Network().start();
+        const started: StartedTestContainer[] = [];
+        const stop: () => Promise<void> = async () => {
+            for (const container of [...started].reverse()) {
+                await container.stop();
+            }
+            await network.stop();
+        };
         try {
+            started.push(await createPostgresTestContainer({ username: 'nextcloud', password: 'nextcloud', database: 'nextcloud' })
+                .withNetwork(network)
+                .withNetworkAliases(NEXTCLOUD_POSTGRES_ALIAS)
+                .start());
+            started.push(await new GenericContainer(VALKEY_TEST_IMAGE)
+                .withNetwork(network)
+                .withNetworkAliases(NEXTCLOUD_VALKEY_ALIAS)
+                .withWaitStrategy(Wait.forLogMessage(VALKEY_READY_LOG))
+                .start());
+            const container: StartedTestContainer = await new GenericContainer(NEXTCLOUD_TEST_IMAGE)
+                .withNetwork(network)
+                .withEnvironment({
+                    POSTGRES_HOST: NEXTCLOUD_POSTGRES_ALIAS,
+                    POSTGRES_DB: 'nextcloud',
+                    POSTGRES_USER: 'nextcloud',
+                    POSTGRES_PASSWORD: 'nextcloud',
+                    // the cache Nextcloud keeps its file locks in, rather than its database
+                    REDIS_HOST: NEXTCLOUD_VALKEY_ALIAS,
+                    NEXTCLOUD_ADMIN_USER: options.username,
+                    NEXTCLOUD_ADMIN_PASSWORD: options.password,
+                    // whatever host the tests reach it by
+                    NEXTCLOUD_TRUSTED_DOMAINS: '*'
+                })
+                .withExposedPorts(HTTP_PORT)
+                .withWaitStrategy(Wait.forHttp('/status.php', HTTP_PORT).forResponsePredicate(body => body.includes('"installed":true')))
+                .withStartupTimeout(NEXTCLOUD_STARTUP_TIMEOUT_IN_MS)
+                .start();
+            started.push(container);
+            const origin: string = `http://${container.getHost()}:${container.getMappedPort(HTTP_PORT)}`;
             const appPassword: string = await WebDavTestServerUtilities.createNextcloudAppPassword(origin, options);
             return {
-                container,
+                stop,
                 origin,
                 connection: {
                     url: `${origin}/remote.php/dav/files/${encodeURIComponent(options.username)}/`,
                     username: options.username,
                     password: appPassword
-                }
+                },
+                admin: options
             };
         }
         catch (error) {
-            await container.stop();
+            await stop();
             throw error;
         }
     }
@@ -207,7 +285,7 @@ export abstract class WebDavTestServerUtilities {
         // MKCALENDAR is no method of the http client, which knows those of WebDAV alone
         const response: Response = await fetch(`${server.origin}/remote.php/dav/${path}/`, {
             method: 'MKCALENDAR',
-            headers: { 'authorization': `Basic ${credentials}`, 'content-type': 'application/xml; charset=utf-8' },
+            headers: { authorization: `Basic ${credentials}`, 'content-type': 'application/xml; charset=utf-8' },
             body: '<?xml version="1.0" encoding="utf-8"?><c:mkcalendar xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
                 + `<d:set><d:prop><d:displayname>${name}</d:displayname>`
                 + '<c:supported-calendar-component-set><c:comp name="VEVENT"/></c:supported-calendar-component-set>'
@@ -227,14 +305,22 @@ export abstract class WebDavTestServerUtilities {
      * @returns The connection to the files of the user, logged in with the app password.
      * @throws When Nextcloud does not create the user, a group, or the app password.
      */
-    static async createNextcloudUser(server: StartedWebDavTestServer, user: WebDavTestServerOptions, groups: string[]): Promise<WebDavConnection> {
+    static async createNextcloudUser(
+        server: StartedWebDavTestServer,
+        user: WebDavTestServerOptions,
+        groups: string[]
+    ): Promise<WebDavConnection> {
         for (const group of groups) {
             const created: Response = await WebDavTestServerUtilities.sendAsAdmin(server, 'cloud/groups', { groupid: group });
             if (!created.ok) {
                 throw new Error(`Nextcloud created no group: ${created.status} ${await created.text()}`);
             }
         }
-        const response: Response = await WebDavTestServerUtilities.sendAsAdmin(server, 'cloud/users', { userid: user.username, password: user.password, groups });
+        const response: Response = await WebDavTestServerUtilities.sendAsAdmin(
+            server,
+            'cloud/users',
+            { userid: user.username, password: user.password, groups }
+        );
         if (!response.ok) {
             throw new Error(`Nextcloud created no user: ${response.status} ${await response.text()}`);
         }
@@ -254,10 +340,12 @@ export abstract class WebDavTestServerUtilities {
      * @returns The answer.
      */
     private static async sendAsAdmin(server: StartedWebDavTestServer, path: string, body: object): Promise<Response> {
+        const credentials: string = `${server.admin.username}:${server.admin.password}`;
         return await fetch(`${server.origin}/ocs/v2.php/${path}?format=json`, {
             method: 'POST',
             headers: {
-                'authorization': `Basic ${Buffer.from(`${server.connection.username}:${server.connection.password}`).toString('base64')}`,
+                // the own password: Nextcloud confirms an administration with it, which an app password does not
+                authorization: `Basic ${Buffer.from(credentials).toString('base64')}`,
                 'ocs-apirequest': 'true',
                 'content-type': 'application/json'
             },
@@ -273,9 +361,10 @@ export abstract class WebDavTestServerUtilities {
      * @throws When Nextcloud does not create one.
      */
     private static async createNextcloudAppPassword(origin: string, options: WebDavTestServerOptions): Promise<string> {
+        const credentials: string = `${options.username}:${options.password}`;
         const response: Response = await fetch(`${origin}/ocs/v2.php/core/getapppassword?format=json`, {
             headers: {
-                'authorization': `Basic ${Buffer.from(`${options.username}:${options.password}`).toString('base64')}`,
+                authorization: `Basic ${Buffer.from(credentials).toString('base64')}`,
                 'ocs-apirequest': 'true'
             }
         });

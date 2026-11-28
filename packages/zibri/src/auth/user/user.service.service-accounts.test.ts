@@ -73,9 +73,7 @@ let baseUrl: string = '';
 
 beforeAll(async () => {
     server = await startTestServer({
-        dataSources: [
-            createInMemoryDataSource({ entities: [...defaultTestServerEntities, ApiKey], repositories: defaultTestServerRepositories })
-        ],
+        dataSources: [createInMemoryDataSource({ entities: [...defaultTestServerEntities, ApiKey], repositories: defaultTestServerRepositories })],
         authStrategies: [JwtAuthStrategy, ApiKeyAuthStrategy],
         twoFactorMethods: [OtpTwoFactorMethod],
         controllers: [CallerTestController],

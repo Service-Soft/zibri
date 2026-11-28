@@ -3,7 +3,7 @@ import * as Contract from 'zibri-contract';
 
 import { Equals } from './__testing__/equals.type';
 import { Json } from './__testing__/json.type';
-import * as Zibri from './index';
+import * as Zibri from './__testing__/public-entry-points';
 
 // the types of zibri-contract are what a frontend reads the responses of zibri with, and what it sends. Each is
 // compared with the model zibri declares, as it arrives as json: a mismatch fails the typecheck, which is where these

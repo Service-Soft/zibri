@@ -133,7 +133,8 @@ it keeps its data, and the same application as a test starts it:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZibriApplicationOptions } from 'zibri';
+import { ZibriMailingListPlugin } from 'zibri/plugin/mailing-list';
 
 import { AppAuthController, AppMailingListController, PageController } from './controllers';
 import { version } from '../package.json';

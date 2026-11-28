@@ -3,7 +3,8 @@ import { describe, expect, it } from '@jest/globals';
 import { EBilanzDeadlineUtilities } from './e-bilanz-deadline.utilities';
 
 function deadline(end: string, taxAdvisor: boolean): string {
-    return EBilanzDeadlineUtilities.resolveDeadline(new Date(`${end}T00:00:00.000Z`), taxAdvisor).toISOString().slice(0, 10);
+    return EBilanzDeadlineUtilities.resolveDeadline(new Date(`${end}T00:00:00.000Z`), taxAdvisor).toISOString()
+        .slice(0, 10);
 }
 
 describe('the deadline of the E-Bilanz', () => {

@@ -1,4 +1,4 @@
-import { ZonedDate } from '../../../localization/format-date.function';
+import { ZonedDate } from '../../../localization/models/zoned-date.model';
 import { CompanyInfo } from './company-info.model';
 
 /**

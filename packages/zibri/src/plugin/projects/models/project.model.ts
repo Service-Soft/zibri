@@ -5,8 +5,8 @@ import { NON_WORKING_DAY_RULE_VALUES, type NonWorkingDayRule } from './non-worki
 import { ProjectCalendarSync } from './project-calendar-sync.model';
 import { ProjectColumn } from './project-column.model';
 import { PROJECT_ROLES } from './project-role.model';
-import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 import { ProjectsAccess } from './projects-access.model';
+import { ZIBRI_PROJECTS_LIMITS } from './projects-limits.model';
 import { RecurringTask } from './recurring-task.model';
 import { TaskLabel } from './task-label.model';
 import { Task } from './task.model';

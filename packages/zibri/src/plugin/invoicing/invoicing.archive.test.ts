@@ -6,13 +6,11 @@ import { defaultTestServerEntities, defaultTestServerRepositories } from '../../
 import { defaultTestServerProviders } from '../../__testing__/test-server/providers';
 import { StartedTestServer, startTestServer } from '../../__testing__/test-server/start-test-server.function';
 import { FsUtilities } from '../../utilities/fs.utilities';
-import {
-    describeInvoiceArchive,
+import { describeInvoiceArchive,
     invoiceArchiveTestEntities,
     invoiceArchiveTestProviders,
     InvoiceDocumentsFileStore,
-    invoiceDocumentsFolder
-} from './invoicing.archive.cases';
+    invoiceDocumentsFolder } from './invoicing.archive.cases';
 import { ZibriInvoicingPlugin } from './invoicing.plugin';
 
 let server: StartedTestServer | undefined;

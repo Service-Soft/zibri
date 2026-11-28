@@ -77,7 +77,10 @@ export class ProjectBoardUpdateService implements ProjectBoardUpdateServiceInter
     // eslint-disable-next-line jsdoc/require-jsdoc
     async subscribe(connection: BaseWebsocketConnection, projectId: string): Promise<void> {
         // through the scope sharing narrows it by, so a project the caller does not see is answered 404
-        const project: Pick<Project, 'id' | 'tenantId'> = await this.projectRepository.findById(projectId, { select: { id: true, tenantId: true } });
+        const project: Pick<Project, 'id' | 'tenantId'> = await this.projectRepository.findById(
+            projectId,
+            { select: { id: true, tenantId: true } }
+        );
         const userId: string = this.getUserId(connection);
         const name: string = channelNameOf(project.id, userId);
         const channel: WebsocketChannel = await this.channelRepository.upsert(
@@ -109,7 +112,9 @@ export class ProjectBoardUpdateService implements ProjectBoardUpdateServiceInter
         }
         catch (error) {
             // the change it tells of is written: a subscriber that missed it reloads the board once it reconnects
-            inject(ZIBRI_DI_TOKENS.LOGGER).warn(`Could not send the change of the board of the Project ${message.projectId}: ${String(error)}`);
+            inject(ZIBRI_DI_TOKENS.LOGGER).warn(
+                `Could not send the change of the board of the Project ${message.projectId}: ${String(error)}`
+            );
         }
     }
 
@@ -129,7 +134,7 @@ export class ProjectBoardUpdateService implements ProjectBoardUpdateServiceInter
             const userId: string | undefined = channel.userIds[0];
             // a deleted project is seen by nobody any more: its subscribers are told, and its channels go
             const sees: boolean = !deleted && userId != undefined && await accessService.resolveSeesProject(userId, message.projectId);
-            if (sees || deleted && userId != undefined) {
+            if (sees || (deleted && userId != undefined)) {
                 await this.websocketService.sendToChannel({
                     channelId: channel.id,
                     event: PROJECT_BOARD_WEBSOCKET_EVENT,

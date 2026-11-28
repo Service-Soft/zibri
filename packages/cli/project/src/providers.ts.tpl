@@ -1,4 +1,7 @@
-import { AesGcmEncryptionStrategy, defineProvider, DiProvider, EmailConfigInput, GlobalRegistry, JwtAuthOptionsInput, LoggingEmailTransport, Ms, SmtpEmailTransport, ZIBRI_DI_TOKENS{{#mailingList}}, ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS{{/mailingList}} } from 'zibri';
+import { AesGcmEncryptionStrategy, defineProvider, DiProvider, EmailConfigInput, GlobalRegistry, JwtAuthOptionsInput, LoggingEmailTransport, Ms, SmtpEmailTransport, ZIBRI_DI_TOKENS } from 'zibri';
+{{#mailingList}}
+import { ZIBRI_MAILING_LIST_PLUGIN_DI_TOKENS } from 'zibri/plugin/mailing-list';
+{{/mailingList}}
 
 import { env } from './env';
 import { permissions } from './models';

@@ -1,4 +1,6 @@
-import { OmitStrict, SemVerUtilities, ZibriApplicationOptions, ZibriInvoicingPlugin, ZibriMailingListPlugin } from 'zibri';
+import { OmitStrict, SemVerUtilities, ZibriApplicationOptions } from 'zibri';
+import { ZibriInvoicingPlugin } from 'zibri/plugin/invoicing';
+import { ZibriMailingListPlugin } from 'zibri/plugin/mailing-list';
 
 import { version } from '../package.json';
 import { endEveryLoginCommand, resetAdminCommand } from './commands';

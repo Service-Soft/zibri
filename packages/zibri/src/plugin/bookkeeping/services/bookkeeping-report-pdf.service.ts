@@ -6,14 +6,12 @@ import { repositoryTokenFor } from '../../../di/decorators/inject-repository.dec
 import { Injectable } from '../../../di/decorators/injectable.decorator';
 import { ZIBRI_DI_TOKENS } from '../../../di/default/zibri-di-tokens.default';
 import { inject } from '../../../di/inject.function';
-import {
-    type PdfContentDefinition,
+import { type PdfContentDefinition,
     type PdfContentSize,
     type PdfDocument,
     type PdfDocumentDefinition,
     type PdfTableCellDefinition,
-    PdfUtilities
-} from '../../../document/pdf.utilities';
+    PdfUtilities } from '../../../document/pdf.utilities';
 import { ConflictError } from '../../../error-handling/errors/conflict.error';
 import { type LocalizeServiceInterface } from '../../../localization/localize-service.interface';
 import { type CurrencyCode } from '../../../localization/models/currency-code.model';
@@ -35,6 +33,7 @@ import { type BookkeepingStatement } from '../models/bookkeeping-statement.model
 import { type BookkeepingTrialBalance } from '../models/bookkeeping-trial-balance.model';
 import { type FiscalYearStatement } from '../models/fiscal-year-statement.model';
 import { FiscalYear } from '../models/fiscal-year.model';
+import { type JournalEntryDetails } from '../models/journal-entry-details.model';
 import { type BookkeepingReportPdfServiceInterface } from './bookkeeping-report-pdf-service.interface';
 import { type BookkeepingReportServiceInterface } from './bookkeeping-report-service.interface';
 import { BookkeepingConformanceUtilities } from './conformance/bookkeeping-conformance.utilities';
@@ -53,6 +52,20 @@ type ReportFormat = {
      * The company whose books they are, or null for none.
      */
     company: BookkeepingCompany | null
+};
+
+/**
+ * The cell of an amount in a table of a report.
+ */
+type AmountCell = {
+    /**
+     * The amount as it is written, or an empty string for none.
+     */
+    text: string,
+    /**
+     * Where the amount is aligned.
+     */
+    alignment: 'right'
 };
 
 /**
@@ -166,24 +179,16 @@ export class BookkeepingReportPdfService implements BookkeepingReportPdfServiceI
      * @param format - How amounts and days are written.
      * @returns The definition.
      */
-    protected resolveJournalDefinition(report: BookkeepingJournalReport, accounts: BookkeepingAccount[], format: ReportFormat): PdfDocumentDefinition {
+    protected resolveJournalDefinition(
+        report: BookkeepingJournalReport,
+        accounts: BookkeepingAccount[],
+        format: ReportFormat
+    ): PdfDocumentDefinition {
         const byId: Map<string, BookkeepingAccount> = new Map(accounts.map(account => [account.id, account]));
-        const body: PdfTableCellDefinition[][] = [
-            this.resolveHeader([$ts`Date`, $ts`No.`, $ts`Document`, $ts`Text`, $ts`Account`, $ts`Debit`, $ts`Credit`], 5)
-        ];
-        for (const { entry, lines } of report.entries) {
-            for (const [index, line] of lines.entries()) {
-                const account: BookkeepingAccount | undefined = byId.get(line.accountId);
-                body.push([
-                    index ? '' : this.formatDay(entry.postingDate, format),
-                    index ? '' : String(entry.sequence),
-                    index ? '' : entry.documentReference ?? '',
-                    index ? '' : entry.text,
-                    account == undefined ? line.accountId : `${account.number} ${account.name}`,
-                    this.resolveAmountCell(line.debit ?? undefined, format),
-                    this.resolveAmountCell(line.credit ?? undefined, format)
-                ]);
-            }
+        const headers: string[] = [$ts`Date`, $ts`No.`, $ts`Document`, $ts`Text`, $ts`Account`, $ts`Debit`, $ts`Credit`];
+        const body: PdfTableCellDefinition[][] = [this.resolveHeader(headers, 5)];
+        for (const entryWithLines of report.entries) {
+            body.push(...this.resolveJournalRows(entryWithLines, byId, format));
         }
         body.push(this.resolveTotalRow([$ts`Total`, '', '', '', ''], [report.debit, report.credit], format));
         return this.resolveDefinition(
@@ -192,6 +197,34 @@ export class BookkeepingReportPdfService implements BookkeepingReportPdfServiceI
             this.resolveTable([60, 30, 60, '*', 100, 65, 65], body),
             format
         );
+    }
+
+    /**
+     * Resolves the rows of an entry in the pdf of a journal: a row per line, with the day, number, document and text
+     * of the entry in its first row only.
+     * @param details - The entry and its lines.
+     * @param byId - The accounts of the books, by their id.
+     * @param format - How amounts and days are written.
+     * @returns The rows.
+     */
+    protected resolveJournalRows(
+        details: JournalEntryDetails,
+        byId: Map<string, BookkeepingAccount>,
+        format: ReportFormat
+    ): PdfTableCellDefinition[][] {
+        const { entry, lines } = details;
+        return lines.map((line, index) => {
+            const account: BookkeepingAccount | undefined = byId.get(line.accountId);
+            return [
+                index ? '' : this.formatDay(entry.postingDate, format),
+                index ? '' : String(entry.sequence),
+                index ? '' : entry.documentReference ?? '',
+                index ? '' : entry.text,
+                account == undefined ? line.accountId : `${account.number} ${account.name}`,
+                this.resolveAmountCell(line.debit ?? undefined, format),
+                this.resolveAmountCell(line.credit ?? undefined, format)
+            ];
+        });
     }
 
     /**
@@ -233,10 +266,13 @@ export class BookkeepingReportPdfService implements BookkeepingReportPdfServiceI
      * @param format - How amounts and days are written.
      * @returns The definition.
      */
-    protected resolveTrialBalanceDefinition(report: BookkeepingTrialBalance, fiscalYear: FiscalYear, format: ReportFormat): PdfDocumentDefinition {
-        const body: PdfTableCellDefinition[][] = [
-            this.resolveHeader([$ts`Account`, $ts`Name`, $ts`Debit`, $ts`Credit`, $ts`Debit balance`, $ts`Credit balance`], 2)
-        ];
+    protected resolveTrialBalanceDefinition(
+        report: BookkeepingTrialBalance,
+        fiscalYear: FiscalYear,
+        format: ReportFormat
+    ): PdfDocumentDefinition {
+        const headers: string[] = [$ts`Account`, $ts`Name`, $ts`Debit`, $ts`Credit`, $ts`Debit balance`, $ts`Credit balance`];
+        const body: PdfTableCellDefinition[][] = [this.resolveHeader(headers, 2)];
         for (const row of report.rows) {
             body.push([
                 row.account.number,
@@ -247,7 +283,11 @@ export class BookkeepingReportPdfService implements BookkeepingReportPdfServiceI
                 this.resolveAmountCell(row.balance.isLessThan(0) ? row.balance.negated() : undefined, format)
             ]);
         }
-        body.push(this.resolveTotalRow([$ts`Total`, ''], [report.debit, report.credit, report.debitBalances, report.creditBalances], format));
+        body.push(this.resolveTotalRow(
+            [$ts`Total`, ''],
+            [report.debit, report.credit, report.debitBalances, report.creditBalances],
+            format
+        ));
         const start: string = this.formatDay(fiscalYear.start, format);
         const end: string = this.formatDay(fiscalYear.end, format);
         return this.resolveDefinition(
@@ -342,13 +382,17 @@ export class BookkeepingReportPdfService implements BookkeepingReportPdfServiceI
     ): PdfDocumentDefinition {
         const company: PdfContentDefinition[] = format.company == undefined
             ? []
-            : [{
-                text: [
-                    [format.company.name, format.company.seat].filter(part => part != undefined && part !== '').join(', '),
-                    [format.company.registerCourt, format.company.registerNumber].filter(part => part != undefined && part !== '').join(', ')
-                ].filter(line => line !== '').join('\n'),
-                margin: [0, 0, 0, 10]
-            }];
+            : [
+                {
+                    text: [
+                        [format.company.name, format.company.seat].filter(part => part != undefined && part !== '').join(', '),
+                        [format.company.registerCourt, format.company.registerNumber]
+                            .filter(part => part != undefined && part !== '')
+                            .join(', ')
+                    ].filter(line => line !== '').join('\n'),
+                    margin: [0, 0, 0, 10]
+                }
+            ];
         const heading: PdfContentDefinition = { text: title, fontSize: 14, bold: true, margin: [0, 0, 0, subtitle == undefined ? 12 : 4] };
         const below: PdfContentDefinition[] = subtitle == undefined ? [] : [{ text: subtitle, margin: [0, 0, 0, 12] }];
         return {
@@ -358,7 +402,11 @@ export class BookkeepingReportPdfService implements BookkeepingReportPdfServiceI
             defaultStyle: { fontSize: 9 },
             attachments: [],
             content: [...company, heading, ...below, ...Array.isArray(content) ? content : [content]],
-            footer: (currentPage: number, pageCount: number) => ({ text: `${currentPage} / ${pageCount}`, alignment: 'right', margin: [40, 10] })
+            footer: (currentPage: number, pageCount: number) => ({
+                text: `${currentPage} / ${pageCount}`,
+                alignment: 'right',
+                margin: [40, 10]
+            })
         };
     }
 
@@ -423,7 +471,7 @@ export class BookkeepingReportPdfService implements BookkeepingReportPdfServiceI
      * @param format - How amounts are written.
      * @returns The cell.
      */
-    protected resolveAmountCell(amount: BigNumber | undefined, format: ReportFormat): { text: string, alignment: 'right' } {
+    protected resolveAmountCell(amount: BigNumber | undefined, format: ReportFormat): AmountCell {
         return {
             text: amount == undefined ? '' : this.localizeService.formatPrice(amount, { currency: format.currency, locale: format.locale }),
             alignment: 'right'
@@ -476,7 +524,8 @@ export class BookkeepingReportPdfService implements BookkeepingReportPdfServiceI
      * @throws A ConflictError for a tenant that keeps no books.
      */
     protected async resolveSettings(transaction?: Transaction): Promise<BookkeepingSettings> {
-        const settings: BookkeepingSettings | undefined = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE).findSettings(transaction);
+        const settings: BookkeepingSettings | undefined = await inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.JOURNAL_SERVICE)
+            .findSettings(transaction);
         if (settings == undefined) {
             throw new ConflictError($ts`The books of the tenant need settings, with the currency they are kept in, before they are kept.`);
         }

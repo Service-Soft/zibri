@@ -1,6 +1,17 @@
 {
     "alwaysCreateEntryPointModule": false,
-    "entryPoints": ["src/index.ts"],
+    "entryPoints": [
+        "src/plugin/analytics/index.ts",
+        "src/plugin/approval/index.ts",
+        "src/plugin/bank/index.ts",
+        "src/plugin/bookkeeping/index.ts",
+        "src/plugin/invoicing/index.ts",
+        "src/plugin/mailing-list/index.ts",
+        "src/plugin/mcp/index.ts",
+        "src/plugin/payment/index.ts",
+        "src/plugin/projects/index.ts",
+        "src/index.ts"
+    ],
     "excludePrivate": true,
     "excludeProtected": true,
     "excludeReferences": true,
@@ -76,9 +87,6 @@
         "IsOneOf",
         "JsonBodyMetadata",
         "KeysNamedBy",
-        "LocaleCodeLanguage",
-        "LocaleCodeRegion",
-        "LocaleCodeScript",
         "ManyToManyPropertyMetadata",
         "ManyToOnePropertyMetadata",
         "MatchingKey",

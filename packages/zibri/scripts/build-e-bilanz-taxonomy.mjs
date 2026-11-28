@@ -63,8 +63,8 @@ const FIXED_ASSETS_ROLE = 'http://www.xbrl.de/taxonomies/de-gaap-ci/role/notesTa
 const FIXED_ASSETS_DIMENSION = 'dim_changes.nt.ass.gross';
 
 const REQUIREMENTS = {
-    'Mussfeld': 'M',
-    'Summenmussfeld': 'S',
+    Mussfeld: 'M',
+    Summenmussfeld: 'S',
     'Rechnerisch notwendig, soweit vorhanden': 'R'
 };
 
@@ -75,6 +75,7 @@ const REFERENCE_ROLE = 'http://www.xbrl.org/2003/role/mandatoryDisclosureRef';
  * Reads the entries of a zip archive, stored or deflated.
  * @param zip - The archive.
  * @returns The names of its entries, and a function answering the content of the entry whose name ends with a suffix.
+ * @throws An Error when the file is not a zip archive, or when no entry ends with the suffix asked for.
  */
 function readZip(zip) {
     let end = zip.length - 22;
@@ -325,7 +326,10 @@ function validateFixedAssetMembers(read, date, balanceSheet) {
         }
     };
     if (domain == undefined || !balanceSheet.some(r => r.name === domain)) {
-        throw new Error(`The dimension ${FIXED_ASSETS_DIMENSION} of the statement of changes in fixed assets has no domain among the positions of the balance sheet`);
+        throw new Error(
+            `The dimension ${FIXED_ASSETS_DIMENSION} of the statement of changes in fixed assets`
+            + ' has no domain among the positions of the balance sheet'
+        );
     }
     visit(domain, null);
     const extracted = new Set(balanceSheet.map(r => r.name));
@@ -345,6 +349,7 @@ function validateFixedAssetMembers(read, date, balanceSheet) {
  * Reads the extract of one version from its zip.
  * @param zip - The zip.
  * @returns The version, its date and what it holds.
+ * @throws An Error when the zip is no HGB taxonomy, or when what it holds is not what the plugin states.
  */
 function extract(zip) {
     const { names, read } = readZip(zip);
@@ -385,8 +390,8 @@ function extract(zip) {
         const sums = resolveChildren(calculationsOf(ENTRY_POINTS[statement]), a => a.role === role && a.arcrole === SUMMATION_ITEM);
         const targets = new Set([...children.values()].flat().map(c => c.name));
         const rows = [];
-        const visit = (name, parent, path) => {
-            if (path.includes(name)) {
+        const visit = (name, parent, ancestors) => {
+            if (ancestors.includes(name)) {
                 return;
             }
             const requirement = requirementOf(name);
@@ -397,7 +402,7 @@ function extract(zip) {
                 rows.push({ name, parent, balance, requirement, label: labels.get(name)?.text ?? name, sums: sums.get(name) ?? [] });
             }
             for (const child of children.get(name) ?? []) {
-                visit(child.name, isPosition ? name : parent, [...path, name]);
+                visit(child.name, isPosition ? name : parent, [...ancestors, name]);
             }
         };
         for (const top of [...children.keys()].filter(n => !targets.has(n))) {
@@ -481,7 +486,10 @@ function extract(zip) {
  * @returns The literal, in single quotes.
  */
 function literal(value) {
-    return value == undefined ? 'null' : `'${value.replaceAll('\\', '\\\\').replaceAll('\'', '\\\'').replaceAll(/\s+/g, ' ')}'`;
+    return value == undefined
+        ? 'null'
+        : `'${value.replaceAll('\\', '\\\\').replaceAll('\'', '\\\'')
+            .replaceAll(/\s+/g, ' ')}'`;
 }
 
 /**
@@ -490,13 +498,18 @@ function literal(value) {
  * @param source - The name and the SHA-256 of the zip.
  * @param allowedFrom - The first day of the first fiscal year it may be used for.
  * @param mandatoryFrom - The first day of the first fiscal year it has to be used for.
+ * @param base - The extract of the version before it, to state it as what it changes of that, or undefined to state it whole.
  * @returns The file.
  */
 function render(data, source, allowedFrom, mandatoryFrom, base) {
     const id = data.version.replaceAll('.', '_');
-    const row = r => `[${[literal(r.name), literal(r.parent), literal(r.balance), literal(r.requirement), literal(r.label)].join(', ')}${r.sums == undefined ? '' : `, [${r.sums.map(literal).join(', ')}]`}]`;
+    const sumsOf = r => r.sums == undefined ? '' : `, [${r.sums.map(literal).join(', ')}]`;
+    const row = r => {
+        const values = [literal(r.name), literal(r.parent), literal(r.balance), literal(r.requirement), literal(r.label)];
+        return `[${values.join(', ')}${sumsOf(r)}]`;
+    };
     const header = [
-        '/* eslint-disable cspell/spellchecker, stylistic/max-len */',
+        '/* eslint-disable cspell/spellchecker, stylistic/max-len, sonar/no-duplicate-string */',
         '// (c) XBRL Deutschland e.V. - see http://www.xbrl.de',
         `// Extracted from ${source.name} (SHA-256 ${source.hash}) by scripts/build-e-bilanz-taxonomy.mjs, and shortened:`,
         '// the positions, columns and fields a corporation reports to the tax administration. Rebuild it with the script',
@@ -510,9 +523,10 @@ function render(data, source, allowedFrom, mandatoryFrom, base) {
         `    mandatoryFrom: new Date('${mandatoryFrom}T00:00:00.000Z'),`,
         '    notice: \'© XBRL Deutschland e.V., see http://www.xbrl.de. Shortened to what a corporation reports to the tax administration.\','
     ];
-    const column = c => `[${[literal(c.name), literal(c.parent), literal(c.requirement), literal(c.label)].join(', ')}${c.sums == undefined ? '' : `, [${c.sums.map(literal).join(', ')}]`}]`;
+    const column = c => `[${[literal(c.name), literal(c.parent), literal(c.requirement), literal(c.label)].join(', ')}${sumsOf(c)}]`;
     const columns = `    fixedAssetColumns: [\n${data.columns.map(c => `        ${column(c)}`).join(',\n')}\n    ],`;
-    const fields = `    gcdFields: [\n${data.gcdFields.map(f => `        [${[literal(f.name), literal(f.requirement), literal(f.label)].join(', ')}]`).join(',\n')}\n    ]`;
+    const field = f => `[${[literal(f.name), literal(f.requirement), literal(f.label)].join(', ')}]`;
+    const fields = `    gcdFields: [\n${data.gcdFields.map(f => `        ${field(f)}`).join(',\n')}\n    ]`;
     const doc = [
         '/**',
         ` * Version ${data.version} of the HGB taxonomy of the E-Bilanz, of ${data.date}, as far as a corporation reports it: the`,
@@ -526,7 +540,9 @@ function render(data, source, allowedFrom, mandatoryFrom, base) {
         const changes = Object.keys(STATEMENTS).map(name => {
             const before = new Map(base.data.statements[name].map(r => [r.name, row(r)]));
             const rows = data.statements[name];
-            const changed = rows.flatMap((r, index) => before.get(r.name) === row(r) ? [] : [`            { after: ${literal(rows[index - 1]?.name)}, row: ${row(r)} }`]);
+            const changed = rows.flatMap((r, index) => before.get(r.name) === row(r)
+                ? []
+                : [`            { after: ${literal(rows[index - 1]?.name)}, row: ${row(r)} }`]);
             const names = new Set(rows.map(r => r.name));
             const removed = [...before.keys()].filter(n => !names.has(n));
             const rowsOf = changed.length ? `[\n    ${changed.join(',\n    ')}\n            ]` : '[]';
@@ -557,7 +573,8 @@ function render(data, source, allowedFrom, mandatoryFrom, base) {
         ...doc,
         `export const HGB_TAXONOMY_${id}: EBilanzTaxonomy = {`,
         ...meta,
-        `    statements: {\n${Object.keys(STATEMENTS).map(name => `    ${statement(name)}`).join(',\n')}\n    },`,
+        `    statements: {\n${Object.keys(STATEMENTS).map(name => `    ${statement(name)}`)
+            .join(',\n')}\n    },`,
         columns,
         fields,
         '};',
@@ -565,6 +582,10 @@ function render(data, source, allowedFrom, mandatoryFrom, base) {
     ].join('\n');
 }
 
+/**
+ * Builds the file of the version of the zip the command line names, and writes it.
+ * @throws An Error when the command line is not the usage, or when the zip cannot be extracted.
+ */
 function main() {
     const [file, ...rest] = process.argv.slice(2);
     const option = name => {
@@ -575,15 +596,30 @@ function main() {
     const mandatoryFrom = option('mandatory-from');
     const day = /^\d{4}-\d{2}-\d{2}$/;
     if (file == undefined || !day.test(allowedFrom ?? '') || !day.test(mandatoryFrom ?? '')) {
-        throw new Error('Usage: node scripts/build-e-bilanz-taxonomy.mjs <zip> --allowed-from <YYYY-MM-DD> --mandatory-from <YYYY-MM-DD> [--base <zip of the version before>] [--out <file>]');
+        throw new Error(
+            'Usage: node scripts/build-e-bilanz-taxonomy.mjs <zip> --allowed-from <YYYY-MM-DD> --mandatory-from <YYYY-MM-DD>'
+            + ' [--base <zip of the version before>] [--out <file>]'
+        );
     }
     const zip = readFileSync(file);
     const data = extract(zip);
-    const source = { name: path.basename(file), hash: createHash('sha256').update(zip).digest('hex') };
+    const source = {
+        name: path.basename(file),
+        hash: createHash('sha256').update(zip)
+            .digest('hex')
+    };
     const baseFile = option('base');
     const base = baseFile == undefined ? undefined : { data: extract(readFileSync(baseFile)) };
     const out = option('out')
-        ?? path.join(root, 'src', 'plugin', 'bookkeeping', 'e-bilanz', 'taxonomies', `hgb-taxonomy-${data.version.replaceAll('.', '-')}.model.ts`);
+        ?? path.join(
+            root,
+            'src',
+            'plugin',
+            'bookkeeping',
+            'e-bilanz',
+            'taxonomies',
+            `hgb-taxonomy-${data.version.replaceAll('.', '-')}.model.ts`
+        );
     writeFileSync(out, render(data, source, allowedFrom, mandatoryFrom, base));
     const positions = Object.values(data.statements).reduce((sum, rows) => sum + rows.length, 0);
     process.stdout.write(`${out}: ${positions} positions, ${data.columns.length} columns, ${data.gcdFields.length} fields\n`);

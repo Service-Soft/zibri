@@ -71,7 +71,8 @@ export class ZibriEBilanzPlugin extends ZibriPlugin {
         const conformances: unknown[] = inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.BOOKKEEPING_CONFORMANCE_SERVICES);
         if (!conformances.some(c => c instanceof EBilanzConformanceService)) {
             throw new InternalError(
-                `${this.constructor.name} needs EBilanzConformanceService in ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.BOOKKEEPING_CONFORMANCE_SERVICES, or a class extending it.`
+                `${this.constructor.name} needs EBilanzConformanceService`
+                + ' in ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.BOOKKEEPING_CONFORMANCE_SERVICES, or a class extending it.'
             );
         }
         // the E-Bilanz states the company of the bookkeeping settings, which holds what the GCD module asks of it only
@@ -79,7 +80,8 @@ export class ZibriEBilanzPlugin extends ZibriPlugin {
         const companyModel: Newable<BookkeepingCompany> = inject(ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.COMPANY_MODEL);
         if (companyModel !== GermanBookkeepingCompany && !(companyModel.prototype instanceof GermanBookkeepingCompany)) {
             throw new InternalError(
-                `${this.constructor.name} needs GermanBookkeepingCompany, or a class extending it, in ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.COMPANY_MODEL, and got ${companyModel.name}.`
+                `${this.constructor.name} needs GermanBookkeepingCompany, or a class extending it,`
+                + ` in ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.COMPANY_MODEL, and got ${companyModel.name}.`
             );
         }
         if (getRegisteredProvidersOfVariant(E_BILANZ_TRANSMITTER_DI_VARIANT).length > 1) {
@@ -94,7 +96,9 @@ export class ZibriEBilanzPlugin extends ZibriPlugin {
             return repository.dataSource;
         }));
         if (dataSources.size > 1) {
-            throw new InternalError(`${this.constructor.name} needs ${E_BILANZ_ENTITIES.map(e => e.name).join(', ')} in the data source of the books.`);
+            throw new InternalError(
+                `${this.constructor.name} needs ${E_BILANZ_ENTITIES.map(e => e.name).join(', ')} in the data source of the books.`
+            );
         }
     }
 }

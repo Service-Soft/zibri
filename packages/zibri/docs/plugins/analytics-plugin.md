@@ -33,13 +33,14 @@ keywords: [analytics, tracking, statistics, page views, visitors, funnel, utm, r
 `zibri-contract` has the models of the routes for your frontend: `AnalyticsPageViewModel`, `AnalyticsEventModel`, `AnalyticsSourceModel`, `AnalyticsSiteModel`, `AnalyticsSiteVerificationRecordModel`, `NewAnalyticsSiteModel`, `AnalyticsDayModel`, `AnalyticsPageModel`, `AnalyticsSourceCountModel`, `AnalyticsSystemModel`, `AnalyticsFunnelModel`, `AnalyticsFunnelStepModel`, `AnalyticsFunnelSourceModel`, `AnalyticsFunnelBy`, `AnalyticsOperatingSystem` and the permissions.
 
 ## Setting it up
-Add `new ZibriAnalyticsPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `AnalyticsSite`, `AnalyticsPageViewRecord` and `AnalyticsEventRecord` to the `entities` of your data source.
+Add `new ZibriAnalyticsPlugin()` to the `plugins` of your application, see [registering a plugin](../application/plugin.md#registering-a-plugin), and `AnalyticsSite`, `AnalyticsPageViewRecord` and `AnalyticsEventRecord` to the `entities` of your data source. You import the names of the plugin from `zibri/plugin/analytics`.
 
 Extend `AnalyticsController` with a `@Controller` of your own, at the path you choose:
 
 ```ts
 // src/controllers/analytics.controller.ts
-import { AnalyticsController, Controller } from 'zibri';
+import { Controller } from 'zibri';
+import { AnalyticsController } from 'zibri/plugin/analytics';
 
 @Controller('/analytics', { versions: 'all' })
 export class AppAnalyticsController extends AnalyticsController {}
@@ -49,7 +50,8 @@ Add it to the `controllers` of your application:
 
 ```ts
 // src/application-options.base.ts
-import { OmitStrict, ZibriAnalyticsPlugin, ZibriApplicationOptions } from 'zibri';
+import { OmitStrict, ZibriApplicationOptions } from 'zibri';
+import { ZibriAnalyticsPlugin } from 'zibri/plugin/analytics';
 
 import { AppAnalyticsController } from './controllers/analytics.controller';
 
@@ -70,7 +72,8 @@ Name the time zone the days are counted in through `OPTIONS_INPUT`. It is requir
 
 ```ts
 // src/providers.ts
-import { defineProvider, DiProvider, ZIBRI_ANALYTICS_PLUGIN_DI_TOKENS } from 'zibri';
+import { defineProvider, DiProvider } from 'zibri';
+import { ZIBRI_ANALYTICS_PLUGIN_DI_TOKENS } from 'zibri/plugin/analytics';
 
 export const analyticsProviders: DiProvider<unknown>[] = [
     defineProvider({
@@ -84,7 +87,8 @@ Spread `ZIBRI_ANALYTICS_PERMISSIONS` into your tenant permissions and `ZIBRI_ANA
 
 ```ts
 // src/models/permissions.ts
-import { DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, ZIBRI_ANALYTICS_PERMISSIONS, ZIBRI_ANALYTICS_PLATFORM_PERMISSIONS, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from 'zibri';
+import { DefinedPermissions, definePermissions, DefinedPlatformPermissions, definePlatformPermissions, ZIBRI_PERMISSIONS, ZIBRI_PLATFORM_PERMISSIONS } from 'zibri';
+import { ZIBRI_ANALYTICS_PERMISSIONS, ZIBRI_ANALYTICS_PLATFORM_PERMISSIONS } from 'zibri/plugin/analytics';
 
 const PERMISSIONS = [...ZIBRI_PERMISSIONS, ...ZIBRI_ANALYTICS_PERMISSIONS, 'invoices.read'] as const;
 const PLATFORM_PERMISSIONS = [...ZIBRI_PLATFORM_PERMISSIONS, ...ZIBRI_ANALYTICS_PLATFORM_PERMISSIONS, 'tenants.manage'] as const;
@@ -100,7 +104,8 @@ A page view or event is counted when a verified `AnalyticsSite` has its domain, 
 
 ```ts
 // src/create-default-sites.function.ts
-import { AnalyticsServiceInterface, inject, ZIBRI_ANALYTICS_PLUGIN_DI_TOKENS } from 'zibri';
+import { inject } from 'zibri';
+import { AnalyticsServiceInterface, ZIBRI_ANALYTICS_PLUGIN_DI_TOKENS } from 'zibri/plugin/analytics';
 
 export async function createDefaultSites(): Promise<void> {
     const analytics: AnalyticsServiceInterface = inject(ZIBRI_ANALYTICS_PLUGIN_DI_TOKENS.ANALYTICS_SERVICE);

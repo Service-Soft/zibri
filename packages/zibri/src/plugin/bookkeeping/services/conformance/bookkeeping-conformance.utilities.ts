@@ -43,6 +43,7 @@ export abstract class BookkeepingConformanceUtilities {
         const unknown: string | undefined = names.find(name => !registered.includes(name));
         if (unknown != undefined) {
             throw new ConflictError(
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 $ts`The conformance "${unknown}" needs to be registered in ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS.BOOKKEEPING_CONFORMANCE_SERVICES.`
             );
         }

@@ -1,6 +1,6 @@
 import { type Transaction } from '../../../data-source/transaction/transaction.model';
-import { type BankMatchTarget } from '../models/bank-match-target.model';
 import { type BankMatchTargetType } from '../models/bank-match-target-type.enum';
+import { type BankMatchTarget } from '../models/bank-match-target.model';
 import { type BankMatcherSuggestion } from '../models/bank-matcher-suggestion.model';
 import { type BankMatcherTransaction } from '../models/bank-matcher-transaction.model';
 import { type BankTransaction } from '../models/bank-transaction.model';

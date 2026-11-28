@@ -46,7 +46,7 @@ describe('routes of the auth controller overridden as in 3.2', () => {
             verifyInvitationToken: async () => await Promise.resolve({ isValid: false, renewed: false, requiresLogin: false, declinable: false }),
             acceptInvitation: async (_user, input, strategy) => {
                 calls.push([input, strategy]);
-                return await Promise.resolve(undefined);
+                await Promise.resolve(undefined);
             },
             declineInvitation: async () => await Promise.resolve()
         });

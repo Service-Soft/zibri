@@ -148,36 +148,6 @@ export type HttpOptionsWithoutResponseBodyInput<
  */
 export interface HttpClientInterface {
     /**
-     * Sends a request with the given data, with a method of HTTP or of WebDAV, such as `WebDavMethod.PROPFIND`.
-     */
-    // a method rather than a property holding a function, which is checked bivariantly: a client of 3.2, whose
-    // request takes an HttpMethod alone, still implements it. Only WebDavClient, and what is built on it, hands it a
-    // WebDavMethod.
-    // TODO 4.0: a property, as the other members
-    // eslint-disable-next-line typescript/method-signature-style
-    request<
-        T extends object,
-        QueryParamsObject extends Record<string, unknown>,
-        HeaderParamsObject extends Record<string, HttpClientHeaderValue>,
-        ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>,
-        IsArray extends boolean = false,
-        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never,
-        RequestBodyType extends HttpClientRequestBodyMimeType = HttpClientRequestBodyMimeType
-    >(
-        method: HttpClientMethod,
-        url: string,
-        requestBody: NoInfer<HttpClientRequestBody<RequestBodyType>>,
-        options: HttpOptionsInput<
-            T,
-            QueryParamsObject,
-            HeaderParamsObject,
-            ResponseHeaderMetaInputObject,
-            IsArray,
-            ResponseBody,
-            RequestBodyType
-        > | undefined
-    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>,
-    /**
      * Sends a request the way the global `fetch` does, for handing to a library that takes a fetch
      * function of its own. Use `get`, `post` and the others for your own requests.
      *
@@ -335,5 +305,35 @@ export interface HttpClientInterface {
             IsArray,
             ResponseBody
         >
-    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>
+    ) => Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>,
+    /**
+     * Sends a request with the given data, with a method of HTTP or of WebDAV, such as `WebDavMethod.PROPFIND`.
+     */
+    // a method rather than a property holding a function, which is checked bivariantly: a client of 3.2, whose
+    // request takes an HttpMethod alone, still implements it. Only WebDavClient, and what is built on it, hands it a
+    // WebDavMethod.
+    // TODO 4.0: a property, as the other members
+    // eslint-disable-next-line typescript/method-signature-style
+    request<
+        T extends object,
+        QueryParamsObject extends Record<string, unknown>,
+        HeaderParamsObject extends Record<string, HttpClientHeaderValue>,
+        ResponseHeaderMetaInputObject extends Record<string, HeaderParamMetadataInput>,
+        IsArray extends boolean = false,
+        ResponseBody extends HttpClientResponseBodyInput<T, IsArray> = never,
+        RequestBodyType extends HttpClientRequestBodyMimeType = HttpClientRequestBodyMimeType
+    >(
+        method: HttpClientMethod,
+        url: string,
+        requestBody: NoInfer<HttpClientRequestBody<RequestBodyType>>,
+        options: HttpOptionsInput<
+            T,
+            QueryParamsObject,
+            HeaderParamsObject,
+            ResponseHeaderMetaInputObject,
+            IsArray,
+            ResponseBody,
+            RequestBodyType
+        > | undefined
+    ): Promise<HttpClientResult<T, ResponseHeaderMetaInputObject, ResponseBody, IsArray>>
 }

@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 
 import { StartedWebDavTestServer, WebDavTestServerUtilities } from '../../__testing__/web-dav/web-dav-test-server.utilities';
@@ -37,10 +39,11 @@ async function deleteShare(shareId: string): Promise<void> {
     if (server == undefined) {
         throw new Error('Nextcloud did not start.');
     }
+    const credentials: string = `${server.connection.username}:${server.connection.password}`;
     const response: Response = await fetch(`${server.origin}/ocs/v2.php/apps/files_sharing/api/v1/shares/${shareId}?format=json`, {
         method: 'DELETE',
         headers: {
-            'authorization': `Basic ${Buffer.from(`${server.connection.username}:${server.connection.password}`).toString('base64')}`,
+            authorization: `Basic ${Buffer.from(credentials).toString('base64')}`,
             'ocs-apirequest': 'true'
         }
     });
@@ -57,7 +60,7 @@ beforeAll(async () => {
 }, Ms.MINUTE * 6);
 
 afterAll(async () => {
-    await server?.container.stop();
+    await server?.stop();
 });
 
 describe('NextcloudClient against Nextcloud', () => {
@@ -110,7 +113,8 @@ describe('NextcloudClient against Nextcloud', () => {
         const found: NextcloudShare | undefined = await client.findShare(share.id);
         await deleteShare(share.id);
 
-        expect(share).toEqual({ id: expect.stringMatching(/^\d+$/), type: 'link', permissions: 1, url: expect.stringMatching(/\/s\/\w+$/), shareWith: undefined, expiresOn: '2099-01-31' });
+        // to read, and to pass on, which Nextcloud adds to every link
+        expect(share).toEqual({ id: expect.stringMatching(/^\d+$/), type: 'link', permissions: 17, url: expect.stringMatching(/\/s\/\w+$/), shareWith: undefined, expiresOn: '2099-01-31' });
         expect(found).toEqual(share);
         expect(await client.findShare(share.id)).toBeUndefined();
     });
@@ -131,7 +135,7 @@ describe('NextcloudClient against Nextcloud', () => {
         const client: NextcloudClient = createClient();
 
         const error: unknown = await client.createShare({ type: 'link', path: `files/${ADMIN}/missing-${UUIDUtilities.generate()}`, password: undefined, expiresOn: undefined })
-            .then(() => undefined, (failure: unknown) => failure);
+            .then(() => undefined, (error_: unknown) => error_);
 
         expect(error).toBeInstanceOf(WebDavNotFoundError);
     });
@@ -155,7 +159,28 @@ describe('NextcloudClient against Nextcloud', () => {
         expect(changed).toEqual({ ...withUser, permissions: 1 });
         expect(found.map(share => [share.type, share.shareWith, share.permissions]).sort()).toEqual([['group', 'accounting', 1], ['user', 'grace', 1]]);
         expect(await client.findShares(`files/${ADMIN}`)).toEqual([]);
-    });
+    // a user, a group and an app password created first, of which Nextcloud hashes each password slowly on purpose
+    }, Ms.SECOND * 30);
+
+    // what the file mirror tells a change by, as Nextcloud names the same ETag for one in the second of the write before
+    it('keeps the checksum a put names, and none once a put naming none overwrites the file', async () => {
+        const client: NextcloudClient = createClient();
+        const folder: string = `files/${ADMIN}/checksums-${UUIDUtilities.generate()}`;
+        await client.createFolder(folder);
+        const sha256: string = createHash('sha256').update('%PDF-1.7 as issued')
+            .digest('hex');
+        const checksumOf: () => Promise<string | undefined> = async () => (await client.findEntry(`${folder}/2026-001.pdf`, {
+            checksums: NextcloudClient.CHECKSUMS_PROPERTY
+        }))?.properties.checksums;
+
+        await client.putWithChecksum(`${folder}/2026-001.pdf`, '%PDF-1.7 as issued', { contentType: 'application/pdf', ifNoneMatch: '*' }, sha256);
+        const written: string | undefined = await checksumOf();
+        await client.put(`${folder}/2026-001.pdf`, '%PDF-1.7 signed by the customer', { contentType: 'application/pdf', overwrite: true });
+        const overwritten: string | undefined = await checksumOf();
+
+        expect(NextcloudClient.holdsChecksum(written, sha256)).toBe(true);
+        expect(NextcloudClient.holdsChecksum(overwritten, sha256)).toBe(false);
+    }, Ms.SECOND * 30);
 
     it('finds what the trash bin holds of a folder by where each was, and deletes it for good', async () => {
         const client: NextcloudClient = createClient();
@@ -167,9 +192,7 @@ describe('NextcloudClient against Nextcloud', () => {
         const trashed: NextcloudTrashBinEntry[] = await client.findTrashBinEntries(folder);
         await Promise.all(trashed.map(async entry => await client.deleteTrashBinEntry(entry)));
 
-        expect(trashed).toEqual([
-            { id: expect.stringMatching(/^2026-001\.pdf\.d\d+$/), user: ADMIN, originalPath: `${folder}/Invoices/2026-001.pdf`, kind: 'file', size: 16, deletedAt: expect.any(Date) }
-        ]);
+        expect(trashed).toEqual([{ id: expect.stringMatching(/^2026-001\.pdf\.d\d+$/), user: ADMIN, originalPath: `${folder}/Invoices/2026-001.pdf`, kind: 'file', size: 16, deletedAt: expect.any(Date) }]);
         expect(await client.findTrashBinEntries(folder)).toEqual([]);
     });
 });

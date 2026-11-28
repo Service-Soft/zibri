@@ -1,7 +1,7 @@
 /* eslint-disable cspell/spellchecker */
 import { $t } from '../../../localization/translate.function';
-import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 import { type BookkeepingStatementStructure } from '../models/bookkeeping-statement-structure.model';
+import { BookkeepingStatementType } from '../models/bookkeeping-statement-type.enum';
 
 /**
  * The full income statement of a corporation by the nature of expense method, § 275 (2) HGB. The id of a position is
@@ -41,7 +41,10 @@ export const HGB_INCOME_STATEMENT: BookkeepingStatementStructure = {
             label: $t`Depreciation and amortization`,
             positions: [
                 { id: 'income-statement.7.a', label: $t`On intangible assets and tangible assets` },
-                { id: 'income-statement.7.b', label: $t`On current assets, to the extent they exceed the depreciation usual in the corporation` }
+                {
+                    id: 'income-statement.7.b',
+                    label: $t`On current assets, to the extent they exceed the depreciation usual in the corporation`
+                }
             ]
         },
         { id: 'income-statement.8', label: $t`Other operating expenses` },

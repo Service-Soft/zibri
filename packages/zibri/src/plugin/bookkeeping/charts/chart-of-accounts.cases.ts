@@ -5,8 +5,8 @@ import { repositoryTokenFor } from '../../../di/decorators/inject-repository.dec
 import { inject } from '../../../di/inject.function';
 import { BigNumber } from '../../../utilities/number.utilities';
 import { UUIDUtilities } from '../../../utilities/uuid.utilities';
-import { day, inTenant, journal, testCompany } from '../bookkeeping.cases';
 import { BookkeepingStatementUtilities } from '../bookkeeping-statement.utilities';
+import { day, inTenant, journal, testCompany } from '../bookkeeping.cases';
 import { ZIBRI_BOOKKEEPING_PLUGIN_DI_TOKENS } from '../bookkeeping.tokens';
 import { BookkeepingAccountType } from '../models/bookkeeping-account-type.enum';
 import { BookkeepingAccount, type BookkeepingAccountCreateData } from '../models/bookkeeping-account.model';

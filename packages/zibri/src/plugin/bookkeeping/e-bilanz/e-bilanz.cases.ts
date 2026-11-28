@@ -1,4 +1,5 @@
 /* eslint-disable cspell/spellchecker */
+/* eslint-disable sonar/no-duplicate-string -- the position ids, columns, amounts and messages are the figures of the cases */
 import { describe, expect, it } from '@jest/globals';
 
 import { Repository } from '../../../data-source/repository/repository';
@@ -21,8 +22,8 @@ import { BookkeepingAccount, type BookkeepingAccountCreateData } from '../models
 import { type BookkeepingClosingProposal } from '../models/bookkeeping-closing-proposal.model';
 import { type BookkeepingCompany } from '../models/bookkeeping-company.model';
 import { type BookkeepingObligation } from '../models/bookkeeping-obligation.model';
-import { UgConformanceService } from '../services/conformance/ug/ug-conformance.service';
 import { type FiscalYear } from '../models/fiscal-year.model';
+import { UgConformanceService } from '../services/conformance/ug/ug-conformance.service';
 import { EBilanzNotSentError } from './e-bilanz-not-sent.error';
 import { E_BILANZ_TRANSMITTER_DI_VARIANT, ZIBRI_E_BILANZ_PLUGIN_DI_TOKENS } from './e-bilanz.tokens';
 import { EBilanzAccountMapping } from './models/e-bilanz-account-mapping.model';
@@ -35,8 +36,8 @@ import { type EBilanzPreparation } from './models/e-bilanz-preparation.model';
 import { EBilanzRevisionStatus } from './models/e-bilanz-revision-status.enum';
 import { EBilanzSettings } from './models/e-bilanz-settings.model';
 import { type EBilanzState } from './models/e-bilanz-state.model';
-import { type EBilanzTransmissionSummary } from './models/e-bilanz-transmission-summary.model';
 import { EBilanzTransmissionStatus } from './models/e-bilanz-transmission-status.enum';
+import { type EBilanzTransmissionSummary } from './models/e-bilanz-transmission-summary.model';
 import { GermanBookkeepingCompany } from './models/german-bookkeeping-company.model';
 import { EBilanzConformanceService } from './services/e-bilanz-conformance.service';
 import { type EBilanzFile, type EBilanzServiceInterface } from './services/e-bilanz-service.interface';
@@ -59,7 +60,7 @@ export type RecordingTransmitterAnswer = (options: EBilanzTransmissionOptions) =
  * another answer.
  */
 export class RecordingTransmitter implements EBilanzTransmitterInterface {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     readonly name: string = 'recording';
 
     /**
@@ -72,7 +73,6 @@ export class RecordingTransmitter implements EBilanzTransmitterInterface {
      */
     answer: RecordingTransmitterAnswer = async () => await this.resolveAccepted();
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     async transmit(_eBilanz: unknown, options: EBilanzTransmissionOptions): Promise<EBilanzTransmission> {
         this.transmissions.push(options);
         return await this.answer(options);
@@ -112,7 +112,8 @@ export async function waitForTransmission(
     until: (transmission: EBilanzTransmissionSummary) => boolean = t => t.status !== EBilanzTransmissionStatus.TRANSMITTING
 ): Promise<EBilanzTransmissionSummary> {
     for (let attempt: number = 0; attempt < 500; attempt++) {
-        const found: EBilanzTransmissionSummary | undefined = (await service().resolveState(fiscalYearId)).transmissions.find(t => t.id === transmissionId);
+        const found: EBilanzTransmissionSummary | undefined = (await service().resolveState(fiscalYearId)).transmissions
+            .find(t => t.id === transmissionId);
         if (found != undefined && until(found)) {
             return found;
         }
@@ -166,35 +167,67 @@ export const COMPANY: GermanBookkeepingCompany = {
     taxAdvisor: false
 };
 
-type AccountName = 'bank' | 'equipment' | 'capital' | 'result' | 'revenue' | 'rent' | 'suspense' | 'legalReserve' | 'allocation' | 'machinery' | 'software' | 'carryForward' | 'lossCarried';
+type AccountName = 'bank' | 'equipment' | 'capital' | 'result' | 'revenue' | 'rent' | 'suspense'
+    | 'legalReserve' | 'allocation' | 'machinery' | 'software' | 'carryForward' | 'lossCarried';
 
 const ACCOUNTS: Record<AccountName, BookkeepingAccountCreateData> = {
-    bank: { number: '1200', name: 'Bank', type: BookkeepingAccountType.ASSET, statementPosition: 'assets.B.IV', creditStatementPosition: 'equity-and-liabilities.C.2' },
+    bank: {
+        number: '1200',
+        name: 'Bank',
+        type: BookkeepingAccountType.ASSET,
+        statementPosition: 'assets.B.IV',
+        creditStatementPosition: 'equity-and-liabilities.C.2'
+    },
     equipment: { number: '0420', name: 'Office equipment', type: BookkeepingAccountType.ASSET, statementPosition: 'assets.A.II.3' },
-    capital: { number: '0800', name: 'Share capital', type: BookkeepingAccountType.EQUITY, statementPosition: 'equity-and-liabilities.A.I' },
-    result: { number: '0860', name: 'Profit carried forward', type: BookkeepingAccountType.EQUITY, statementPosition: 'equity-and-liabilities.A.IV' },
+    capital: {
+        number: '0800',
+        name: 'Share capital',
+        type: BookkeepingAccountType.EQUITY,
+        statementPosition: 'equity-and-liabilities.A.I'
+    },
+    result: {
+        number: '0860',
+        name: 'Profit carried forward',
+        type: BookkeepingAccountType.EQUITY,
+        statementPosition: 'equity-and-liabilities.A.IV'
+    },
     revenue: { number: '8400', name: 'Revenue 19 %', type: BookkeepingAccountType.REVENUE, statementPosition: 'income-statement.1' },
     rent: { number: '4210', name: 'Rent', type: BookkeepingAccountType.EXPENSE, statementPosition: 'income-statement.8' },
     suspense: { number: '1590', name: 'Suspense', type: BookkeepingAccountType.ASSET, statementPosition: null },
-    legalReserve: { number: '0846', name: 'Legal reserve', type: BookkeepingAccountType.EQUITY, statementPosition: 'equity-and-liabilities.A.III.1' },
-    allocation: { number: '2496', name: 'Allocation to the legal reserve', type: BookkeepingAccountType.EQUITY, statementPosition: 'equity-and-liabilities.A.V' },
+    legalReserve: {
+        number: '0846',
+        name: 'Legal reserve',
+        type: BookkeepingAccountType.EQUITY,
+        statementPosition: 'equity-and-liabilities.A.III.1'
+    },
+    allocation: {
+        number: '2496',
+        name: 'Allocation to the legal reserve',
+        type: BookkeepingAccountType.EQUITY,
+        statementPosition: 'equity-and-liabilities.A.V'
+    },
     machinery: { number: '0210', name: 'Machinery', type: BookkeepingAccountType.ASSET, statementPosition: 'assets.A.II.2' },
     software: { number: '0135', name: 'Software', type: BookkeepingAccountType.ASSET, statementPosition: 'assets.A.I.2' },
     // the carry-forward account of the SKR 03 and 04, which balances carried over from books kept elsewhere are posted
     // against: of the equity, and in no position
     carryForward: { number: '9000', name: 'Balances carried forward', type: BookkeepingAccountType.EQUITY, statementPosition: null },
-    lossCarried: { number: '0868', name: 'Loss carried forward', type: BookkeepingAccountType.EQUITY, statementPosition: 'equity-and-liabilities.A.IV' }
+    lossCarried: {
+        number: '0868',
+        name: 'Loss carried forward',
+        type: BookkeepingAccountType.EQUITY,
+        statementPosition: 'equity-and-liabilities.A.IV'
+    }
 };
 
 /**
  * The books of a case: the tenant, its accounts and its fiscal year 2026.
  */
 export type EBilanzCaseBooks = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     tenantId: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     accounts: Record<AccountName, BookkeepingAccount>,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     fiscalYear: FiscalYear,
     /**
      * The fiscal year 2027 the closing of 2026 opens, or undefined while 2026 is open.
@@ -209,7 +242,7 @@ type Line = [AccountName, AccountName, string];
  * company.
  */
 export type EBilanzCaseBooksOptions = {
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     lines?: Line[],
     /**
      * The entries posting the capital in 2026, its 25000.00 paid into the bank by default.
@@ -220,11 +253,11 @@ export type EBilanzCaseBooksOptions = {
      * fiscal year of the books.
      */
     previousYearLines?: Line[],
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     close?: boolean,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     legalForm?: string,
-    // eslint-disable-next-line jsdoc/require-jsdoc
+
     company?: GermanBookkeepingCompany | BookkeepingCompany | null
 };
 
@@ -265,20 +298,27 @@ export async function createBooks(options: EBilanzCaseBooksOptions = {}): Promis
         });
         const repository: Repository<BookkeepingAccount, BookkeepingAccountCreateData> = inject(repositoryTokenFor(BookkeepingAccount));
         const created: BookkeepingAccount[] = await repository.createAll(Object.values(ACCOUNTS));
+        const createdOf: (name: AccountName) => BookkeepingAccount = name => {
+            const found: BookkeepingAccount | undefined = created.find(a => a.number === ACCOUNTS[name].number);
+            if (found == undefined) {
+                throw new Error(`The account ${ACCOUNTS[name].number} was not created`);
+            }
+            return found;
+        };
         const accounts: Record<AccountName, BookkeepingAccount> = {
-            bank: created[0]!,
-            equipment: created[1]!,
-            capital: created[2]!,
-            result: created[3]!,
-            revenue: created[4]!,
-            rent: created[5]!,
-            suspense: created[6]!,
-            legalReserve: created[7]!,
-            allocation: created[8]!,
-            machinery: created[9]!,
-            software: created[10]!,
-            carryForward: created[11]!,
-            lossCarried: created[12]!
+            bank: createdOf('bank'),
+            equipment: createdOf('equipment'),
+            capital: createdOf('capital'),
+            result: createdOf('result'),
+            revenue: createdOf('revenue'),
+            rent: createdOf('rent'),
+            suspense: createdOf('suspense'),
+            legalReserve: createdOf('legalReserve'),
+            allocation: createdOf('allocation'),
+            machinery: createdOf('machinery'),
+            software: createdOf('software'),
+            carryForward: createdOf('carryForward'),
+            lossCarried: createdOf('lossCarried')
         };
         let fiscalYear: FiscalYear;
         if (options.previousYearLines == undefined) {
@@ -348,13 +388,37 @@ async function createLegalReserveRules(accounts: Record<AccountName, Bookkeeping
 }
 
 /**
+ * What preparing the Einheitsbilanz takes.
+ */
+export const UNIFIED: { accountingStandard: EBilanzAccountingStandard } = { accountingStandard: EBilanzAccountingStandard.UNIFIED };
+
+/**
+ * The office equipment bought in 2026, as a year after it states it: its acquisition costs at the start of the year,
+ * which the books do not hold, and no depreciation.
+ */
+const EQUIPMENT_FROM_2026: EBilanzPreparationInput['fixedAssets'] = [
+    {
+        position: 'bs.ass.fixAss.tan.otherEquipm.misc',
+        values: [
+            { column: 'grossCost.beginning', amount: new BigNumber('3000.00') },
+            { column: 'accDepr.beginning', amount: new BigNumber(0) }
+        ]
+    }
+];
+
+/**
  * Starts the books of a UG with 2026 open, posts the legal reserve its closing proposes, closes the year and prepares
  * its E-Bilanz.
  * @param options - The books, beside the legal form and the company of a UG.
  * @returns What each line of the proposals posts, and the preparation.
  */
 async function closeUgWithProposals(options: EBilanzCaseBooksOptions): Promise<{ proposed: string[], preparation: EBilanzPreparation }> {
-    const books: EBilanzCaseBooks = await createBooks({ ...options, legalForm: 'UG', company: { ...COMPANY, legalStatus: 'UG' }, close: false });
+    const books: EBilanzCaseBooks = await createBooks({
+        ...options,
+        legalForm: 'UG',
+        company: { ...COMPANY, legalStatus: 'UG' },
+        close: false
+    });
     return await inTenant(books.tenantId, async () => {
         const proposals: BookkeepingClosingProposal[] = await journal().resolveClosingProposals(books.fiscalYear.id);
         for (const proposal of proposals) {
@@ -387,18 +451,6 @@ async function prepareNextYear(books: EBilanzCaseBooks, lines: Line[]): Promise<
 }
 
 /**
- * The office equipment bought in 2026, as a year after it states it: its acquisition costs at the start of the year,
- * which the books do not hold, and no depreciation.
- */
-const EQUIPMENT_FROM_2026: EBilanzPreparationInput['fixedAssets'] = [{
-    position: 'bs.ass.fixAss.tan.otherEquipm.misc',
-    values: [
-        { column: 'grossCost.beginning', amount: new BigNumber('3000.00') },
-        { column: 'accDepr.beginning', amount: new BigNumber(0) }
-    ]
-}];
-
-/**
  * The protocol of a filing by hand.
  */
 const PROTOCOL: EBilanzFile = { name: 'p.pdf', mimeType: MimeType.PDF, data: Buffer.from('p') };
@@ -422,7 +474,11 @@ async function createTransmittableBooks(): Promise<EBilanzTransmittableBooks> {
     const books: EBilanzCaseBooks = await createBooks();
     return await inTenant(books.tenantId, async () => {
         const preparation: EBilanzFiling = await service().prepare(books.fiscalYear.id, UNIFIED, 'ada');
-        await service().updateCertificate({ name: 'acme.pfx', mimeType: 'application/x-pkcs12', data: Buffer.from('pfx') }, 'secret-pin', 'ada');
+        await service().updateCertificate(
+            { name: 'acme.pfx', mimeType: 'application/x-pkcs12', data: Buffer.from('pfx') },
+            'secret-pin',
+            'ada'
+        );
         return { ...books, preparation };
     });
 }
@@ -442,8 +498,36 @@ function amountOf(preparation: EBilanzPreparation, name: string): string | null 
  * @returns The positions, in the order of the taxonomy.
  */
 function businessAssetComparisonOf(preparation: EBilanzPreparation): [string, string | null][] {
-    return preparation.content.positions.filter(p => p.statement === 'businessAssetComparison').map(p => [p.name, p.amount?.toFixed(2) ?? null]);
+    return preparation.content.positions
+        .filter(p => p.statement === 'businessAssetComparison')
+        .map(p => [p.name, p.amount?.toFixed(2) ?? null]);
 }
+
+/**
+ * The amounts of the steuerlicher Betriebsvermögensvergleich of a corporation.
+ */
+type BusinessAssetComparisonFigures = {
+    /**
+     * The equity at the end of the year.
+     */
+    end: string,
+    /**
+     * The equity at the end of the year before.
+     */
+    before: string,
+    /**
+     * The distributions of the year.
+     */
+    distributions: string,
+    /**
+     * The contributions of the year.
+     */
+    contributions: string,
+    /**
+     * The result of the year.
+     */
+    result: string
+};
 
 /**
  * The steuerlicher Betriebsvermögensvergleich of a corporation, by its amounts.
@@ -451,7 +535,7 @@ function businessAssetComparisonOf(preparation: EBilanzPreparation): [string, st
  * the result.
  * @returns The positions with their amounts, the adjustment of the equity of the year before 0.
  */
-function businessAssetComparison(figures: { end: string, before: string, distributions: string, contributions: string, result: string }): [string, string][] {
+function businessAssetComparison(figures: BusinessAssetComparisonFigures): [string, string][] {
     return [
         ['BVV.profitLoss', figures.result],
         ['BVV.profitLoss.assetsCurrentYear', figures.end],
@@ -464,11 +548,6 @@ function businessAssetComparison(figures: { end: string, before: string, distrib
 }
 
 /**
- * What preparing the Einheitsbilanz takes.
- */
-export const UNIFIED: { accountingStandard: EBilanzAccountingStandard } = { accountingStandard: EBilanzAccountingStandard.UNIFIED };
-
-/**
  * Runs the cases of the E-Bilanz.
  * @param dataSourceName - The name of the data source, for the name of the suite.
  */
@@ -476,7 +555,10 @@ export function describeEBilanz(dataSourceName: string): void {
     describe(`the E-Bilanz on ${dataSourceName}`, () => {
         it('states each account under its position, the sums, and NIL for each position the tax administration asks for', async () => {
             const books: EBilanzCaseBooks = await createBooks();
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
 
             expect(preparation.findings).toStrictEqual([]);
             expect(preparation.content.taxonomyVersion).toBe('6.9');
@@ -489,17 +571,25 @@ export function describeEBilanz(dataSourceName: string): void {
             expect(amountOf(preparation, 'bs.eqLiab.equity.subscribed.corp')).toBe('25000.00');
             // the result of the year, as the balance sheet of the books states it, on the account the closing books it to
             expect(amountOf(preparation, 'bs.eqLiab.equity.netIncome')).toBe('8800.00');
-            expect(positionOf(preparation, 'bs.eqLiab.equity.netIncome')?.accounts).toStrictEqual([
-                { accountId: books.accounts.result.id, number: '0860', name: 'Profit carried forward', balance: new BigNumber('8800') }
-            ]);
+            const carriedForward: Record<string, unknown> = {
+                accountId: books.accounts.result.id,
+                number: '0860',
+                name: 'Profit carried forward',
+                balance: new BigNumber('8800')
+            };
+            expect(positionOf(preparation, 'bs.eqLiab.equity.netIncome')?.accounts).toStrictEqual([carriedForward]);
             expect(amountOf(preparation, 'is.netIncome')).toBe('8800.00');
             expect(amountOf(preparation, 'is.netIncome.regular.operatingTC.otherCost.misc')).toBe('1200.00');
             // NIL: asked for below a position stated, and nothing in the books
             expect(amountOf(preparation, 'bs.ass.fixAss.intan.goodwill')).toBeNull();
             expect(amountOf(preparation, 'bs.eqLiab.equity.capRes')).toBeNull();
-            expect(positionOf(preparation, 'bs.ass.currAss.cashEquiv.misc')?.accounts).toStrictEqual([
-                { accountId: books.accounts.bank.id, number: '1200', name: 'Bank', balance: new BigNumber('30800') }
-            ]);
+            const bank: Record<string, unknown> = {
+                accountId: books.accounts.bank.id,
+                number: '1200',
+                name: 'Bank',
+                balance: new BigNumber('30800')
+            };
+            expect(positionOf(preparation, 'bs.ass.currAss.cashEquiv.misc')?.accounts).toStrictEqual([bank]);
             // the book value at the end, the balance sheet's, and the sums it is made of
             const equipment: [string, string | undefined][] = [
                 ['all', '3000.00'],
@@ -510,7 +600,10 @@ export function describeEBilanz(dataSourceName: string): void {
                 ['accDepr.beginning', '0.00']
             ];
             // and each position above it, up to the fixed assets
-            expect(preparation.content.fixedAssets.map(f => [f.position, f.values.filter(v => v.amount != undefined).map(v => [v.column, v.amount?.toFixed(2)])])).toStrictEqual([
+            expect(preparation.content.fixedAssets.map(f => [
+                f.position,
+                f.values.filter(v => v.amount != undefined).map(v => [v.column, v.amount?.toFixed(2)])
+            ])).toStrictEqual([
                 ['bs.ass.fixAss', equipment],
                 ['bs.ass.fixAss.tan', equipment],
                 ['bs.ass.fixAss.tan.otherEquipm', equipment],
@@ -519,19 +612,24 @@ export function describeEBilanz(dataSourceName: string): void {
             expect(preparation.content.fields.find(f => f.name === 'genInfo.company.id.name')?.value).toBe('Acme Software GmbH');
             expect(preparation.content.fields.find(f => f.name === 'genInfo.company.id.idNo.type.companyId.BF4')?.value).toBe('1121');
             expect(preparation.content.fields.find(f => f.name === 'genInfo.report.period.fiscalYearEnd')?.value).toBe('2026-12-31');
-            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.reportElement.reportElements.BAL')?.value).toBe('true');
+            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.reportElement.reportElements.BAL')?.value)
+                .toBe('true');
             // the whole result carried forward: the Jahresüberschuss, NIL for the Bilanzgewinn the tax administration
             // asks for, and no appropriation of profits
             expect(amountOf(preparation, 'bs.eqLiab.equity.profitLoss')).toBeNull();
             expect(preparation.content.positions.filter(p => p.statement === 'appropriationOfProfits')).toStrictEqual([]);
-            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.incomeStatementendswithBalProfit')?.value).toBe('false');
+            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.incomeStatementendswithBalProfit')?.value)
+                .toBe('false');
             expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.reportElement.reportElements.EV')?.value).toBeNull();
         });
 
         // a first fiscal year has no opening entry: the equity before it is 0, and the capital paid in a contribution
         it('states the steuerlicher Betriebsvermögensvergleich of a first fiscal year, its capital paid in as a contribution', async () => {
             const books: EBilanzCaseBooks = await createBooks();
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
 
             expect(preparation.findings).toStrictEqual([]);
             expect(businessAssetComparisonOf(preparation)).toStrictEqual(businessAssetComparison({
@@ -541,13 +639,19 @@ export function describeEBilanz(dataSourceName: string): void {
                 contributions: '25000.00',
                 result: '8800.00'
             }));
-            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.reportElement.reportElements.BVV')?.value).toBe('true');
+            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.reportElement.reportElements.BVV')?.value)
+                .toBe('true');
         });
 
-        it('states the steuerlicher Betriebsvermögensvergleich of a fiscal year after another, the equity before it that of its opening entry', async () => {
+        it('states the steuerlicher Betriebsvermögensvergleich of a fiscal year after another, '
+            + 'the equity before it that of its opening entry', async () => {
             const books: EBilanzCaseBooks = await createBooks();
             // 5000.00 of the profit of 2026 distributed, and a result of 1500.00
-            const preparation: EBilanzPreparation = await prepareNextYear(books, [['result', 'bank', '5000.00'], ['bank', 'revenue', '2000.00'], ['rent', 'bank', '500.00']]);
+            const preparation: EBilanzPreparation = await prepareNextYear(books, [
+                ['result', 'bank', '5000.00'],
+                ['bank', 'revenue', '2000.00'],
+                ['rent', 'bank', '500.00']
+            ]);
 
             expect(preparation.findings).toStrictEqual([]);
             expect(businessAssetComparisonOf(preparation)).toStrictEqual(businessAssetComparison({
@@ -562,7 +666,10 @@ export function describeEBilanz(dataSourceName: string): void {
         it('states the equity before a fiscal year after another without an opening entry as 0', async () => {
             // the year before closed without a balance posts no opening entry
             const books: EBilanzCaseBooks = await createBooks({ previousYearLines: [] });
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
 
             expect(preparation.findings).toStrictEqual([]);
             expect(businessAssetComparisonOf(preparation)).toStrictEqual(businessAssetComparison({
@@ -576,11 +683,18 @@ export function describeEBilanz(dataSourceName: string): void {
 
         // the books kept elsewhere before, carried over by hand against the carry-forward account: 25000.00 of capital
         // and 4000.00 of profit, in the bank
-        const CARRIED_OVER: Line[] = [['carryForward', 'capital', '25000.00'], ['carryForward', 'result', '4000.00'], ['bank', 'carryForward', '29000.00']];
+        const CARRIED_OVER: Line[] = [
+            ['carryForward', 'capital', '25000.00'],
+            ['carryForward', 'result', '4000.00'],
+            ['bank', 'carryForward', '29000.00']
+        ];
 
         it('states the balances carried over against the carry-forward accounts as the equity before the first fiscal year', async () => {
             const books: EBilanzCaseBooks = await createBooks({ capitalLines: CARRIED_OVER });
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
 
             expect(preparation.findings).toStrictEqual([]);
             expect(businessAssetComparisonOf(preparation)).toStrictEqual(businessAssetComparison({
@@ -594,7 +708,10 @@ export function describeEBilanz(dataSourceName: string): void {
 
         it('states a contribution beside the balances carried over as one', async () => {
             const books: EBilanzCaseBooks = await createBooks({ capitalLines: [...CARRIED_OVER, ['bank', 'capital', '5000.00']] });
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
 
             expect(preparation.findings).toStrictEqual([]);
             expect(businessAssetComparisonOf(preparation)).toStrictEqual(businessAssetComparison({
@@ -608,30 +725,44 @@ export function describeEBilanz(dataSourceName: string): void {
 
         it('states an asset carried over against a carry-forward account at the start of the year, not as an addition of it', async () => {
             // the office equipment of 5000.00 carried over, and 3000.00 of it bought in the year
-            const books: EBilanzCaseBooks = await createBooks({ capitalLines: [['carryForward', 'capital', '5000.00'], ['equipment', 'carryForward', '5000.00']] });
-            const prepare: (fixedAssets: EBilanzPreparationInput['fixedAssets']) => Promise<EBilanzPreparation> = async fixedAssets => await inTenant(
-                books.tenantId,
-                async () => await service().resolvePreparation(books.fiscalYear.id, { ...UNIFIED, fixedAssets })
-            );
+            const books: EBilanzCaseBooks = await createBooks({
+                capitalLines: [['carryForward', 'capital', '5000.00'], ['equipment', 'carryForward', '5000.00']]
+            });
+            const prepare: (fixedAssets: EBilanzPreparationInput['fixedAssets']) => Promise<EBilanzPreparation>
+                = async fixedAssets => await inTenant(
+                    books.tenantId,
+                    async () => await service().resolvePreparation(books.fiscalYear.id, { ...UNIFIED, fixedAssets })
+                );
 
             const unnamed: EBilanzPreparation = await prepare([]);
             expect(unnamed.findings.map(f => f.position)).toStrictEqual(['bs.ass.fixAss.tan.otherEquipm.misc']);
-            const named: EBilanzPreparation = await prepare([{
-                position: 'bs.ass.fixAss.tan.otherEquipm.misc',
-                values: [{ column: 'grossCost.beginning', amount: new BigNumber('5000.00') }, { column: 'accDepr.beginning', amount: new BigNumber(0) }]
-            }]);
+            const named: EBilanzPreparation = await prepare([
+                {
+                    position: 'bs.ass.fixAss.tan.otherEquipm.misc',
+                    values: [
+                        { column: 'grossCost.beginning', amount: new BigNumber('5000.00') },
+                        { column: 'accDepr.beginning', amount: new BigNumber(0) }
+                    ]
+                }
+            ]);
             expect(named.findings).toStrictEqual([]);
             expect(named.content.fixedAssets.find(f => f.position === 'bs.ass.fixAss.tan.otherEquipm.misc')?.values
                 .filter(v => ['grossCost.beginning', 'gross.addition', 'all'].includes(v.column))
-                .map(v => [v.column, v.amount?.toFixed(2)])).toStrictEqual([['all', '8000.00'], ['grossCost.beginning', '5000.00'], ['gross.addition', '3000.00']]);
+                .map(v => [v.column, v.amount?.toFixed(2)]))
+                .toStrictEqual([['all', '8000.00'], ['grossCost.beginning', '5000.00'], ['gross.addition', '3000.00']]);
         });
 
         // a UG moving over from books kept elsewhere: 5000.00 of capital, and a loss or a profit carried forward, carried
         // over against the carry-forward account. The legal reserve is a quarter of the result less a loss carried
         // forward, § 5a (3) GmbHG, whether the opening entry carries the loss in or the carry-over does
-        it('takes a loss carried over against a carry-forward account from the base of the legal reserve of a UG, and states it carried forward', async () => {
+        it('takes a loss carried over against a carry-forward account from the base of the legal reserve of a UG, '
+            + 'and states it carried forward', async () => {
             const { proposed, preparation } = await closeUgWithProposals({
-                capitalLines: [['carryForward', 'capital', '5000.00'], ['lossCarried', 'carryForward', '3000.00'], ['bank', 'carryForward', '2000.00']]
+                capitalLines: [
+                    ['carryForward', 'capital', '5000.00'],
+                    ['lossCarried', 'carryForward', '3000.00'],
+                    ['bank', 'carryForward', '2000.00']
+                ]
             });
 
             // a quarter of 8800.00 less 3000.00
@@ -651,9 +782,14 @@ export function describeEBilanz(dataSourceName: string): void {
             }));
         });
 
-        it('takes nothing from the base of the legal reserve of a UG for a profit carried over against a carry-forward account', async () => {
+        it('takes nothing from the base of the legal reserve of a UG '
+            + 'for a profit carried over against a carry-forward account', async () => {
             const { proposed, preparation } = await closeUgWithProposals({
-                capitalLines: [['carryForward', 'capital', '5000.00'], ['carryForward', 'result', '4000.00'], ['bank', 'carryForward', '9000.00']]
+                capitalLines: [
+                    ['carryForward', 'capital', '5000.00'],
+                    ['carryForward', 'result', '4000.00'],
+                    ['bank', 'carryForward', '9000.00']
+                ]
             });
 
             expect(proposed).toStrictEqual(['2200.00']);
@@ -676,10 +812,15 @@ export function describeEBilanz(dataSourceName: string): void {
 
         // the closing carries the accounts appropriating the result into the account the result is carried to, so the
         // year after starts with neither the allocation of the year before nor its part of the profit carried forward
-        it('states the appropriation of a UG in the year after one appropriating its result, by the allocation of the year alone', async () => {
+        it('states the appropriation of a UG in the year after one appropriating its result, '
+            + 'by the allocation of the year alone', async () => {
             const books: EBilanzCaseBooks = await createBooks(UG_LEGAL_RESERVE_BOOKS);
             // a result of 1500.00, a quarter of it into the legal reserve, by the posting rules 2026 carries forward
-            const preparation: EBilanzPreparation = await prepareNextYear(books, [['bank', 'revenue', '2000.00'], ['rent', 'bank', '500.00'], ['allocation', 'legalReserve', '375.00']]);
+            const preparation: EBilanzPreparation = await prepareNextYear(books, [
+                ['bank', 'revenue', '2000.00'],
+                ['rent', 'bank', '500.00'],
+                ['allocation', 'legalReserve', '375.00']
+            ]);
 
             expect(preparation.findings).toStrictEqual([]);
             // 500.00 carried into 2026, and its 8800.00 less the 2200.00 allocated
@@ -691,9 +832,13 @@ export function describeEBilanz(dataSourceName: string): void {
             expect(amountOf(preparation, 'bs.eqLiab.equity.revenueRes.legal')).toBe('2575.00');
         });
 
-        it('states the balance sheet profit and the appropriation of profits of a UG putting part of its profit into the legal reserve', async () => {
+        it('states the balance sheet profit and the appropriation of profits of a UG '
+            + 'putting part of its profit into the legal reserve', async () => {
             const books: EBilanzCaseBooks = await createBooks(UG_LEGAL_RESERVE_BOOKS);
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
 
             expect(preparation.findings).toStrictEqual([]);
             expect(amountOf(preparation, 'bs.eqLiab.equity.profitLoss')).toBe('7100.00');
@@ -712,10 +857,13 @@ export function describeEBilanz(dataSourceName: string): void {
             expect(amountOf(preparation, 'incomeUse.gainLoss')).toBe('7100.00');
             // NIL: asked for below the appropriation stated
             expect(amountOf(preparation, 'incomeUse.gainLoss.dividensPlanned')).toBeNull();
-            expect(positionOf(preparation, 'incomeUse.gainLoss.additionRevenReserves.legalRes')?.accounts.map(a => [a.number, a.balance.toFixed(2)]))
+            expect(positionOf(preparation, 'incomeUse.gainLoss.additionRevenReserves.legalRes')?.accounts
+                .map(a => [a.number, a.balance.toFixed(2)]))
                 .toStrictEqual([['2496', '2200.00']]);
-            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.incomeStatementendswithBalProfit')?.value).toBe('true');
-            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.reportElement.reportElements.EV')?.value).toBe('true');
+            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.incomeStatementendswithBalProfit')?.value)
+                .toBe('true');
+            expect(preparation.content.fields.find(f => f.name === 'genInfo.report.id.reportElement.reportElements.EV')?.value)
+                .toBe('true');
             // the 500.00 carried forward is the equity before the year, and the allocation to the legal reserve, within
             // the equity, neither a contribution nor a distribution
             expect(businessAssetComparisonOf(preparation)).toStrictEqual(businessAssetComparison({
@@ -727,20 +875,30 @@ export function describeEBilanz(dataSourceName: string): void {
             }));
         });
 
-        it('lists the account the closing books the result to under the result, and with its own balance under its own position', async () => {
+        it('lists the account the closing books the result to under the result, '
+            + 'and with its own balance under its own position', async () => {
             // 500.00 carried forward from before on the account the result is closed to
             const books: EBilanzCaseBooks = await createBooks({ lines: [['bank', 'result', '500.00']] });
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
-            const accountsOf: (name: string) => string[][] | undefined = name => positionOf(preparation, name)?.accounts.map(a => [a.number, a.balance.toFixed(2)]);
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
+            const accountsOf: (name: string) => string[][] | undefined = name => positionOf(preparation, name)?.accounts
+                .map(a => [a.number, a.balance.toFixed(2)]);
 
             expect(preparation.findings).toStrictEqual([]);
-            expect([accountsOf('bs.eqLiab.equity.retainedEarnings'), accountsOf('bs.eqLiab.equity.netIncome')]).toStrictEqual([[['0860', '500.00']], [['0860', '8800.00']]]);
-            expect([amountOf(preparation, 'bs.eqLiab.equity.retainedEarnings'), amountOf(preparation, 'bs.eqLiab.equity.netIncome')]).toStrictEqual(['500.00', '8800.00']);
+            expect([accountsOf('bs.eqLiab.equity.retainedEarnings'), accountsOf('bs.eqLiab.equity.netIncome')])
+                .toStrictEqual([[['0860', '500.00']], [['0860', '8800.00']]]);
+            expect([amountOf(preparation, 'bs.eqLiab.equity.retainedEarnings'), amountOf(preparation, 'bs.eqLiab.equity.netIncome')])
+                .toStrictEqual(['500.00', '8800.00']);
         });
 
         it('names what it needs: the company, and each account with a balance and no position', async () => {
             const books: EBilanzCaseBooks = await createBooks({ company: null, lines: [['suspense', 'bank', '100.00']] });
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
 
             // and the balance sheet does not balance without the account
             expect(preparation.findings.map(f => f.position)).toStrictEqual(['1590', 'genInfo.company', 'bs.ass']);
@@ -751,13 +909,17 @@ export function describeEBilanz(dataSourceName: string): void {
                 'The balance sheet does not balance: the assets total €33,700.00, and the equity and liabilities €33,800.00. '
                 + 'Each account with a balance needs a position on its side of the balance sheet.'
             ]);
-            await expect(inTenant(books.tenantId, async () => await service().prepare(books.fiscalYear.id, UNIFIED, 'ada'))).rejects.toThrow(ConflictError);
+            await expect(inTenant(books.tenantId, async () => await service().prepare(books.fiscalYear.id, UNIFIED, 'ada')))
+                .rejects.toThrow(ConflictError);
         });
 
         it('names the company as needed while the bookkeeping settings hold only what the generic company has', async () => {
             // as written while the application had not registered the German company yet
             const books: EBilanzCaseBooks = await createBooks({ company: { name: COMPANY.name } });
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED));
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, UNIFIED)
+            );
 
             expect(preparation.findings.map(f => f.position)).toStrictEqual(['genInfo.company']);
             expect(preparation.content.company.name).toBe(COMPANY.name);
@@ -765,16 +927,17 @@ export function describeEBilanz(dataSourceName: string): void {
 
         it('states an account mapped to a position of its own there', async () => {
             const books: EBilanzCaseBooks = await createBooks();
+            const grossSales: string = 'is.netIncome.regular.operatingTC.grossTradingProfit.totalOutput.netSales.grossSales';
             const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => {
                 await service().updateAccountMapping({
                     accountId: books.accounts.revenue.id,
-                    position: 'is.netIncome.regular.operatingTC.grossTradingProfit.totalOutput.netSales.grossSales.generalRateVAT'
+                    position: `${grossSales}.generalRateVAT`
                 });
                 return await service().resolvePreparation(books.fiscalYear.id, UNIFIED);
             });
 
-            expect(amountOf(preparation, 'is.netIncome.regular.operatingTC.grossTradingProfit.totalOutput.netSales.grossSales.generalRateVAT')).toBe('10000.00');
-            expect(amountOf(preparation, 'is.netIncome.regular.operatingTC.grossTradingProfit.totalOutput.netSales.grossSales.unknownVAT')).toBeUndefined();
+            expect(amountOf(preparation, `${grossSales}.generalRateVAT`)).toBe('10000.00');
+            expect(amountOf(preparation, `${grossSales}.unknownVAT`)).toBeUndefined();
             expect(preparation.findings).toStrictEqual([]);
         });
 
@@ -789,10 +952,11 @@ export function describeEBilanz(dataSourceName: string): void {
                     fixedAssets: [{ position, values: figures.map(([column, amount]) => ({ column, amount: new BigNumber(amount) })) }]
                 })
             );
-            const columnsOf: (preparation: EBilanzPreparation) => [string, string | undefined][] | undefined = preparation => preparation.content.fixedAssets
-                .find(f => f.position === position)?.values
-                .filter(v => v.amount != undefined)
-                .map(v => [v.column, v.amount?.toFixed(2)]);
+            const columnsOf: (preparation: EBilanzPreparation) => [string, string | undefined][] | undefined
+                = preparation => preparation.content.fixedAssets
+                    .find(f => f.position === position)?.values
+                    .filter(v => v.amount != undefined)
+                    .map(v => [v.column, v.amount?.toFixed(2)]);
 
             const unnamed: EBilanzPreparation = await prepare([]);
             expect(amountOf(unnamed, position)).toBe('2400.00');
@@ -809,8 +973,9 @@ export function describeEBilanz(dataSourceName: string): void {
             ]);
             // named by its label, with the amounts as a person reads them
             expect(unnamed.findings.at(-1)?.message).toBe(
-                'The statement of changes in fixed assets of "andere Anlagen, Betriebs- und Geschäftsausstattung, nicht zuordenbar" ends with a book value '
-                + 'of €3,000.00, which needs to equal the €2,400.00 of the balance sheet: enter the figures the books do not hold, such as the depreciation of the year.'
+                'The statement of changes in fixed assets of "andere Anlagen, Betriebs- und Geschäftsausstattung, nicht zuordenbar" '
+                + 'ends with a book value of €3,000.00, which needs to equal the €2,400.00 of the balance sheet: '
+                + 'enter the figures the books do not hold, such as the depreciation of the year.'
             );
 
             const depreciated: EBilanzPreparation = await prepare([['accDepr.DeprPeriod.regular', '600.00']]);
@@ -828,23 +993,39 @@ export function describeEBilanz(dataSourceName: string): void {
 
             // a sum named needs to be that of its parts, and the book value is made of it
             const summed: EBilanzPreparation = await prepare([['accDepr.DeprPeriod.regular', '600.00'], ['gross', '2400.00']]);
-            expect(summed.findings.filter(f => f.position === position).map(f => f.message.includes('which needs to equal the sum of the columns it adds up, €3,000.00.'))).toStrictEqual([true, false]);
+            expect(summed.findings
+                .filter(f => f.position === position)
+                .map(f => f.message.includes('which needs to equal the sum of the columns it adds up, €3,000.00.')))
+                .toStrictEqual([true, false]);
             expect(summed.findings.find(f => f.position === position)?.message).toBe(
-                'The statement of changes in fixed assets of "andere Anlagen, Betriebs- und Geschäftsausstattung, nicht zuordenbar" states €2,400.00 as '
-                + '"Anschaffungs- und Herstellungskosten zum Ende der Periode", which needs to equal the sum of the columns it adds up, €3,000.00.'
+                'The statement of changes in fixed assets of "andere Anlagen, Betriebs- und Geschäftsausstattung, nicht zuordenbar" '
+                + 'states €2,400.00 as "Anschaffungs- und Herstellungskosten zum Ende der Periode", '
+                + 'which needs to equal the sum of the columns it adds up, €3,000.00.'
             );
             expect(columnsOf(summed)?.slice(0, 2)).toStrictEqual([['all', '1800.00'], ['gross', '2400.00']]);
         });
 
-        it('states a row for each position above a row of the statement of changes in fixed assets, each column the sum of the rows below it', async () => {
+        it('states a row for each position above a row of the statement of changes in fixed assets, '
+            + 'each column the sum of the rows below it', async () => {
             // 600.00 written off the office equipment
-            const books: EBilanzCaseBooks = await createBooks({ lines: [...FIXED_ASSETS_BOOKS.lines ?? [], ['rent', 'equipment', '600.00']] });
-            const preparation: EBilanzPreparation = await inTenant(books.tenantId, async () => await service().resolvePreparation(books.fiscalYear.id, {
-                ...UNIFIED,
-                fixedAssets: [{ position: 'bs.ass.fixAss.tan.otherEquipm.misc', values: [{ column: 'accDepr.DeprPeriod.regular', amount: new BigNumber('600.00') }] }]
-            }));
-            const columnOf: (position: string, column: string) => string | null | undefined = (position, column) => preparation.content.fixedAssets
-                .find(f => f.position === position)?.values.find(v => v.column === column)?.amount?.toFixed(2) ?? null;
+            const books: EBilanzCaseBooks = await createBooks({
+                lines: [...FIXED_ASSETS_BOOKS.lines ?? [], ['rent', 'equipment', '600.00']]
+            });
+            const preparation: EBilanzPreparation = await inTenant(
+                books.tenantId,
+                async () => await service().resolvePreparation(books.fiscalYear.id, {
+                    ...UNIFIED,
+                    fixedAssets: [
+                        {
+                            position: 'bs.ass.fixAss.tan.otherEquipm.misc',
+                            values: [{ column: 'accDepr.DeprPeriod.regular', amount: new BigNumber('600.00') }]
+                        }
+                    ]
+                })
+            );
+            const columnOf: (position: string, column: string) => string | null | undefined
+                = (position, column) => preparation.content.fixedAssets
+                    .find(f => f.position === position)?.values.find(v => v.column === column)?.amount?.toFixed(2) ?? null;
 
             expect(preparation.findings).toStrictEqual([]);
             // in the order of the taxonomy, each group before the positions it sums, and each naming the row it is
@@ -879,9 +1060,12 @@ export function describeEBilanz(dataSourceName: string): void {
             const open: EBilanzCaseBooks = await createBooks({ close: false });
             const closed: EBilanzCaseBooks = await createBooks();
 
-            await expect(inTenant(open.tenantId, async () => await service().resolvePreparation(open.fiscalYear.id, UNIFIED))).rejects.toThrow(ConflictError);
-            await expect(inTenant(closed.tenantId, async () => await service().resolvePreparation(closed.fiscalYear.id, { ...UNIFIED, taxonomyVersion: '7.0' })))
+            await expect(inTenant(open.tenantId, async () => await service().resolvePreparation(open.fiscalYear.id, UNIFIED)))
                 .rejects.toThrow(ConflictError);
+            await expect(inTenant(
+                closed.tenantId,
+                async () => await service().resolvePreparation(closed.fiscalYear.id, { ...UNIFIED, taxonomyVersion: '7.0' })
+            )).rejects.toThrow(ConflictError);
         });
 
         it('sends it for real only after a test of the same content was accepted, and records each transmission', async () => {
@@ -890,7 +1074,11 @@ export function describeEBilanz(dataSourceName: string): void {
                 const preparation: EBilanzFiling = await service().prepare(books.fiscalYear.id, UNIFIED, 'ada');
 
                 await expect(service().transmit(books.fiscalYear.id, { test: true }, 'ada')).rejects.toThrow('certificate');
-                await service().updateCertificate({ name: 'acme.pfx', mimeType: 'application/x-pkcs12', data: Buffer.from('pfx') }, 'secret-pin', 'ada');
+                await service().updateCertificate(
+                    { name: 'acme.pfx', mimeType: 'application/x-pkcs12', data: Buffer.from('pfx') },
+                    'secret-pin',
+                    'ada'
+                );
                 await expect(service().transmit(books.fiscalYear.id, { test: false }, 'ada')).rejects.toThrow('as a test');
 
                 const sent: number = recordingTransmitter.transmissions.length;
@@ -905,9 +1093,16 @@ export function describeEBilanz(dataSourceName: string): void {
                     .toStrictEqual([[true, 'secret-pin', 'pfx'], [false, 'secret-pin', 'pfx']]);
                 expect([startedTest.kind, startedTest.status, startedTest.preparationId, startedTest.mayHaveBeenSent])
                     .toStrictEqual([EBilanzFilingKind.TEST_TRANSMISSION, EBilanzTransmissionStatus.TRANSMITTING, preparation.id, true]);
-                expect([test.test, test.status, test.startedBy, test.result?.transmissionId, test.result?.ticket, test.result?.protocol == undefined])
-                    .toStrictEqual([true, EBilanzTransmissionStatus.ACCEPTED, 'ada', startedTest.id, `ticket-${sent + 1}`, false]);
-                expect([real.test, real.status, real.result?.kind]).toStrictEqual([false, EBilanzTransmissionStatus.ACCEPTED, EBilanzFilingKind.TRANSMISSION]);
+                expect([
+                    test.test,
+                    test.status,
+                    test.startedBy,
+                    test.result?.transmissionId,
+                    test.result?.ticket,
+                    test.result?.protocol == undefined
+                ]).toStrictEqual([true, EBilanzTransmissionStatus.ACCEPTED, 'ada', startedTest.id, `ticket-${sent + 1}`, false]);
+                expect([real.test, real.status, real.result?.kind])
+                    .toStrictEqual([false, EBilanzTransmissionStatus.ACCEPTED, EBilanzFilingKind.TRANSMISSION]);
                 expect(state.filings.map(f => [f.kind, f.status])).toStrictEqual([
                     [EBilanzFilingKind.PREPARED, null],
                     [EBilanzFilingKind.TEST_TRANSMISSION, EBilanzTransmissionStatus.TRANSMITTING],
@@ -940,7 +1135,8 @@ export function describeEBilanz(dataSourceName: string): void {
                     await expect(service().transmit(books.fiscalYear.id, { test: true }, 'ada')).rejects.toThrow('being sent');
                     await expect(service().recordManualFiling(books.fiscalYear.id, PROTOCOL, 'ada')).rejects.toThrow('being sent');
                     // a transmission still running is no transmission whose instance stopped
-                    expect((await service().resolveState(books.fiscalYear.id)).transmissions.map(t => t.status)).toStrictEqual([EBilanzTransmissionStatus.TRANSMITTING]);
+                    expect((await service().resolveState(books.fiscalYear.id)).transmissions.map(t => t.status))
+                        .toStrictEqual([EBilanzTransmissionStatus.TRANSMITTING]);
                     release();
 
                     expect((await waitForTransmission(books.fiscalYear.id, started.id)).status).toBe(EBilanzTransmissionStatus.ACCEPTED);
@@ -957,8 +1153,13 @@ export function describeEBilanz(dataSourceName: string): void {
             try {
                 await inTenant(books.tenantId, async () => {
                     // the error of a program the transmitter runs, with what it diagnosed
-                    const runnerError: Error = Object.assign(new Error('myebilanz stopped'), { paragraphs: ['myebilanz stopped', 'The certificate could not be opened.'] });
-                    recordingTransmitter.answer = async () => await Promise.reject(new EBilanzNotSentError('Nothing was sent.', { cause: runnerError }));
+                    const runnerError: Error = Object.assign(
+                        new Error('myebilanz stopped'),
+                        { paragraphs: ['myebilanz stopped', 'The certificate could not be opened.'] }
+                    );
+                    recordingTransmitter.answer = async () => await Promise.reject(
+                        new EBilanzNotSentError('Nothing was sent.', { cause: runnerError })
+                    );
                     const notSent: EBilanzTransmissionSummary = await waitForTransmission(
                         books.fiscalYear.id,
                         (await service().transmit(books.fiscalYear.id, { test: true }, 'ada')).id
@@ -974,7 +1175,11 @@ export function describeEBilanz(dataSourceName: string): void {
                         (await service().transmit(books.fiscalYear.id, { test: true }, 'ada')).id
                     );
                     expect([failed.status, failed.mayHaveBeenSent, failed.result?.error?.paragraphs])
-                        .toStrictEqual([EBilanzTransmissionStatus.FAILED, true, ['myebilanz stopped', 'The certificate could not be opened.']]);
+                        .toStrictEqual([
+                            EBilanzTransmissionStatus.FAILED,
+                            true,
+                            ['myebilanz stopped', 'The certificate could not be opened.']
+                        ]);
                     // it may have been sent, so it is not sent again until a person settles it
                     await expect(service().transmit(books.fiscalYear.id, { test: true }, 'ada')).rejects.toThrow('not known');
 
@@ -997,7 +1202,8 @@ export function describeEBilanz(dataSourceName: string): void {
             await inTenant(books.tenantId, async () => {
                 const preparation: EBilanzFiling = books.preparation;
                 // what an instance that stopped while sending leaves: the start, and no lease
-                const started: EBilanzFiling = await inject<Repository<EBilanzFiling, EBilanzFilingCreateData>>(repositoryTokenFor(EBilanzFiling)).create({
+                const filings: Repository<EBilanzFiling, EBilanzFilingCreateData> = inject(repositoryTokenFor(EBilanzFiling));
+                const started: EBilanzFiling = await filings.create({
                     fiscalYearId: books.fiscalYear.id,
                     end: books.fiscalYear.end,
                     kind: EBilanzFilingKind.TRANSMISSION,
@@ -1031,7 +1237,8 @@ export function describeEBilanz(dataSourceName: string): void {
                 expect(state.transmissions.map(t => [t.id, t.status, t.mayHaveBeenSent, t.result?.error?.name]))
                     .toStrictEqual([[started.id, EBilanzTransmissionStatus.UNKNOWN, true, 'EBilanzTransmissionStoppedError']]);
                 // concluded once
-                expect((await service().resolveState(books.fiscalYear.id)).filings.filter(f => f.transmissionId === started.id)).toHaveLength(1);
+                expect((await service().resolveState(books.fiscalYear.id)).filings.filter(f => f.transmissionId === started.id))
+                    .toHaveLength(1);
                 await expect(service().transmit(books.fiscalYear.id, { test: false }, 'ada')).rejects.toThrow('not known');
                 expect(recordingTransmitter.transmissions.length).toBe(sent);
 
@@ -1046,14 +1253,17 @@ export function describeEBilanz(dataSourceName: string): void {
             const books: EBilanzCaseBooks = await createBooks();
             await inTenant(books.tenantId, async () => {
                 await service().prepare(books.fiscalYear.id, UNIFIED, 'ada');
-                await service().updateAccountMapping({ accountId: books.accounts.rent.id, position: 'is.netIncome.regular.operatingTC.otherCost.leaseFix.misc' });
+                await service().updateAccountMapping({
+                    accountId: books.accounts.rent.id,
+                    position: 'is.netIncome.regular.operatingTC.otherCost.leaseFix.misc'
+                });
 
                 expect((await service().resolveState(books.fiscalYear.id)).preparationCurrent).toBe(false);
-                await expect(service().recordManualFiling(books.fiscalYear.id, { name: 'p.pdf', mimeType: MimeType.PDF, data: Buffer.from('p') }, 'ada'))
+                await expect(service().recordManualFiling(books.fiscalYear.id, PROTOCOL, 'ada'))
                     .rejects.toThrow('prepared again');
 
                 await service().prepare(books.fiscalYear.id, UNIFIED, 'ada');
-                const filing: EBilanzFiling = await service().recordManualFiling(books.fiscalYear.id, { name: 'p.pdf', mimeType: MimeType.PDF, data: Buffer.from('p') }, 'ada');
+                const filing: EBilanzFiling = await service().recordManualFiling(books.fiscalYear.id, PROTOCOL, 'ada');
 
                 expect([filing.kind, filing.createdBy]).toStrictEqual([EBilanzFilingKind.MANUAL_FILING, 'ada']);
                 expect((await service().resolveState(books.fiscalYear.id)).filed).toBe(true);
@@ -1089,22 +1299,29 @@ export function describeEBilanz(dataSourceName: string): void {
                 const after: EBilanzFiling = await service().prepare(books.fiscalYear.id, UNIFIED, 'ada');
                 const corrected: EBilanzPreparation = { content: after.content ?? before.content, findings: [] };
                 expect([amountOf(before, 'is.netIncome'), amountOf(corrected, 'is.netIncome')]).toStrictEqual(['8800.00', '9000.00']);
-                expect([amountOf(before, 'bs.eqLiab.equity.netIncome'), amountOf(corrected, 'bs.eqLiab.equity.netIncome')]).toStrictEqual(['8800.00', '9000.00']);
+                expect([amountOf(before, 'bs.eqLiab.equity.netIncome'), amountOf(corrected, 'bs.eqLiab.equity.netIncome')])
+                    .toStrictEqual(['8800.00', '9000.00']);
                 expect(after.contentHash).not.toBe(books.preparation.contentHash);
                 // the record of the first preparation stays as it was archived
-                expect((await service().resolveState(books.fiscalYear.id)).filings.map(f => f.id)).toStrictEqual([books.preparation.id, after.id]);
+                expect((await service().resolveState(books.fiscalYear.id)).filings.map(f => f.id))
+                    .toStrictEqual([books.preparation.id, after.id]);
             });
         });
 
-        it('refuses to reopen a fiscal year whose E-Bilanz is filed unless for a correction, and one whose transmission is not settled', async () => {
+        it('refuses to reopen a fiscal year whose E-Bilanz is filed unless for a correction, '
+            + 'and one whose transmission is not settled', async () => {
             const filed: EBilanzTransmittableBooks = await createTransmittableBooks();
             await inTenant(filed.tenantId, async () => {
                 await expect(journal().reopenFiscalYear(filed.fiscalYear.id, { reason: 'Correction', forCorrection: true }))
                     .rejects.toThrow('nothing to correct');
                 await service().recordManualFiling(filed.fiscalYear.id, PROTOCOL, 'ada');
 
-                await expect(journal().reopenFiscalYear(filed.fiscalYear.id, { reason: 'Correction' })).rejects.toThrow('only to correct it, with forCorrection');
-                expect((await journal().reopenFiscalYear(filed.fiscalYear.id, { reason: 'Correction', forCorrection: true })).fiscalYear.reopenings).toBe(1);
+                await expect(journal().reopenFiscalYear(filed.fiscalYear.id, { reason: 'Correction' }))
+                    .rejects.toThrow('only to correct it, with forCorrection');
+                expect((await journal().reopenFiscalYear(
+                    filed.fiscalYear.id,
+                    { reason: 'Correction', forCorrection: true }
+                )).fiscalYear.reopenings).toBe(1);
             });
 
             const running: EBilanzTransmittableBooks = await createTransmittableBooks();
@@ -1123,10 +1340,12 @@ export function describeEBilanz(dataSourceName: string): void {
                     release();
                     // failed, and may have been sent
                     expect((await waitForTransmission(running.fiscalYear.id, started.id)).status).toBe(EBilanzTransmissionStatus.FAILED);
-                    await expect(journal().reopenFiscalYear(running.fiscalYear.id, { reason: 'Correction' })).rejects.toThrow('Settle it before');
+                    await expect(journal().reopenFiscalYear(running.fiscalYear.id, { reason: 'Correction' }))
+                        .rejects.toThrow('Settle it before');
 
                     await service().recordNotReceived(running.fiscalYear.id, 'ada');
-                    expect((await journal().reopenFiscalYear(running.fiscalYear.id, { reason: 'Correction' })).fiscalYear.closedAt).toBeNull();
+                    expect((await journal().reopenFiscalYear(running.fiscalYear.id, { reason: 'Correction' })).fiscalYear.closedAt)
+                        .toBeNull();
                 });
             }
             finally {
@@ -1134,10 +1353,11 @@ export function describeEBilanz(dataSourceName: string): void {
             }
         });
 
-        it('prepares a correction of an accepted E-Bilanz with the status it is given, naming the filing it corrects, and sends it as a test first', async () => {
+        it('prepares a correction of an accepted E-Bilanz with the status it is given, naming the filing it corrects, '
+            + 'and sends it as a test first', async () => {
             const books: EBilanzTransmittableBooks = await createTransmittableBooks();
             await inTenant(books.tenantId, async () => {
-                const send = async (test: boolean): Promise<EBilanzTransmissionSummary> => await waitForTransmission(
+                const send: (test: boolean) => Promise<EBilanzTransmissionSummary> = async test => await waitForTransmission(
                     books.fiscalYear.id,
                     (await service().transmit(books.fiscalYear.id, { test }, 'ada')).id
                 );
@@ -1152,11 +1372,20 @@ export function describeEBilanz(dataSourceName: string): void {
                 await expect(service().prepare(books.fiscalYear.id, UNIFIED, 'ada')).rejects.toThrow('needs its revisionStatus');
                 await expect(service().prepare(books.fiscalYear.id, { ...UNIFIED, revisionStatus: EBilanzRevisionStatus.ORIGINAL }, 'ada'))
                     .rejects.toThrow('needs its revisionStatus');
-                await service().updateAccountMapping({ accountId: books.accounts.rent.id, position: 'is.netIncome.regular.operatingTC.otherCost.leaseFix.misc' });
-                const corrected: EBilanzFiling = await service().prepare(books.fiscalYear.id, { ...UNIFIED, revisionStatus: EBilanzRevisionStatus.CORRECTED }, 'ada');
+                await service().updateAccountMapping({
+                    accountId: books.accounts.rent.id,
+                    position: 'is.netIncome.regular.operatingTC.otherCost.leaseFix.misc'
+                });
+                const corrected: EBilanzFiling = await service().prepare(
+                    books.fiscalYear.id,
+                    { ...UNIFIED, revisionStatus: EBilanzRevisionStatus.CORRECTED },
+                    'ada'
+                );
 
-                expect([corrected.correctsFilingId, corrected.input?.revisionStatus]).toStrictEqual([original.result?.id, EBilanzRevisionStatus.CORRECTED]);
-                expect(corrected.content?.fields.find(f => f.name === 'genInfo.report.id.revisionStatus')?.value).toBe(EBilanzRevisionStatus.CORRECTED);
+                expect([corrected.correctsFilingId, corrected.input?.revisionStatus])
+                    .toStrictEqual([original.result?.id, EBilanzRevisionStatus.CORRECTED]);
+                expect(corrected.content?.fields.find(f => f.name === 'genInfo.report.id.revisionStatus')?.value)
+                    .toBe(EBilanzRevisionStatus.CORRECTED);
                 expect(books.preparation.correctsFilingId).toBeNull();
                 // its content was not sent as a test yet, and once filed it is not sent again
                 await expect(service().transmit(books.fiscalYear.id, { test: false }, 'ada')).rejects.toThrow('as a test');
@@ -1172,15 +1401,19 @@ export function describeEBilanz(dataSourceName: string): void {
             const books: EBilanzCaseBooks = await createBooks();
 
             expect(await inTenant(open.tenantId, async () => await journal().resolveObligations(open.fiscalYear.id))).toStrictEqual([]);
-            const before: BookkeepingObligation[] = await inTenant(books.tenantId, async () => await journal().resolveObligations(books.fiscalYear.id));
+            const before: BookkeepingObligation[] = await inTenant(
+                books.tenantId,
+                async () => await journal().resolveObligations(books.fiscalYear.id)
+            );
             // 2027-07-31 is a Saturday, § 108 (3) AO
-            expect(before.map(o => [o.conformance, o.dueOn.toISOString(), o.fulfilledAt])).toStrictEqual([['e-bilanz', '2027-08-02T00:00:00.000Z', null]]);
+            expect(before.map(o => [o.conformance, o.dueOn.toISOString(), o.fulfilledAt]))
+                .toStrictEqual([['e-bilanz', '2027-08-02T00:00:00.000Z', null]]);
 
             const after: BookkeepingObligation[] = await inTenant(books.tenantId, async () => {
                 const company: GermanBookkeepingCompany = { ...COMPANY, taxAdvisor: true };
                 await journal().updateSettings({ company });
                 await service().prepare(books.fiscalYear.id, UNIFIED, 'ada');
-                await service().recordManualFiling(books.fiscalYear.id, { name: 'p.pdf', mimeType: MimeType.PDF, data: Buffer.from('p') }, 'ada');
+                await service().recordManualFiling(books.fiscalYear.id, PROTOCOL, 'ada');
                 return await journal().resolveObligations(books.fiscalYear.id);
             });
             expect(after.map(o => [o.dueOn.toISOString(), o.fulfilledAt != undefined])).toStrictEqual([['2028-02-29T00:00:00.000Z', true]]);

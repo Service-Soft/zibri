@@ -10,7 +10,7 @@ import { BackupComparisonUtilities, ComparedMeasurement } from './backup-compari
  */
 function measured(
     series: string,
-    figures: Partial<Pick<ComparedMeasurement, 'backupMs' | 'restoreMs' | 'storedBytes' | 'comparedWith' | 'dataBytes'>> = {}
+    figures: Partial<Pick<ComparedMeasurement, 'name' | 'backupMs' | 'restoreMs' | 'storedBytes' | 'comparedWith' | 'dataBytes'>> = {}
 ): ComparedMeasurement {
     return {
         name: `10 MB ${series}`,
@@ -113,6 +113,51 @@ describe('BackupComparisonUtilities', () => {
 
         const missing: string = '10 MB of postgres: nothing of "of postgres, dump compressed" was measured at its size';
         expect(await BackupComparisonUtilities.findConfirmedViolations([alone, reference], again.measure)).toStrictEqual([missing]);
+        expect(again.asked).toStrictEqual([]);
+    });
+});
+
+/**
+ * A measurement of a series of the fs transport, as the growth with more data reads one.
+ * @param megabytes - How much data it starts with.
+ * @param backupMs - How long a backup of it took.
+ * @returns The measurement.
+ */
+function sized(megabytes: number, backupMs: number): ComparedMeasurement {
+    return measured('through fs', { name: `${megabytes} MB`, dataBytes: megabytes * 1_000_000, backupMs });
+}
+
+// two of the three backups of 100 MB waited for a disk somebody else kept busy, 16 seconds of their puts against 2
+// the third time: the median came out 19 times that of 10 MB, for 10 times the data, and failed the suite
+describe('BackupComparisonUtilities, of the growth with more data', () => {
+    it('measures nothing again when every size takes at most half again as much longer as it has more data', async () => {
+        const again: ReturnType<typeof measuringAgain> = measuringAgain([]);
+
+        expect(await BackupComparisonUtilities.findConfirmedNonLinearGrowth([sized(10, 250), sized(100, 3700)], again.measure)).toStrictEqual([]);
+        expect(again.asked).toStrictEqual([]);
+    });
+
+    it('measures the size and the smallest again, one right after the other, and lets through what grows linearly then', async () => {
+        const again: ReturnType<typeof measuringAgain> = measuringAgain([sized(100, 1356), sized(10, 250)]);
+
+        expect(await BackupComparisonUtilities.findConfirmedNonLinearGrowth([sized(10, 249), sized(100, 4755)], again.measure)).toStrictEqual([]);
+        expect(again.asked).toStrictEqual(['100 MB', '10 MB']);
+    });
+
+    it('fails on what grows faster than its data both times, and says how much each time', async () => {
+        const again: ReturnType<typeof measuringAgain> = measuringAgain([sized(100, 4000), sized(10, 200)]);
+
+        expect(await BackupComparisonUtilities.findConfirmedNonLinearGrowth([sized(10, 250), sized(100, 4755)], again.measure)).toStrictEqual(['100 MB: 20.0x as long as 10 MB, for 10.0x the data, at most 15.0x, and 19.0x when measured before']);
+    });
+
+    it('compares each size with the smallest of its own series alone', async () => {
+        const again: ReturnType<typeof measuringAgain> = measuringAgain([]);
+        const s3: ComparedMeasurement[] = [
+            measured('through s3', { name: '10 MB through s3', backupMs: 1000 }),
+            measured('through s3', { name: '100 MB through s3', dataBytes: 100_000_000, backupMs: 10_000 })
+        ];
+
+        expect(await BackupComparisonUtilities.findConfirmedNonLinearGrowth([sized(10, 250), ...s3, sized(100, 2500)], again.measure)).toStrictEqual([]);
         expect(again.asked).toStrictEqual([]);
     });
 });

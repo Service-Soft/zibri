@@ -1,5 +1,5 @@
-import { OmitClass } from '../../../entity/omit-class.model';
 import { Property } from '../../../entity/decorators/property.decorator';
+import { OmitClass } from '../../../entity/omit-class.model';
 import { ProjectCallerAccess } from './project-caller-access.model';
 import { Project } from './project.model';
 

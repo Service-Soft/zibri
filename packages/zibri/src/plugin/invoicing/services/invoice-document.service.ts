@@ -18,9 +18,9 @@ import { NotFoundError } from '../../../error-handling/errors/not-found.error';
 import { InternalError } from '../../../error-handling/internal-error.model';
 import { type FileRecord } from '../../../file/file-record.model';
 import { MimeType } from '../../../http/mime-type.enum';
-import { $ts } from '../../../localization/translate.function';
 import { type LocaleCode } from '../../../localization/models/locale-code.model';
 import { type Timezone } from '../../../localization/models/timezone.model';
+import { $ts } from '../../../localization/translate.function';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../invoicing.tokens';
 import { type CompanyInfo } from '../models/company-info.model';
 import { type InvoiceArchiveOptions } from '../models/invoice-archive-options.model';
@@ -60,7 +60,10 @@ export class InvoiceDocumentService implements InvoiceDocumentServiceInterface {
         TransactionUtilities.validateNotSpanning(transaction, 'The documents of an issued invoice are archived, which is chained');
         // one after the other, as the writes of one transaction run over one connection
         for (const invoice of invoices) {
-            await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(invoice.tenantId, async () => await this.archive(invoice, archive, transaction));
+            await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+                invoice.tenantId,
+                async () => await this.archive(invoice, archive, transaction)
+            );
         }
     }
 
@@ -78,7 +81,11 @@ export class InvoiceDocumentService implements InvoiceDocumentServiceInterface {
         // in pages of ids, one after the other
         for (let start: number = 0; start < documents.length; start += IDS_PER_READ) {
             const page: string[] = documents.slice(start, start + IDS_PER_READ).map(d => d.invoiceId);
-            for (const invoice of await invoices.findAll({ where: { id: { oneOf: page } }, select: { id: true, issuedAt: true }, limit: 'all' })) {
+            for (const invoice of await invoices.findAll({
+                where: { id: { oneOf: page } },
+                select: { id: true, issuedAt: true },
+                limit: 'all'
+            })) {
                 issued.set(invoice.id, invoice.issuedAt != undefined);
             }
         }
@@ -87,25 +94,26 @@ export class InvoiceDocumentService implements InvoiceDocumentServiceInterface {
             if (isIssued === true) {
                 return [];
             }
-            return [{
-                entity: InvoiceDocument.name,
-                id: document.id,
-                sourceEntity: Invoice.name,
-                sourceId: document.invoiceId,
-                reason: isIssued == undefined ? KeptRowDivergenceReason.SOURCE_MISSING : KeptRowDivergenceReason.SOURCE_DRAFT,
-                message: isIssued == undefined
-                    ? `The documents archived of the invoice ${document.number} are kept, and the invoice is gone.`
-                    : `The documents archived of the invoice ${document.number} are kept, and the invoice is a draft again.`
-            }];
+            return [
+                {
+                    entity: InvoiceDocument.name,
+                    id: document.id,
+                    sourceEntity: Invoice.name,
+                    sourceId: document.invoiceId,
+                    reason: isIssued == undefined ? KeptRowDivergenceReason.SOURCE_MISSING : KeptRowDivergenceReason.SOURCE_DRAFT,
+                    message: isIssued == undefined
+                        ? `The documents archived of the invoice ${document.number} are kept, and the invoice is gone.`
+                        : `The documents archived of the invoice ${document.number} are kept, and the invoice is a draft again.`
+                }
+            ];
         });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
     async findDocument(invoiceId: string): Promise<InvoiceDocument | undefined> {
-        if (this.options.archive == undefined) {
-            return undefined;
-        }
-        return await this.documentRepository.findOne({ where: { invoiceId }, required: false });
+        return this.options.archive == undefined
+            ? undefined
+            : await this.documentRepository.findOne({ where: { invoiceId }, required: false });
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -117,11 +125,10 @@ export class InvoiceDocumentService implements InvoiceDocumentServiceInterface {
         pageSize: PdfPageSize | undefined
     ): Promise<Readable> {
         const archived: InvoiceDocument | undefined = invoice.issuedAt == undefined ? undefined : await this.findDocument(invoice.id);
-        if (archived != undefined) {
-            // read through the archive, which falls back to a copy when the bytes do not match
-            return await inject(ZIBRI_DI_TOKENS.ARCHIVE_SERVICE).readFile(archived, archived.pdf);
-        }
-        return await this.renderPdf(invoice, locale, timezone, conformance, pageSize);
+        // an archived one read through the archive, which falls back to a copy when the bytes do not match
+        return archived == undefined
+            ? await this.renderPdf(invoice, locale, timezone, conformance, pageSize)
+            : await inject(ZIBRI_DI_TOKENS.ARCHIVE_SERVICE).readFile(archived, archived.pdf);
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
@@ -146,7 +153,11 @@ export class InvoiceDocumentService implements InvoiceDocumentServiceInterface {
      * @param archive - How it is archived.
      * @param transaction - The transaction of the write issuing it, which is not spanning.
      */
-    protected async archive(invoice: Invoice, archive: InvoiceArchiveOptions, transaction: RepositoryTransaction<InvoiceDocument>): Promise<void> {
+    protected async archive(
+        invoice: Invoice,
+        archive: InvoiceArchiveOptions,
+        transaction: RepositoryTransaction<InvoiceDocument>
+    ): Promise<void> {
         // archived at its first issue already, such as an invoice a restore of the tenant brought back as a draft and
         // that is issued again: those documents are the ones it was sent with, and stay
         if (await this.documentRepository.exists({ where: { invoiceId: invoice.id }, transaction })) {
@@ -154,10 +165,13 @@ export class InvoiceDocumentService implements InvoiceDocumentServiceInterface {
         }
         const issuedAt: Date = invoice.issuedAt ?? new Date();
         // the zone of the company issuing it, so the documents state the same days to everyone who reads them
-        const company: CompanyInfo = await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE).resolveCompanyInfo(invoice.tenantId);
+        const company: CompanyInfo = await inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.COMPANY_INFO_SERVICE)
+            .resolveCompanyInfo(invoice.tenantId);
         const conformance: InvoiceConformance | undefined = archive.resolveConformance(invoice);
         const pdf: Buffer = await buffer(await this.renderPdf(invoice, archive.locale, company.timezone, conformance, undefined));
-        const xml: XmlString | undefined = conformance == undefined ? undefined : await this.resolveXml(invoice, conformance, company.timezone);
+        const xml: XmlString | undefined = conformance == undefined
+            ? undefined
+            : await this.resolveXml(invoice, conformance, company.timezone);
         // the bytes reach the store before the rows: those of a transaction rolled back are left to FileCleanupCronJob,
         // and the rows are rolled back with the invoice
         const store: string = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.DOCUMENT_FILE_STORE);
@@ -202,7 +216,9 @@ export class InvoiceDocumentService implements InvoiceDocumentServiceInterface {
      * @throws An InternalError for a conformance that is not registered.
      */
     protected async resolveXml(invoice: Invoice, conformance: InvoiceConformance, timezone: Timezone): Promise<XmlString | undefined> {
-        const services: InvoiceConformanceServiceInterface<Invoice>[] = inject(ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES);
+        const services: InvoiceConformanceServiceInterface<Invoice>[] = inject<InvoiceConformanceServiceInterface<Invoice>[]>(
+            ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES
+        );
         const service: InvoiceConformanceServiceInterface<Invoice> | undefined = services.find(s => s.name === conformance);
         if (service == undefined) {
             throw new InternalError(`No service of ZIBRI_INVOICING_PLUGIN_DI_TOKENS.INVOICE_CONFORMANCE_SERVICES writes "${conformance}".`);

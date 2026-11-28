@@ -54,7 +54,6 @@ export class NextcloudStorageSession extends WebDavStorageSession {
         super(naming, nextcloud, folder);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     protected override async prepareWrite(): Promise<void> {
         const shares: NextcloudShare[] = await this.findSharesCreatingFolder();
         await Promise.all(shares.map(async share => await this.validateShare(share)));
@@ -62,7 +61,8 @@ export class NextcloudStorageSession extends WebDavStorageSession {
             ...this.readers.users.map((user): Reader => ({ type: 'user', shareWith: user })),
             ...this.readers.groups.map((group): Reader => ({ type: 'group', shareWith: group }))
         ];
-        const missing: Reader[] = wanted.filter(reader => !shares.some(share => share.type === reader.type && share.shareWith === reader.shareWith));
+        const missing: Reader[] = wanted
+            .filter(reader => !shares.some(share => share.type === reader.type && share.shareWith === reader.shareWith));
         await Promise.all(missing.map(async reader => await this.createShare(reader)));
     }
 
@@ -77,15 +77,19 @@ export class NextcloudStorageSession extends WebDavStorageSession {
         catch (error) {
             // a session of another resource that shared it in the meantime, which Nextcloud refuses a second share for
             const shares: NextcloudShare[] = await this.nextcloud.findShares(this.folder);
-            if (shares.some(share => share.type === reader.type && share.shareWith === reader.shareWith && share.permissions === READ_PERMISSION)) {
+            const sharedMeanwhile: boolean = shares.some(
+                share => share.type === reader.type && share.shareWith === reader.shareWith && share.permissions === READ_PERMISSION
+            );
+            if (sharedMeanwhile) {
                 return;
             }
             throw error;
         }
-        this.logger.info(`Shared the folder "${this.folder}" of the ${this.naming.subject} with the ${reader.type} "${reader.shareWith}", to read.`);
+        this.logger.info(
+            `Shared the folder "${this.folder}" of the ${this.naming.subject} with the ${reader.type} "${reader.shareWith}", to read.`
+        );
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     protected override async handleDeleted(paths: string[]): Promise<void> {
         const deleted: Set<string> = new Set(paths);
         try {
@@ -93,7 +97,11 @@ export class NextcloudStorageSession extends WebDavStorageSession {
             // is theirs to bring back
             const trashed: NextcloudTrashBinEntry[] = (await this.nextcloud.findTrashBinEntries(this.folder))
                 .filter(entry => deleted.has(entry.originalPath));
-            await PromiseUtilities.allChunked(trashed, async entry => await this.nextcloud.deleteTrashBinEntry(entry), { chunkSize: DELETIONS_AT_ONCE });
+            await PromiseUtilities.allChunked(
+                trashed,
+                async entry => await this.nextcloud.deleteTrashBinEntry(entry),
+                { chunkSize: DELETIONS_AT_ONCE }
+            );
         }
         catch (error) {
             // the keys are deleted all the same, and Nextcloud expires what its trash bin keeps by its own rules. A
@@ -136,7 +144,8 @@ export class NextcloudStorageSession extends WebDavStorageSession {
                 // devices, and a share to read lets nobody change one
                 if (share.shareWith == undefined || !readers.includes(share.shareWith)) {
                     this.logger.warn(
-                        `The folder "${this.folder}" of the ${this.naming.subject} is shared with the ${share.type} "${share.shareWith ?? ''}", `
+                        `The folder "${this.folder}" of the ${this.naming.subject}`
+                        + ` is shared with the ${share.type} "${share.shareWith ?? ''}", `
                         + 'which its options do not name. The share is left as it is.'
                     );
                 }
@@ -145,7 +154,8 @@ export class NextcloudStorageSession extends WebDavStorageSession {
                 }
                 await this.nextcloud.updateShare(share.id, { permissions: READ_PERMISSION });
                 this.logger.error(new InternalError(
-                    `The folder "${this.folder}" of the ${this.naming.subject} was shared with the ${share.type} "${share.shareWith ?? ''}" `
+                    `The folder "${this.folder}" of the ${this.naming.subject}`
+                    + ` was shared with the ${share.type} "${share.shareWith ?? ''}" `
                     + `with the permissions ${share.permissions}, which allow more than reading. The share ${share.id} is read-only again.`
                 ));
                 return;
@@ -156,7 +166,8 @@ export class NextcloudStorageSession extends WebDavStorageSession {
                 // nothing ever asked for a share reaching anyone else, and a backup has no place in public
                 await this.nextcloud.deleteShare(share.id);
                 this.logger.error(new InternalError(
-                    `The folder "${this.folder}" of the ${this.naming.subject} was shared ${share.type === 'link' ? 'by a link' : 'beyond the users and groups of the Nextcloud'}. `
+                    `The folder "${this.folder}" of the ${this.naming.subject} was shared `
+                    + `${share.type === 'link' ? 'by a link' : 'beyond the users and groups of the Nextcloud'}. `
                     + `The share ${share.id} is deleted.`
                 ));
             }

@@ -33,7 +33,6 @@ export class TenantWebDavConnectionController implements OnAppInit {
         return inject(ZIBRI_DI_TOKENS.TENANT_WEB_DAV_CONNECTION_SERVICE);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         validateEntitiesRegistered(TenantWebDavConnectionController.name, app, TenantWebDavConnection);
     }

@@ -142,8 +142,8 @@ export class TaskCalendarSyncService implements TaskCalendarSyncServiceInterface
                 allDay: true
             }, target);
         }
-        const stale: CalendarEntryLink[] = links.filter(link => target == undefined
-            || link.connectionId !== target.connection.id
+        // every link without a target, as no connection id is undefined
+        const stale: CalendarEntryLink[] = links.filter(link => link.connectionId !== target?.connection.id
             || link.calendarPath !== target.calendarPath);
         for (const link of stale) {
             await this.removeLink(source, link);
@@ -158,7 +158,9 @@ export class TaskCalendarSyncService implements TaskCalendarSyncServiceInterface
     private get calendarSyncOptions(): ProjectsCalendarSyncOptions {
         const options: ProjectsCalendarSyncOptions | undefined = this.options.calendarSync;
         if (options == undefined) {
-            throw new InternalError('A task is synced into a calendar with the calendarSync of the options of the projects plugin, and there is none.');
+            throw new InternalError(
+                'A task is synced into a calendar with the calendarSync of the options of the projects plugin, and there is none.'
+            );
         }
         return options;
     }
@@ -317,9 +319,15 @@ export class TaskCalendarSyncService implements TaskCalendarSyncServiceInterface
         if (calendar.calendarSync == undefined) {
             return undefined;
         }
-        const connection: TenantWebDavConnection | undefined = await this.connectionRepository.findById(calendar.calendarSync.connectionId, { required: false });
+        const connection: TenantWebDavConnection | undefined = await this.connectionRepository.findById(
+            calendar.calendarSync.connectionId,
+            { required: false }
+        );
         if (connection == undefined) {
-            this.logger.warn(`The calendar of project ${projectId} names the WebDAV connection ${calendar.calendarSync.connectionId}, which does not exist, so its tasks are synced into none`);
+            this.logger.warn(
+                `The calendar of project ${projectId} names the WebDAV connection ${calendar.calendarSync.connectionId}, `
+                + 'which does not exist, so its tasks are synced into none'
+            );
             return undefined;
         }
         return { connection, calendarPath: calendar.calendarSync.calendarPath };
@@ -331,7 +339,10 @@ export class TaskCalendarSyncService implements TaskCalendarSyncServiceInterface
      * @param link - Its link to the event.
      */
     private async removeLink(source: CalendarEntrySource, link: CalendarEntryLink): Promise<void> {
-        const connection: TenantWebDavConnection | undefined = await this.connectionRepository.findById(link.connectionId, { required: false });
+        const connection: TenantWebDavConnection | undefined = await this.connectionRepository.findById(
+            link.connectionId,
+            { required: false }
+        );
         if (connection == undefined) {
             // the tenant deleted the connection, and with it the way to the event
             await this.linkRepository.deleteById(link.id);

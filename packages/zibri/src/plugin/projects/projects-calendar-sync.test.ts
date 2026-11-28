@@ -6,10 +6,12 @@ import { describeProjectsCalendarSync, projectsCalendarSyncTestEntities } from '
 
 describeProjectsCalendarSync(
     'the in memory data source',
-    [createInMemoryDataSource({
-        entities: [...defaultTestServerEntities, ...projectsCalendarSyncTestEntities],
-        repositories: defaultTestServerRepositories
-    })],
+    [
+        createInMemoryDataSource({
+            entities: [...defaultTestServerEntities, ...projectsCalendarSyncTestEntities],
+            repositories: defaultTestServerRepositories
+        })
+    ],
     TestTimeouts.inMemory.start,
     TestTimeouts.inMemory.shutdown
 );

@@ -16,11 +16,25 @@ import { PdfFontFamily, PdfFontFile } from './pdf-font-options.model';
 export type PdfmakeFontDescriptors = Record<string, Record<'normal' | 'bold' | 'italics' | 'bolditalics', PdfFontFile>>;
 
 /**
- * What fontkit is used for: reading which characters a font can draw.
+ * A font as fontkit reads it, which the pdfkit of pdfmake 0.3 sets text in as it is.
+ */
+type Pdfmake03Font = {
+    // eslint-disable-next-line jsdoc/require-jsdoc
+    layout: (text: string) => unknown
+};
+
+/**
+ * The font descriptors a printer of pdfmake 0.3 is built with, each font read once.
+ */
+type Pdfmake03FontDescriptors = Record<string, Record<'normal' | 'bold' | 'italics' | 'bolditalics', Pdfmake03Font>>;
+
+/**
+ * What fontkit is used for: reading which characters a font can draw, and reading a font once for every document
+ * pdfmake 0.3 sets in it.
  */
 export type PdfmakeFontkit = {
     // eslint-disable-next-line jsdoc/require-jsdoc
-    create: (buffer: Buffer) => Partial<PdfGlyphCoverage>
+    create: (buffer: Buffer) => Partial<PdfGlyphCoverage & Pdfmake03Font>
 };
 
 /**
@@ -89,7 +103,7 @@ type Pdfmake03Printer = {
 type Pdfmake03 = {
     // eslint-disable-next-line jsdoc/require-jsdoc
     Printer: new (
-        fonts: PdfmakeFontDescriptors,
+        fonts: Pdfmake03FontDescriptors,
         files: Pdfmake03Files,
         urls: Pdfmake03UrlResolver,
         allowFile: (file: string) => boolean,
@@ -129,8 +143,8 @@ export abstract class PdfmakeUtilities {
     /**
      * The package pdfmake is loaded from.
      */
-    // the tests set it to `pdfmake-0.3`, the 0.3 installed beside 0.2 under a name of its own, so that the same
-    // suites run on both. Nothing else sets it
+    // the tests set it to `pdfmake-0.3`, the 0.3 installed beside 0.2 under a name of its own, and to `pdfmake` for
+    // the suites that run on both. Nothing else sets it
     static packageName: string = 'pdfmake';
 
     /**
@@ -153,14 +167,34 @@ export abstract class PdfmakeUtilities {
             case '0.3': {
                 const modules: Pdfmake03 = this.resolveModulesOf03();
                 // read here, so that what the access options allow is about what a definition names alone: the
-                // fonts are the application's, and pdfmake would refuse a path to one outside the allowed folders
-                const fonts: PdfmakeFontDescriptors = {};
+                // fonts are the application's, and pdfmake would refuse a path to one outside the allowed folders.
+                // And read by fontkit here, once for every document: handed the file, pdfkit reads it again for each
+                // one, which is most of what a short document costs. A document embeds a subset of its own and
+                // leaves the font it read the glyphs from as it was
+                const fontkit: PdfmakeFontkit = this.resolveFontkit();
+                const read: Map<PdfFontFile, Pdfmake03Font> = new Map();
+                const readOnce: (name: string, file: PdfFontFile) => Pdfmake03Font = (name, file) => {
+                    const existing: Pdfmake03Font | undefined = read.get(file);
+                    if (existing != undefined) {
+                        return existing;
+                    }
+                    const font: Partial<PdfGlyphCoverage & Pdfmake03Font> = fontkit.create(this.readFont(file));
+                    if (!this.isPdfmake03Font(font)) {
+                        throw new InternalError(
+                            `The pdf font family "${name}" is a collection of fonts.`
+                            + ' Give it the file of one font, such as an .otf or .ttf file.'
+                        );
+                    }
+                    read.set(file, font);
+                    return font;
+                };
+                const fonts: Pdfmake03FontDescriptors = {};
                 for (const [name, family] of Object.entries(descriptors)) {
                     fonts[name] = {
-                        normal: this.readFont(family.normal),
-                        bold: this.readFont(family.bold),
-                        italics: this.readFont(family.italics),
-                        bolditalics: this.readFont(family.bolditalics)
+                        normal: readOnce(name, family.normal),
+                        bold: readOnce(name, family.bold),
+                        italics: readOnce(name, family.italics),
+                        bolditalics: readOnce(name, family.bolditalics)
                     };
                 }
                 return {
@@ -252,7 +286,7 @@ export abstract class PdfmakeUtilities {
      */
     private static async resolveDocumentOf03(
         modules: Pdfmake03,
-        fonts: PdfmakeFontDescriptors,
+        fonts: Pdfmake03FontDescriptors,
         definition: TDocumentDefinitions,
         options: BufferOptions | undefined,
         access: PdfAccessOptions
@@ -318,6 +352,11 @@ export abstract class PdfmakeUtilities {
      */
     private static readFont(file: PdfFontFile): Buffer {
         return Buffer.isBuffer(file) ? file : readFileSync(file);
+    }
+
+    // a collection of fonts, as fontkit reads a .ttc file, has no layout of its own
+    private static isPdfmake03Font(font: Partial<Pdfmake03Font>): font is Pdfmake03Font {
+        return typeof font.layout === 'function';
     }
 
     /**

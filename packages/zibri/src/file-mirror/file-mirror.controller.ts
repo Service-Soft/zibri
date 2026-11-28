@@ -44,10 +44,16 @@ export class FileMirrorController implements OnAppInit {
         return inject(ZIBRI_DI_TOKENS.FILE_MIRROR_SERVICE);
     }
 
-    // eslint-disable-next-line jsdoc/require-jsdoc
     onAppInit(app: ZibriApplication): void {
         // every route needs them, the share links included: a controller registered is every route registered
-        validateEntitiesRegistered(FileMirrorController.name, app, MirroredFile, FileMirrorRequest, FileMirrorShareLink, TenantWebDavConnection);
+        validateEntitiesRegistered(
+            FileMirrorController.name,
+            app,
+            MirroredFile,
+            FileMirrorRequest,
+            FileMirrorShareLink,
+            TenantWebDavConnection
+        );
     }
 
     @Auth.hasPermission(ZibriFileMirrorPermissions.FILE_MIRROR_READ)
@@ -139,12 +145,14 @@ export class FileMirrorController implements OnAppInit {
             return new BadRequestError($ts`The WebDAV server refused the user of the connection access to the path.`, { cause: error });
         }
         const status: number | undefined = error instanceof HttpClientError ? error.responseData?.status : undefined;
-        if (error instanceof CircuitOpenError || error instanceof HttpClientError && (status == undefined || status >= HttpStatus.INTERNAL_SERVER_ERROR)) {
+        if (
+            error instanceof CircuitOpenError
+            || (error instanceof HttpClientError && (status == undefined || status >= HttpStatus.INTERNAL_SERVER_ERROR))
+        ) {
             return new ServiceUnavailableError($ts`The WebDAV server cannot be reached.`, { cause: error });
         }
-        if (error instanceof HttpClientError) {
-            return new BadRequestError($ts`The WebDAV server refused the request with ${String(status)}.`, { cause: error });
-        }
-        return error;
+        return error instanceof HttpClientError
+            ? new BadRequestError($ts`The WebDAV server refused the request with ${String(status)}.`, { cause: error })
+            : error;
     }
 }

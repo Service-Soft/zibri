@@ -33,5 +33,14 @@ export type EBilanzTaxonomyPosition = {
     /**
      * The positions whose amounts add up to its own, each with `1` or `-1`.
      */
-    readonly sums: readonly { readonly name: string, readonly weight: 1 | -1 }[]
+    readonly sums: readonly {
+        /**
+         * The name of the position added.
+         */
+        readonly name: string,
+        /**
+         * `1` for a position added, `-1` for one subtracted.
+         */
+        readonly weight: 1 | -1
+    }[]
 };

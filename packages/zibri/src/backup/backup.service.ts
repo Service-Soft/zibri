@@ -91,6 +91,8 @@ import { IncompleteBackupError } from './incomplete-backup.error';
 import { IncrementalBackupData } from './incremental-backup-data.model';
 import { IncrementalBackupResourceInterface, isIncrementalBackupResource } from './incremental-backup-resource.interface';
 import { InitBackupServiceError } from './init-backup-service.error';
+import { KEPT_ROW_CHECK_DI_VARIANT, type KeptRowCheckInterface } from './kept-row-check.interface';
+import { type KeptRowDivergence } from './kept-row-divergence.model';
 import { KeptUserRowsUtilities } from './kept-user-rows.utilities';
 import { NotEnoughRestoreSpaceError } from './not-enough-restore-space.error';
 import { BackupChunkUtilities } from './repository/backup-chunk.utilities';
@@ -100,11 +102,9 @@ import { BackupScrubOptions } from './repository/backup-scrub-options.model';
 import { Format2BackupGarbageCollector } from './repository/format-2.backup-garbage-collector';
 import { Format2BackupLayout } from './repository/format-2.backup-layout';
 import { RetrievedBackupResource } from './repository/retrieved-backup-resource.model';
+import { RestoreContextUtilities } from './restore-context.utilities';
 import { RestoreJournalEntry } from './restore-journal-entry.model';
 import { RestoreJournal } from './restore-journal.model';
-import { KEPT_ROW_CHECK_DI_VARIANT, type KeptRowCheckInterface } from './kept-row-check.interface';
-import { type KeptRowDivergence } from './kept-row-divergence.model';
-import { RestoreContextUtilities } from './restore-context.utilities';
 import { RestoreJournalUtilities } from './restore-journal.utilities';
 import { RestoreNotUndoneError } from './restore-not-undone.error';
 import { RestoreOptions } from './restore-options.model';
@@ -2155,7 +2155,9 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
                 res.push(...await check.resolveKeptRowDivergences());
             }
             catch (error) {
-                this.logger.error(new InternalError(`Could not check the rows kept by restoring backup "${backup.name}".`, { cause: error }));
+                this.logger.error(
+                    new InternalError(`Could not check the rows kept by restoring backup "${backup.name}".`, { cause: error })
+                );
             }
         }
         for (const divergence of res) {
@@ -3471,7 +3473,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     private toTenantTransport(transport: TenantBackupTransport): BackupTransportInterface {
         const known: [TenantBackupTransport, BackupTransportInterface] | undefined = this.tenantTransports.get(transport.id);
         // compared rather than dropped where this instance changes a row: another instance may have changed it
-        if (known != undefined && known[0].secret === transport.secret && isDeepStrictEqual(known[0].settings, transport.settings)) {
+        if (known?.[0].secret === transport.secret && isDeepStrictEqual(known[0].settings, transport.settings)) {
             return known[1];
         }
         const created: BackupTransportInterface = new Format1BackupTransport(
@@ -3520,7 +3522,11 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async updateTenantBackupTransport(tenantId: string, id: string, change: TenantBackupTransportChangeData): Promise<TenantBackupTransport> {
+    async updateTenantBackupTransport(
+        tenantId: string,
+        id: string,
+        change: TenantBackupTransportChangeData
+    ): Promise<TenantBackupTransport> {
         this.validateTenantTransportsDeclared();
         const stored: TenantBackupTransport = await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
             tenantId,
@@ -3534,6 +3540,7 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             const backupNames: string[] = await this.findBackupsStoredOnTenantTransport(id);
             if (backupNames.length) {
                 throw new ConflictError(
+                    // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                     $ts`The settings of the transport are kept while backups are stored on it: ${backupNames.join(', ')}. Delete those first.`
                 );
             }
@@ -3542,20 +3549,24 @@ export class BackupService implements BackupServiceInterface, OnAppInit, AfterAp
             const settings: Record<string, unknown> = change.settings ?? stored.settings;
             const secret: Record<string, unknown> = change.secret ?? TenantRowBackupTransport.resolveSecret(stored);
             await this.validateTenantTransport({ name: change.name ?? stored.name, kind: stored.kind, settings, secret });
-            await this.validateTenantTransportWritable({ ...stored, name: change.name ?? stored.name, settings, secret: JsonUtilities.stringify(secret) });
+            await this.validateTenantTransportWritable({
+                ...stored,
+                name: change.name ?? stored.name,
+                settings,
+                secret: JsonUtilities.stringify(secret)
+            });
         }
         const data: Partial<Pick<TenantBackupTransport, 'name' | 'settings' | 'secret'>> = {
             ...change.name === undefined ? {} : { name: change.name },
             ...settingsChanged ? { settings: change.settings } : {},
             ...change.secret === undefined ? {} : { secret: JsonUtilities.stringify(change.secret) }
         };
-        if (!Object.keys(data).length) {
-            return stored;
-        }
-        return await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
-            tenantId,
-            async () => await this.tenantTransportRepository.updateById(id, data)
-        );
+        return !Object.keys(data).length
+            ? stored
+            : await inject(ZIBRI_DI_TOKENS.TENANT_SERVICE).runAs(
+                tenantId,
+                async () => await this.tenantTransportRepository.updateById(id, data)
+            );
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc

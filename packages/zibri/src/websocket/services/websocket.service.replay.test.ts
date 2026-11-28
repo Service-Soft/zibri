@@ -228,7 +228,8 @@ describe('replaying what a reconnecting client missed', () => {
         });
 
         const note: Record<string, unknown> = await noted;
-        const answer: Record<string, unknown> = await socket.emitWithAck('replay:ping', {});
+        // what the server acknowledged with, which socket.io types as any
+        const answer: unknown = await socket.emitWithAck('replay:ping', {});
 
         expect(note).toMatchObject({ ok: true, event: noteEvent });
         expect(note).not.toHaveProperty('seq');

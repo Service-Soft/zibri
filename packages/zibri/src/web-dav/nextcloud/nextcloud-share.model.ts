@@ -14,7 +14,7 @@ export type NextcloudShare = {
     type: NextcloudShareType,
     /**
      * What it lets them do, as Nextcloud's sum of 1 to read, 2 to change, 4 to create, 8 to delete and 16 to share
-     * on: 1 for a share to read.
+     * on: 1 for a share to read, and 17 for a link to read, as Nextcloud lets anyone with a link pass it on.
      */
     permissions: number,
     /**

@@ -1,6 +1,7 @@
 import { BadRequestError } from '../../error-handling/errors/bad-request.error';
-import { getZonedDate, type ZonedDate } from '../../localization/format-date.function';
+import { getZonedDate } from '../../localization/get-zoned-date.function';
 import { type Timezone } from '../../localization/models/timezone.model';
+import { type ZonedDate } from '../../localization/models/zoned-date.model';
 import { $ts } from '../../localization/translate.function';
 import { Ms } from '../../utilities/ms';
 import { type NonWorkingDayRule } from './models/non-working-day-rule.model';
@@ -51,7 +52,7 @@ export abstract class RecurrenceUtilities {
         const step: number = rule === 'previous' ? -Ms.DAY : Ms.DAY;
         // a calendar takes at least one working weekday, so a year of holidays is the most there is to step over
         for (let i: number = 1; i <= 366; i++) {
-            const candidate: Date = new Date(day.getTime() + i * step);
+            const candidate: Date = new Date(day.getTime() + (i * step));
             if (isWorkingDay(candidate)) {
                 return candidate;
             }
@@ -87,7 +88,10 @@ export abstract class RecurrenceUtilities {
         if (recurrence.weekdays != undefined && (recurrence.unit !== 'week' || !recurrence.weekdays.length)) {
             throw new BadRequestError($ts`The weekdays of a recurrence need to be at least one, and go with the unit week.`);
         }
-        if (recurrence.dayOfMonth != undefined && (recurrence.unit === 'day' || recurrence.unit === 'week' || recurrence.dayOfMonth === 0)) {
+        if (
+            recurrence.dayOfMonth != undefined
+            && (recurrence.unit === 'day' || recurrence.unit === 'week' || recurrence.dayOfMonth === 0)
+        ) {
             throw new BadRequestError($ts`The dayOfMonth of a recurrence needs to be 1 to 31 or -1, and goes with the unit month or year.`);
         }
         if (recurrence.month != undefined && recurrence.unit !== 'year') {
@@ -120,12 +124,14 @@ export abstract class RecurrenceUtilities {
         const month: number = startsOn.getUTCMonth();
         switch (recurrence.unit) {
             case 'day': {
-                const day: Date = new Date(startsOn.getTime() + offset * Ms.DAY);
+                const day: Date = new Date(startsOn.getTime() + (offset * Ms.DAY));
                 return day.getTime() > end ? undefined : [day];
             }
             case 'week': {
                 // weeks start on a Monday, as RFC 5545 counts them by default
-                const weekStart: number = startsOn.getTime() - this.resolveDaysSinceMonday(startsOn.getUTCDay()) * Ms.DAY + offset * 7 * Ms.DAY;
+                const weekStart: number = startsOn.getTime()
+                    - (this.resolveDaysSinceMonday(startsOn.getUTCDay()) * Ms.DAY)
+                    + (offset * 7 * Ms.DAY);
                 if (weekStart > end) {
                     return undefined;
                 }
@@ -133,13 +139,12 @@ export abstract class RecurrenceUtilities {
                 return weekdays
                     .map(weekday => this.resolveDaysSinceMonday(weekday))
                     .sort((a, b) => a - b)
-                    .map(days => new Date(weekStart + days * Ms.DAY));
+                    .map(days => new Date(weekStart + (days * Ms.DAY)));
             }
             case 'month': {
-                if (Date.UTC(year, month + offset, 1) > end) {
-                    return undefined;
-                }
-                return [this.resolveDayOfMonth(year, month + offset, recurrence.dayOfMonth ?? startsOn.getUTCDate())];
+                return Date.UTC(year, month + offset, 1) > end
+                    ? undefined
+                    : [this.resolveDayOfMonth(year, month + offset, recurrence.dayOfMonth ?? startsOn.getUTCDate())];
             }
             case 'year': {
                 if (Date.UTC(year + offset, 0, 1) > end) {

@@ -67,6 +67,7 @@ const defaultDescriptionForHttpStatus: Record<HttpStatus | 'default', string> = 
     [HttpStatus.URI_TOO_LONG]: '',
     [HttpStatus.UNSUPPORTED_MEDIA_TYPE]: '',
     [HttpStatus.UNPROCESSABLE_ENTITY]: '',
+    [HttpStatus.LOCKED]: '',
     [HttpStatus.REQUEST_HEADER_FIELDS_TOO_LARGE]: '',
     [HttpStatus.NOT_IMPLEMENTED]: '',
     [HttpStatus.BAD_GATEWAY]: '',

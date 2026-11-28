@@ -3,6 +3,7 @@ import { FileSize } from '../../entity/models/file-property-metadata.model';
 import { InternalError } from '../../error-handling/internal-error.model';
 import { KnownHeader } from '../../http/known-header.enum';
 import { MimeType } from '../../http/mime-type.enum';
+import { HttpClientBufferedBody } from '../../http-client/http-client-buffered-body.model';
 import { HttpClientResponse } from '../../http-client/http-client-response.model';
 import { WebDavMethod } from '../../http-client/web-dav-method.enum';
 import { HtmlUtilities } from '../../parsing/html/html.utilities';
@@ -15,6 +16,7 @@ import { WebDavConnection } from '../web-dav-connection.model';
 import { WebDavEntry } from '../web-dav-entry.model';
 import { WebDavNotFoundError } from '../web-dav-not-found.error';
 import { WebDavProperty } from '../web-dav-property.model';
+import { WebDavPutOptions } from '../web-dav-put-options.model';
 import { WebDavRequestOptions } from '../web-dav-request-options.model';
 import { NewNextcloudShare } from './new-nextcloud-share.model';
 import { NextcloudShareChange } from './nextcloud-share-change.model';
@@ -29,6 +31,11 @@ import { NextcloudOcsShare } from './ocs/nextcloud-ocs-share.model';
  * The segments of the path of the WebDAV root of Nextcloud, below the folder it is installed in.
  */
 const DAV_ROOT_SEGMENTS: [string, string] = ['remote.php', 'dav'];
+
+/**
+ * The header a put names the checksum of what it writes in, which Nextcloud keeps with the file.
+ */
+const CHECKSUM_HEADER: string = 'oc-checksum';
 
 /**
  * The folder of the WebDAV root the files of each user are in, as `files/<user>`.
@@ -119,6 +126,12 @@ export class NextcloudClient extends WebDavClient {
     static readonly FILE_ID_PROPERTY: WebDavProperty = { namespace: 'http://owncloud.org/ns', name: 'fileid' };
 
     /**
+     * The property Nextcloud names the checksums of a file in, as `findEntries` and `findEntry` take it: those the
+     * put that wrote it named, such as `SHA256:<hex>`, separated by spaces, and none once a put naming none wrote it.
+     */
+    static readonly CHECKSUMS_PROPERTY: WebDavProperty = { namespace: 'http://owncloud.org/ns', name: 'checksums', child: 'checksum' };
+
+    /**
      * The url of the WebDAV root, `/remote.php/dav/`, which a search is sent to.
      */
     private readonly davRootUrl: URL;
@@ -148,9 +161,13 @@ export class NextcloudClient extends WebDavClient {
         super(clientOptions);
         const segments: string[] = this.baseUrl.pathname.split('/').filter(segment => segment !== '')
             .map(segment => decodeURIComponent(segment));
-        const root: number = segments.findIndex((segment, index) => segment === DAV_ROOT_SEGMENTS[0] && segments[index + 1] === DAV_ROOT_SEGMENTS[1]);
+        const root: number = segments
+            .findIndex((segment, index) => segment === DAV_ROOT_SEGMENTS[0] && segments[index + 1] === DAV_ROOT_SEGMENTS[1]);
         if (root < 0) {
-            throw new InternalError(`The url of a Nextcloud connection needs to be below /remote.php/dav/ of the server, and is "${clientOptions.connection.url}".`);
+            throw new InternalError(
+                'The url of a Nextcloud connection needs to be below /remote.php/dav/ of the server,'
+                + ` and is "${clientOptions.connection.url}".`
+            );
         }
         // the folder Nextcloud is installed in, such as /nextcloud/, which the OCS api is below as well
         const installation: string = segments.slice(0, root).map(segment => `${encodeURIComponent(segment)}/`)
@@ -177,6 +194,47 @@ export class NextcloudClient extends WebDavClient {
     }
 
     /**
+     * Writes a file, as `put` does, with a checksum Nextcloud keeps with it, read back through `CHECKSUMS_PROPERTY`.
+     * Its ETag stays the same for a change in the second of the write before, which the checksum tells apart: a later
+     * write names its own checksum, or none, which leaves the file without one.
+     * @param path - The path of the file. The folder it is in exists.
+     * @param content - What the file holds.
+     * @param options - Its content type, and the condition it is written under.
+     * @param sha256 - The SHA-256 of the content, in hex.
+     * @returns The ETag of what was written, or undefined when the server names none in its answer.
+     * @throws WebDavPreconditionFailedError when the condition does not hold.
+     * @throws WebDavConflictError when the folder the file is in does not exist.
+     */
+    async putWithChecksum(
+        path: string,
+        content: string | Uint8Array | HttpClientBufferedBody,
+        options: WebDavPutOptions,
+        sha256: string
+    ): Promise<string | undefined> {
+        return await this.putWithHeaders(path, content, options, { [CHECKSUM_HEADER]: NextcloudClient.resolveChecksum(sha256) });
+    }
+
+    /**
+     * Whether the checksums a file holds, as `CHECKSUMS_PROPERTY` reads them, name a SHA-256.
+     * @param checksums - The checksums, undefined for none.
+     * @param sha256 - The SHA-256, in hex.
+     * @returns True when they name it.
+     */
+    static holdsChecksum(checksums: string | undefined, sha256: string): boolean {
+        const expected: string = NextcloudClient.resolveChecksum(sha256).toLowerCase();
+        return (checksums ?? '').split(/\s+/).some(checksum => checksum.toLowerCase() === expected);
+    }
+
+    /**
+     * Resolves the checksum Nextcloud keeps for a SHA-256.
+     * @param sha256 - The SHA-256, in hex.
+     * @returns The checksum, such as `SHA256:<hex>`.
+     */
+    private static resolveChecksum(sha256: string): string {
+        return `SHA256:${sha256}`;
+    }
+
+    /**
      * Finds a file or a folder by the id Nextcloud keeps it under, wherever it was renamed or moved to within the
      * folder of the connection, with a SEARCH (RFC 5323) of the files of its user. A file in the trash bin is not
      * found.
@@ -197,8 +255,10 @@ export class NextcloudClient extends WebDavClient {
         // user as a whole, since a connection to a folder deeper down is below them
         const body: string = '<?xml version="1.0" encoding="utf-8"?>'
             + `<d:searchrequest xmlns:d="DAV:" xmlns:oc="${HtmlUtilities.escape(property.namespace)}"><d:basicsearch>`
-            + `<d:select><d:prop><d:resourcetype/><d:getcontentlength/><d:getetag/><d:getlastmodified/><oc:${property.name}/></d:prop></d:select>`
-            + `<d:from><d:scope><d:href>/${FILES_SEGMENT}/${HtmlUtilities.escape(user)}</d:href><d:depth>infinity</d:depth></d:scope></d:from>`
+            + '<d:select><d:prop><d:resourcetype/><d:getcontentlength/><d:getetag/><d:getlastmodified/>'
+            + `<oc:${property.name}/></d:prop></d:select>`
+            + `<d:from><d:scope><d:href>/${FILES_SEGMENT}/${HtmlUtilities.escape(user)}</d:href>`
+            + '<d:depth>infinity</d:depth></d:scope></d:from>'
             + `<d:where><d:eq><d:prop><oc:${property.name}/></d:prop><d:literal>${fileId}</d:literal></d:eq></d:where>`
             + '<d:orderby/></d:basicsearch></d:searchrequest>';
         const options: WebDavRequestOptions = await this.resolveRequestOptions();
@@ -211,7 +271,12 @@ export class NextcloudClient extends WebDavClient {
                 {
                     ...options,
                     requestBodyType: MimeType.XML,
-                    responseBody: { type: MimeType.XML, modelClass: WebDavMultistatus, allowAdditionalProperties: true, maxSize: MAX_SEARCH_ANSWER_SIZE }
+                    responseBody: {
+                        type: MimeType.XML,
+                        modelClass: WebDavMultistatus,
+                        allowAdditionalProperties: true,
+                        maxSize: MAX_SEARCH_ANSWER_SIZE
+                    }
                 }
             );
             multistatus = response.body;
@@ -221,7 +286,8 @@ export class NextcloudClient extends WebDavClient {
         }
         // a file moved out of the folder of the connection is out of its reach, as anything above it
         const within: WebDavMultistatus = {
-            responses: multistatus.responses?.filter(response => new URL(response.href, this.baseUrl).pathname.startsWith(this.baseUrl.pathname))
+            responses: multistatus.responses
+                ?.filter(response => new URL(response.href, this.baseUrl).pathname.startsWith(this.baseUrl.pathname))
         };
         return this.resolveEntries(within, { fileId: property }).find(entry => entry.properties['fileId'] === fileId);
     }
@@ -231,13 +297,15 @@ export class NextcloudClient extends WebDavClient {
      * @param share - What is shared, and how.
      * @returns The share.
      * @throws {WebDavNotFoundError} When there is nothing at the path.
-     * @throws {HttpClientError} When Nextcloud refuses the share, such as for a password its policy refuses, or a
+     * @throws HttpClientError when Nextcloud refuses the share, such as for a password its policy refuses, or a
      * user or a group it does not have.
      * @throws {InternalError} When the path is not among the files of a user, or `expiresOn` is no day.
      */
     async createShare(share: NewNextcloudShare): Promise<NextcloudShare> {
         if (share.type === 'link' && share.expiresOn != undefined && !DAY.test(share.expiresOn)) {
-            throw new InternalError(`The day a share of Nextcloud expires on needs to be written as 2027-01-31, and is "${share.expiresOn}".`);
+            throw new InternalError(
+                `The day a share of Nextcloud expires on needs to be written as 2027-01-31, and is "${share.expiresOn}".`
+            );
         }
         const path: string = this.resolveSharePath(share.path);
         const body: Record<string, string | number> = share.type === 'link'
@@ -264,7 +332,12 @@ export class NextcloudClient extends WebDavClient {
                     headers: this.resolveOcsHeaders(options),
                     query: { format: 'json' },
                     requestBodyType: MimeType.JSON,
-                    responseBody: { type: MimeType.JSON, modelClass: NextcloudOcsShareAnswer, allowAdditionalProperties: true, maxSize: MAX_SHARE_ANSWER_SIZE }
+                    responseBody: {
+                        type: MimeType.JSON,
+                        modelClass: NextcloudOcsShareAnswer,
+                        allowAdditionalProperties: true,
+                        maxSize: MAX_SHARE_ANSWER_SIZE
+                    }
                 }
             );
             return this.toShare(response.body.ocs.data);
@@ -288,7 +361,12 @@ export class NextcloudClient extends WebDavClient {
                     ...options,
                     headers: this.resolveOcsHeaders(options),
                     query: { format: 'json' },
-                    responseBody: { type: MimeType.JSON, modelClass: NextcloudOcsShareListAnswer, allowAdditionalProperties: true, maxSize: MAX_SHARE_ANSWER_SIZE }
+                    responseBody: {
+                        type: MimeType.JSON,
+                        modelClass: NextcloudOcsShareListAnswer,
+                        allowAdditionalProperties: true,
+                        maxSize: MAX_SHARE_ANSWER_SIZE
+                    }
                 }
             );
             const found: NextcloudOcsShare | undefined = response.body.ocs.data[0];
@@ -322,7 +400,12 @@ export class NextcloudClient extends WebDavClient {
                     headers: this.resolveOcsHeaders(options),
                     // the shares others created of it as well, which only reshares names
                     query: { format: 'json', path: sharePath, reshares: 'true' },
-                    responseBody: { type: MimeType.JSON, modelClass: NextcloudOcsShareListAnswer, allowAdditionalProperties: true, maxSize: MAX_SHARE_LIST_ANSWER_SIZE }
+                    responseBody: {
+                        type: MimeType.JSON,
+                        modelClass: NextcloudOcsShareListAnswer,
+                        allowAdditionalProperties: true,
+                        maxSize: MAX_SHARE_LIST_ANSWER_SIZE
+                    }
                 }
             );
             return response.body.ocs.data.map(share => this.toShare(share));
@@ -338,8 +421,8 @@ export class NextcloudClient extends WebDavClient {
      * @param change - The change.
      * @returns The share, changed.
      * @throws {WebDavNotFoundError} When Nextcloud has no share of the id.
-     * @throws {WebDavForbiddenError} When the user of the connection may not change the share.
-     * @throws {HttpClientError} When Nextcloud refuses the change otherwise, or cannot be reached.
+     * @throws WebDavForbiddenError when the user of the connection may not change the share.
+     * @throws HttpClientError when Nextcloud refuses the change otherwise, or cannot be reached.
      */
     async updateShare(shareId: string, change: NextcloudShareChange): Promise<NextcloudShare> {
         const options: WebDavRequestOptions = await this.resolveRequestOptions();
@@ -352,7 +435,12 @@ export class NextcloudClient extends WebDavClient {
                     headers: this.resolveOcsHeaders(options),
                     query: { format: 'json' },
                     requestBodyType: MimeType.JSON,
-                    responseBody: { type: MimeType.JSON, modelClass: NextcloudOcsShareAnswer, allowAdditionalProperties: true, maxSize: MAX_SHARE_ANSWER_SIZE }
+                    responseBody: {
+                        type: MimeType.JSON,
+                        modelClass: NextcloudOcsShareAnswer,
+                        allowAdditionalProperties: true,
+                        maxSize: MAX_SHARE_ANSWER_SIZE
+                    }
                 }
             );
             return this.toShare(response.body.ocs.data);
@@ -412,7 +500,7 @@ export class NextcloudClient extends WebDavClient {
      * Deletes a file or a folder from the trash bin of its user for good, which frees the storage it took up. One the
      * trash bin no longer holds, such as one Nextcloud expired, counts as deleted.
      * @param entry - The file or the folder, as `findTrashBinEntries` found it.
-     * @throws {HttpClientError} When Nextcloud refuses, or cannot be reached.
+     * @throws HttpClientError when Nextcloud refuses, or cannot be reached.
      */
     async deleteTrashBinEntry(entry: NextcloudTrashBinEntry): Promise<void> {
         try {
@@ -430,8 +518,8 @@ export class NextcloudClient extends WebDavClient {
      * Deletes a share, such as a link, which then opens nothing. A share of the id Nextcloud does not have, such as
      * one somebody deleted in Nextcloud, counts as deleted.
      * @param shareId - The id of the share.
-     * @throws {WebDavForbiddenError} When the user of the connection may not delete the share.
-     * @throws {HttpClientError} When Nextcloud refuses otherwise, or cannot be reached.
+     * @throws WebDavForbiddenError when the user of the connection may not delete the share.
+     * @throws HttpClientError when Nextcloud refuses otherwise, or cannot be reached.
      */
     async deleteShare(shareId: string): Promise<void> {
         const options: WebDavRequestOptions = await this.resolveRequestOptions();
@@ -478,10 +566,16 @@ export class NextcloudClient extends WebDavClient {
      * @throws {InternalError} When the path is not among the files of a user, or has an empty segment, `.` or `..`.
      */
     private resolveFilesSegments(path: string): [string, string, ...string[]] {
-        const segments: string[] = [...this.davSegments, ...path === '' ? [] : StorageUtilities.resolveKeySegments(`Nextcloud ${this.baseUrl.href}`, path)];
+        const segments: string[] = [
+            ...this.davSegments,
+            ...path === '' ? [] : StorageUtilities.resolveKeySegments(`Nextcloud ${this.baseUrl.href}`, path)
+        ];
         const [folder, user, ...rest] = segments;
         if (folder !== FILES_SEGMENT || user == undefined) {
-            throw new InternalError(`"${path}" of the Nextcloud connection ${this.baseUrl.href} needs to be among the files of a user, below /remote.php/dav/files/<user>/.`);
+            throw new InternalError(
+                `"${path}" of the Nextcloud connection ${this.baseUrl.href} needs to be among the files of a user,`
+                + ' below /remote.php/dav/files/<user>/.'
+            );
         }
         return [folder, user, ...rest];
     }
@@ -508,7 +602,10 @@ export class NextcloudClient extends WebDavClient {
             return known;
         }
         const url: URL = new URL(`trashbin/${encodeURIComponent(user)}/trash/`, this.davRootUrl);
-        const created: WebDavClient = new WebDavClient({ ...this.clientOptions, connection: { ...this.clientOptions.connection, url: url.href } });
+        const created: WebDavClient = new WebDavClient({
+            ...this.clientOptions,
+            connection: { ...this.clientOptions.connection, url: url.href }
+        });
         this.trashBinClients.set(user, created);
         return created;
     }

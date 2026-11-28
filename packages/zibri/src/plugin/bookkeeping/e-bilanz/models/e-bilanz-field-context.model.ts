@@ -11,11 +11,29 @@ export type EBilanzFieldContext = {
     /**
      * The first and the last day of the fiscal year.
      */
-    readonly fiscalYear: { readonly start: Date, readonly end: Date },
+    readonly fiscalYear: {
+        /**
+         * The first day of the fiscal year.
+         */
+        readonly start: Date,
+        /**
+         * The last day of the fiscal year.
+         */
+        readonly end: Date
+    },
     /**
      * The first and the last day of the fiscal year before it, or undefined for the first of the books.
      */
-    readonly previousFiscalYear: { readonly start: Date, readonly end: Date } | undefined,
+    readonly previousFiscalYear: {
+        /**
+         * The first day of the fiscal year before it.
+         */
+        readonly start: Date,
+        /**
+         * The last day of the fiscal year before it.
+         */
+        readonly end: Date
+    } | undefined,
     /**
      * The company, or undefined while it is not known.
      */

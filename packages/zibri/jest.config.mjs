@@ -12,7 +12,8 @@ const loadsEsModules = typeof vm.SourceTextModule?.prototype?.hasAsyncGraph === 
 // Node requires them as es modules, jest without --experimental-vm-modules does not. createJestConfig of zibri-testing
 // compiles the same for an application, and this file cannot import it: zibri-testing is built after zibri, from
 // zibri's build, while this suite runs against the sources
-const esmPackages = '@faker-js/faker|jose|openid-client|oauth4webapi|fontkit|linebreak|brotli|dfa|unicode-properties|unicode-trie|@noble/hashes';
+const esmPackages = '@faker-js/faker|jose|openid-client|oauth4webapi|fontkit|linebreak|brotli|dfa'
+    + '|unicode-properties|unicode-trie|@noble/hashes';
 
 /** @type {import('ts-jest').JestConfigWithTsJest} **/
 const config = {
@@ -44,6 +45,7 @@ const config = {
     moduleNameMapper: {
         '^zibri$': '<rootDir>/index.ts',
         '^zibri/internal$': '<rootDir>/internal.ts',
+        '^zibri/plugin/([a-z-]+)$': '<rootDir>/plugin/$1/index.ts',
         '^zibri-testing$': '<rootDir>/../../testing/src/index.ts',
         '^zibri-contract$': '<rootDir>/../../contract/src/index.ts',
         // the module unicode-properties reads its data with in node finds the file by import.meta.url, which commonjs

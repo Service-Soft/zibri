@@ -30,6 +30,7 @@ import { AuditAction, AuditOutcome, AuditReason } from '../../logging/audit-even
 import { RateLimitStoreFailurePolicy } from '../../rate-limiting/limiter/rate-limiter-config.model';
 import { Controller } from '../../routing/decorators/controller.decorator';
 import { type TenantServiceInterface } from '../../tenancy/tenant-service.interface';
+import { JsonUtilities } from '../../utilities/json.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { ApprovalRequestController } from '../approval/approval-request.controller';
 import { ZibriApprovalPlugin } from '../approval/approval.plugin';
@@ -41,8 +42,8 @@ import { ZibriApprovalPermissions } from '../approval/models/zibri-approval-perm
 import { provideApprovalAction } from '../approval/provide-approval-action.function';
 import { McpController } from './mcp.controller';
 import { ZibriMcpPlugin } from './mcp.plugin';
-import { type McpReadTool } from './models/mcp-read-tool.model';
 import { MCP_PROTOCOL_REVISIONS } from './models/mcp-protocol-revisions.model';
+import { type McpReadTool } from './models/mcp-read-tool.model';
 import { type McpWriteTool } from './models/mcp-write-tool.model';
 import { provideMcpTool } from './provide-mcp-tool.function';
 
@@ -149,13 +150,70 @@ type Caller = {
 };
 
 /**
+ * A tool as a list of the tools names it.
+ */
+type RpcTool = {
+    name: string
+};
+
+/**
+ * A part of the content of the result of a tool call.
+ */
+type RpcContent = {
+    type: string,
+    text: string
+};
+
+/**
+ * The structured content of the result of a call of a write tool.
+ */
+type RpcStructuredContent = {
+    approvalRequestId?: string
+};
+
+/**
+ * What the results of the methods the cases call hold.
+ */
+type RpcResult = {
+    resultType?: string,
+    cacheScope?: string,
+    protocolVersion?: string,
+    tools?: RpcTool[],
+    structuredContent?: RpcStructuredContent,
+    content?: RpcContent[],
+    isError?: boolean
+};
+
+/**
+ * What the data of an error holds.
+ */
+type RpcErrorData = {
+    requested?: string
+};
+
+/**
+ * The error of a JSON-RPC response.
+ */
+type RpcError = {
+    code: number,
+    data?: RpcErrorData
+};
+
+/**
+ * A JSON-RPC response, read as the client reads it: its result, or its error.
+ */
+type RpcResponse = {
+    result?: RpcResult,
+    error?: RpcError
+};
+
+/**
  * What the endpoint answered.
  */
 type Answer = {
     status: number,
-    // the JSON-RPC response, read as the client reads it
-    // eslint-disable-next-line typescript/no-explicit-any
-    body: any
+    // the JSON-RPC response, none for a notification
+    body: RpcResponse | undefined
 };
 
 let server: StartedTestServer | undefined;
@@ -253,13 +311,13 @@ async function post(caller: Caller, message: object, headers: Record<string, str
         headers: {
             'x-api-key': caller.key,
             'content-type': 'application/json',
-            'accept': 'application/json, text/event-stream',
+            accept: 'application/json, text/event-stream',
             ...headers
         },
         body: JSON.stringify(message)
     });
     const text: string = await res.text();
-    return { status: res.status, body: text === '' ? undefined : JSON.parse(text) };
+    return { status: res.status, body: text === '' ? undefined : JsonUtilities.parse<RpcResponse>(text) };
 }
 
 /**
@@ -322,7 +380,7 @@ describe.each(MCP_PROTOCOL_REVISIONS.stateless)('the MCP endpoint, revision %s',
 
         const discovered: Answer = await send('server/discover');
         expect(discovered.status).toBe(200);
-        expect(discovered.body.result).toMatchObject({
+        expect(discovered.body?.result).toMatchObject({
             resultType: 'complete',
             supportedVersions: [...MCP_PROTOCOL_REVISIONS.stateless, ...MCP_PROTOCOL_REVISIONS.handshake],
             capabilities: { tools: {} },
@@ -332,8 +390,8 @@ describe.each(MCP_PROTOCOL_REVISIONS.stateless)('the MCP endpoint, revision %s',
         });
 
         const listed: Answer = await send('tools/list');
-        expect(listed.body.result.cacheScope).toBe('private');
-        expect(listed.body.result.tools).toMatchObject([
+        expect(listed.body?.result?.cacheScope).toBe('private');
+        expect(listed.body?.result?.tools).toMatchObject([
             {
                 name: 'tasks.find',
                 title: 'Find tasks',
@@ -346,13 +404,11 @@ describe.each(MCP_PROTOCOL_REVISIONS.stateless)('the MCP endpoint, revision %s',
 
         const called: Answer = await send('tools/call', { name: 'tasks.find', arguments: { status: 'open' } });
         expect(called.status).toBe(200);
-        expect(called.body.result).toMatchObject({ resultType: 'complete', isError: false });
+        expect(called.body?.result).toMatchObject({ resultType: 'complete', isError: false });
         // the properties of the output model, and none of the rows the tool read beside them
-        expect(called.body.result.structuredContent).toEqual({ tasks: [{ id: open.id, title: 'Write the release notes' }] });
-        expect(JSON.parse(called.body.result.content[0].text)).toEqual(called.body.result.structuredContent);
-        expect(await callsOf(assistant.userId)).toMatchObject([
-            { outcome: AuditOutcome.SUCCESS, subject: 'tasks.find', userKind: 'service', tenantId }
-        ]);
+        expect(called.body?.result?.structuredContent).toEqual({ tasks: [{ id: open.id, title: 'Write the release notes' }] });
+        expect(JSON.parse(called.body?.result?.content?.[0]?.text ?? '')).toEqual(called.body?.result?.structuredContent);
+        expect(await callsOf(assistant.userId)).toMatchObject([{ outcome: AuditOutcome.SUCCESS, subject: 'tasks.find', userKind: 'service', tenantId }]);
     });
 
     it('hides a tool whose permission the key does not carry, and refuses a call of it', async () => {
@@ -362,12 +418,12 @@ describe.each(MCP_PROTOCOL_REVISIONS.stateless)('the MCP endpoint, revision %s',
         const reader: Caller = await addAssistant(tenantId, [TaskPermissions.TASKS_READ]);
         const send: ReturnType<typeof statelessClient> = statelessClient(reader, revision);
 
-        expect((await send('tools/list')).body.result.tools.map((tool: { name: string }) => tool.name)).toEqual(['tasks.find']);
+        expect((await send('tools/list')).body?.result?.tools?.map(tool => tool.name)).toEqual(['tasks.find']);
         const refused: Answer = await send('tools/call', { name: 'tasks.close', arguments: { taskId: task.id } });
         const unknown: Answer = await send('tools/call', { name: 'tasks.delete', arguments: {} });
 
-        expect(refused.body.error).toMatchObject({ code: -32_602 });
-        expect(unknown.body.error).toMatchObject({ code: -32_602 });
+        expect(refused.body?.error).toMatchObject({ code: -32_602 });
+        expect(unknown.body?.error).toMatchObject({ code: -32_602 });
         expect(await runInTenant(tenantId, async () => await inject(repositoryTokenFor(ApprovalRequest)).count({}))).toBe(0);
         expect(await callsOf(reader.userId)).toEqual(expect.arrayContaining([
             expect.objectContaining({ outcome: AuditOutcome.FAILURE, reason: AuditReason.MISSING_PERMISSION, subject: 'tasks.close' }),
@@ -383,8 +439,8 @@ describe.each(MCP_PROTOCOL_REVISIONS.stateless)('the MCP endpoint, revision %s',
 
         const called: Answer = await statelessClient(assistant, revision)('tools/call', { name: 'tasks.close', arguments: { taskId: task.id } });
 
-        const approvalRequestId: string = called.body.result.structuredContent.approvalRequestId;
-        expect(called.body.result.structuredContent).toEqual({ approvalRequestId: expect.any(String), status: ApprovalRequestStatus.PENDING });
+        const approvalRequestId: string = called.body?.result?.structuredContent?.approvalRequestId ?? '';
+        expect(called.body?.result?.structuredContent).toEqual({ approvalRequestId: expect.any(String), status: ApprovalRequestStatus.PENDING });
         expect((await runInTenant(tenantId, async () => await tasks().findById(task.id))).status).toBe('open');
         expect(await callsOf(assistant.userId)).toMatchObject([{ outcome: AuditOutcome.SUCCESS, subject: 'tasks.close', approvalRequestId }]);
 
@@ -404,7 +460,7 @@ describe.each(MCP_PROTOCOL_REVISIONS.stateless)('the MCP endpoint, revision %s',
         const called: Answer = await statelessClient(assistant, revision)('tools/call', { name: 'tasks.find', arguments: { status: 'archived' } });
 
         expect(called.status).toBe(200);
-        expect(called.body.result).toMatchObject({ isError: true, content: [{ type: 'text', text: expect.stringContaining('status') }] });
+        expect(called.body?.result).toMatchObject({ isError: true, content: [{ type: 'text', text: expect.stringContaining('status') }] });
         expect(await callsOf(assistant.userId)).toMatchObject([{ outcome: AuditOutcome.FAILURE, reason: AuditReason.REFUSED }]);
     });
 
@@ -430,9 +486,9 @@ describe.each(MCP_PROTOCOL_REVISIONS.stateless)('the MCP endpoint, revision %s',
         const unknown: Answer = await send('resources/list');
 
         expect(mismatched.status).toBe(400);
-        expect(mismatched.body.error.code).toBe(-32_020);
+        expect(mismatched.body?.error?.code).toBe(-32_020);
         expect(unknown.status).toBe(404);
-        expect(unknown.body.error.code).toBe(-32_601);
+        expect(unknown.body?.error?.code).toBe(-32_601);
     });
 });
 
@@ -443,7 +499,7 @@ describe('the MCP endpoint, for every revision', () => {
         const answer: Answer = await statelessClient(assistant, '1900-01-01')('tools/list');
 
         expect(answer.status).toBe(400);
-        expect(answer.body.error).toMatchObject({
+        expect(answer.body?.error).toMatchObject({
             code: -32_022,
             data: { supported: [...MCP_PROTOCOL_REVISIONS.stateless, ...MCP_PROTOCOL_REVISIONS.handshake], requested: '1900-01-01' }
         });
@@ -460,13 +516,13 @@ describe('the MCP endpoint, for every revision', () => {
         );
 
         expect(answer.status).toBe(400);
-        expect(answer.body.error.code).toBe(-32_602);
+        expect(answer.body?.error?.code).toBe(-32_602);
     });
 
     it('opens no stream of the server', async () => {
         const assistant: Caller = await addAssistant(await createTenant());
 
-        expect((await fetch(`${baseUrl}/mcp`, { headers: { 'x-api-key': assistant.key, 'accept': 'text/event-stream' } })).status).toBe(405);
+        expect((await fetch(`${baseUrl}/mcp`, { headers: { 'x-api-key': assistant.key, accept: 'text/event-stream' } })).status).toBe(405);
     });
 
     it('answers a message that is no JSON-RPC request', async () => {
@@ -475,7 +531,7 @@ describe('the MCP endpoint, for every revision', () => {
         const answer: Answer = await post(assistant, { id: 1, method: 'tools/list' }, {});
 
         expect(answer.status).toBe(400);
-        expect(answer.body.error.code).toBe(-32_600);
+        expect(answer.body?.error?.code).toBe(-32_600);
     });
 });
 
@@ -490,21 +546,21 @@ describe.each(MCP_PROTOCOL_REVISIONS.handshake)('the MCP endpoint, revision %s',
             { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: revision, capabilities: {}, clientInfo: { name: 'test-client', version: '1.0.0' } } },
             {}
         );
-        expect(initialized.body.result).toMatchObject({
+        expect(initialized.body?.result).toMatchObject({
             protocolVersion: revision,
             capabilities: { tools: {} },
             serverInfo: { name: expect.any(String), version: expect.any(String) },
             instructions: 'Find the open tasks first.'
         });
-        expect(initialized.body.result.resultType).toBeUndefined();
+        expect(initialized.body?.result?.resultType).toBeUndefined();
         const notified: Answer = await post(assistant, { jsonrpc: '2.0', method: 'notifications/initialized' }, { 'mcp-protocol-version': revision });
         expect(notified).toEqual({ status: 202, body: undefined });
 
         const send: ReturnType<typeof handshakeClient> = handshakeClient(assistant, revision);
-        expect((await send('ping')).body.result).toEqual({});
-        expect((await send('tools/list')).body.result.tools.map((tool: { name: string }) => tool.name)).toEqual(['tasks.find', 'tasks.close']);
+        expect((await send('ping')).body?.result).toEqual({});
+        expect((await send('tools/list')).body?.result?.tools?.map(tool => tool.name)).toEqual(['tasks.find', 'tasks.close']);
         const called: Answer = await send('tools/call', { name: 'tasks.find', arguments: { status: 'open' } });
-        expect(called.body.result).toMatchObject({ isError: false, structuredContent: { tasks: [{ id: open.id }] } });
+        expect(called.body?.result).toMatchObject({ isError: false, structuredContent: { tasks: [{ id: open.id }] } });
         expect(await callsOf(assistant.userId)).toMatchObject([{ outcome: AuditOutcome.SUCCESS, subject: 'tasks.find' }]);
     });
 
@@ -517,7 +573,7 @@ describe.each(MCP_PROTOCOL_REVISIONS.handshake)('the MCP endpoint, revision %s',
             {}
         );
 
-        expect(initialized.body.result.protocolVersion).toBe(MCP_PROTOCOL_REVISIONS.handshake[0]);
+        expect(initialized.body?.result?.protocolVersion).toBe(MCP_PROTOCOL_REVISIONS.handshake[0]);
     });
 
     it('refuses a request after the handshake that names no revision', async () => {
@@ -526,6 +582,6 @@ describe.each(MCP_PROTOCOL_REVISIONS.handshake)('the MCP endpoint, revision %s',
         const answer: Answer = await post(assistant, { jsonrpc: '2.0', id: 1, method: 'tools/list' }, {});
 
         expect(answer.status).toBe(400);
-        expect(answer.body.error.data.requested).toBe('2025-03-26');
+        expect(answer.body?.error?.data?.requested).toBe('2025-03-26');
     });
 });

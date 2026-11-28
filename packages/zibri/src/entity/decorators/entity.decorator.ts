@@ -501,7 +501,8 @@ function validateSharing(
     const metadata: PropertyMetadata | undefined = MetadataUtilities.getModelProperties(target)[relation];
     if (metadata?.type !== Relation.MANY_TO_ONE && metadata?.type !== Relation.BELONGS_TO_ONE) {
         throw new InternalError([
-            `${target.name}: "${shareable == undefined ? 'sharedThrough' : 'parent'}" names "${relation}", which is no "manyToOne" or "belongsToOne" relation.`,
+            `${target.name}: "${shareable == undefined ? 'sharedThrough' : 'parent'}" names "${relation}",`
+            + ' which is no "manyToOne" or "belongsToOne" relation.',
             'The rows are narrowed by the column such a relation holds the related row in.'
         ]);
     }

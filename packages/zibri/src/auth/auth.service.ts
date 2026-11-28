@@ -43,7 +43,6 @@ import { Ms } from '../utilities/ms';
 import { validateEntitiesRegistered } from '../utilities/validate-entities-registered.function';
 import { TwoFactorMethod } from './2fa/methods/two-factor-method.interface';
 import { ReauthenticationRequiredError } from './2fa/reauthentication-required.error';
-import { LoginLinkAuthenticator } from './authenticators/login-link/login-link.authenticator';
 import { SecondFactorRequiredError } from './2fa/second-factor-required.error';
 import { TwoFactorAtLogin } from './2fa/two-factor-at-login.type';
 import { TwoFactorMethods } from './2fa/two-factor-methods.model';
@@ -61,6 +60,7 @@ import { IdentityLinkingAuthenticatorInterface, isIdentityLinkingAuthenticator }
 import { IdentityLinkingAuthenticators } from './authenticators/identity-linking-authenticators.model';
 import { LinkIdentityConfirmingAuthenticatorInterface } from './authenticators/link-identity-confirming-authenticator.interface';
 import { LinkedIdentity } from './authenticators/linked-identity.model';
+import { LoginLinkAuthenticator } from './authenticators/login-link/login-link.authenticator';
 import { ChangePasswordData } from './authenticators/password/change-password-data.model';
 import { ConfirmPasswordResetData } from './authenticators/password/confirm-password-reset-data.model';
 import { PasswordChangeRequiredError } from './authenticators/password/password-change-required.error';
@@ -81,7 +81,6 @@ import { ClaimedUser } from './models/claimed-user.model';
 import { CurrentUserMembership } from './models/current-user-membership.model';
 import { EndedLogin } from './models/ended-login.model';
 import { HasAnyLevelPermissionMetadata } from './models/has-any-level-permission-metadata.model';
-import { RequireShareRoleMetadata } from './models/require-share-role-metadata.model';
 import { HasPermissionMetadata } from './models/has-permission-metadata.model';
 import { IsLoggedInMetadata } from './models/is-logged-in-metadata.model';
 import { IsNotLoggedInMetadata } from './models/is-not-logged-in-metadata.model';
@@ -93,8 +92,10 @@ import { ProviderAuthentication } from './models/provider-authentication.model';
 import { Require2faMetadata } from './models/require-2fa-metadata.model';
 import type { Require2faProviderFactors } from './models/require-2fa-provider-factors.model';
 import type { Require2faReauth, Require2faReauthOptions } from './models/require-2fa-reauth.model';
+import { RequireShareRoleMetadata } from './models/require-share-role-metadata.model';
 import { ResolvedAuthMetadata, ResolvedRouteAuth } from './models/resolved-auth-metadata.model';
 import { RouteAuthConfiguration } from './models/route-auth-configuration.model';
+import { type UserKind } from './models/user-kind.type';
 import { UserLogin } from './models/user-login.model';
 import { type Permission } from './roles/permission.type';
 import { type PlatformPermission } from './roles/platform-permission.type';
@@ -111,7 +112,6 @@ import { AuthStrategyInterface } from './strategies/auth-strategy.interface';
 import { CredentialLimits } from './strategies/credential-limits.model';
 import { isLoginAuthStrategy, LoginAuthStrategyInterface } from './strategies/login-auth-strategy.interface';
 import { isLoginListingAuthStrategy, LoginListingAuthStrategyInterface } from './strategies/login-listing-auth-strategy.interface';
-import { type UserKind } from './models/user-kind.type';
 import { UserKindUtilities } from './user/user-kind.utilities';
 import { type UserServiceInterface } from './user/user-service.interface';
 
@@ -1752,7 +1752,9 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     ): Promise<void> {
         const rowId: string | undefined = context.type === 'http-request' ? context.request.params[metadata.pathParam] : undefined;
         if (rowId == undefined) {
-            throw new InternalError(`@Auth.requireShareRole names the path parameter "${metadata.pathParam}", which the route has none of.`);
+            throw new InternalError(
+                `@Auth.requireShareRole names the path parameter "${metadata.pathParam}", which the route has none of.`
+            );
         }
         try {
             await inject(ZIBRI_DI_TOKENS.SHARE_SERVICE).validateRole(metadata.entityClass, rowId, metadata.role);
@@ -1822,10 +1824,13 @@ export class AuthService implements AuthServiceInterface, OnAppInit, OnAppStart,
     private async resolveReauthenticationRequiredError(user: BaseUser<string>): Promise<ReauthenticationRequiredError> {
         const linkAuthenticators: LoginLinkAuthenticator<string>[] = this.authenticators
             .map(a => inject(a))
-            .filter(a => a instanceof LoginLinkAuthenticator);
+            .filter((a): a is LoginLinkAuthenticator<string> => a instanceof LoginLinkAuthenticator);
         for (const authenticator of linkAuthenticators) {
             if (await authenticator.resolveLogsInByLinkOnly(user, undefined)) {
-                return new ReauthenticationRequiredError(undefined, $ts`Ask for a new login link, and log in with it to access this route.`);
+                return new ReauthenticationRequiredError(
+                    undefined,
+                    $ts`Ask for a new login link, and log in with it to access this route.`
+                );
             }
         }
         return new ReauthenticationRequiredError();

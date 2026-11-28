@@ -41,6 +41,7 @@ export class GdpduTable {
     /**
      * Set for a file in UTF-8.
      */
+    // eslint-disable-next-line unicorn/text-encoding-identifier-case -- the name of an element of the GDPdU DTD, not an encoding
     @XmlElement('UTF8')
     @Property.object({ cls: () => GdpduEmpty })
     utf8!: GdpduEmpty;

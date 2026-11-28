@@ -55,11 +55,20 @@ function validateTransformsInstalled(): void {
 
 /**
  * The packages that ship as es modules only and that the framework loads: jose, which the default auth strategy loads
- * while an application starts, and what pdfmake 0.3 stands on, which a pdf loads. pdfkit, which it draws with,
+ * while an application starts, and what pdfmake 0.3 stands on, which a pdf loads. Pdfkit, which it draws with,
  * requires fontkit and linebreak, fontkit is built on brotli, dfa, unicode-properties and unicode-trie, and pdfmake
  * requires @noble/hashes itself.
  */
-const FRAMEWORK_ESM_PACKAGES: string[] = ['jose', 'fontkit', 'linebreak', 'brotli', 'dfa', 'unicode-properties', 'unicode-trie', '@noble/hashes'];
+const FRAMEWORK_ESM_PACKAGES: string[] = [
+    'jose',
+    'fontkit',
+    'linebreak',
+    'brotli',
+    'dfa',
+    'unicode-properties',
+    'unicode-trie',
+    '@noble/hashes'
+];
 
 /**
  * What jest maps a module to when it cannot load es modules as they are. The module unicode-properties reads its data

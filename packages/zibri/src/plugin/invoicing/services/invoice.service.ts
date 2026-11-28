@@ -51,14 +51,14 @@ export class InvoiceService implements InvoiceServiceInterface {
         // asked of no invoice, which a source tracking payments answers with no state rather than none
         if (await this.paymentService.resolvePaymentStates([]) == undefined) {
             throw new BadRequestError(
+                // eslint-disable-next-line stylistic/max-len -- one template, since it is the key of its translation
                 $ts`The filter open needs a payment source of the invoices, such as the bank plugin with matching, which this application does not have.`
             );
         }
         // open narrows to invoices, as a credit note pays nothing
-        if (filter.type === InvoiceType.CREDIT_NOTE) {
-            return { items: [], totalAmount: 0 };
-        }
-        return await this.findInvoicesOpen(page, limit, this.resolveWhere({ ...filter, type: InvoiceType.INVOICE }), filter.open);
+        return filter.type === InvoiceType.CREDIT_NOTE
+            ? { items: [], totalAmount: 0 }
+            : await this.findInvoicesOpen(page, limit, this.resolveWhere({ ...filter, type: InvoiceType.INVOICE }), filter.open);
     }
 
     /**
@@ -92,7 +92,12 @@ export class InvoiceService implements InvoiceServiceInterface {
      * @param open - Whether those with something left to pay, or those with nothing.
      * @returns The page, and how many there are.
      */
-    protected async findInvoicesOpen(page: number, limit: number, where: Where<Invoice>, open: boolean): Promise<PaginationResult<Invoice>> {
+    protected async findInvoicesOpen(
+        page: number,
+        limit: number,
+        where: Where<Invoice>,
+        open: boolean
+    ): Promise<PaginationResult<Invoice>> {
         // what of an invoice is open follows from its items, its credit notes and the payment sources, which no filter of
         // the invoices reaches. So the ids of the invoices the filter matches are read in the order of the list, the
         // states of each page of them resolved, and the page taken from those left. What this reads grows with the
@@ -115,7 +120,9 @@ export class InvoiceService implements InvoiceServiceInterface {
         const pageIds: string[] = matching.slice((page - 1) * limit, page * limit);
         return {
             totalAmount: matching.length,
-            items: pageIds.length ? await this.invoiceRepository.findAll({ where: { id: { oneOf: pageIds } }, order: INVOICE_ORDER, limit: 'all' }) : []
+            items: pageIds.length
+                ? await this.invoiceRepository.findAll({ where: { id: { oneOf: pageIds } }, order: INVOICE_ORDER, limit: 'all' })
+                : []
         };
     }
 }

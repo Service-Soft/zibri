@@ -28,11 +28,11 @@ import { type ApprovalRequestDetails } from '../../approval/models/approval-requ
 import { ApprovalRequestStatus } from '../../approval/models/approval-request-status.enum';
 import { ApprovalRequest } from '../../approval/models/approval-request.model';
 import { type ApprovalRunContext } from '../../approval/models/approval-run-context.model';
+import { BookkeepingDayUtilities } from '../../bookkeeping/bookkeeping-day.utilities';
 import { ZIBRI_INVOICING_PLUGIN_DI_TOKENS } from '../../invoicing/invoicing.tokens';
 import { type InvoicePaymentState } from '../../invoicing/models/invoice-payment-state.model';
 import { InvoiceType } from '../../invoicing/models/invoice-type.enum';
 import { Invoice } from '../../invoicing/models/invoice.model';
-import { BookkeepingDayUtilities } from '../../bookkeeping/bookkeeping-day.utilities';
 import { BankMatchUtilities } from '../bank-match.utilities';
 import { BankTransactionStateUtilities } from '../bank-transaction-state.utilities';
 import { BANK_MATCH_POSTING_DI_VARIANT, BANK_MATCHER_DI_VARIANT, ZIBRI_BANK_PLUGIN_DI_TOKENS } from '../bank.tokens';
@@ -41,8 +41,8 @@ import { type BankMatchFilter } from '../models/bank-match-filter.model';
 import { BankMatchInput } from '../models/bank-match-input.model';
 import { BankMatchReason } from '../models/bank-match-reason.enum';
 import { type BankMatchScore } from '../models/bank-match-score.model';
-import { type BankMatchTarget } from '../models/bank-match-target.model';
 import { BankMatchTargetType } from '../models/bank-match-target-type.enum';
+import { type BankMatchTarget } from '../models/bank-match-target.model';
 import { BankMatch, type BankMatchCreateData } from '../models/bank-match.model';
 import { type BankMatcherSuggestion } from '../models/bank-matcher-suggestion.model';
 import { type BankPluginOptions } from '../models/bank-plugin-options.model';
@@ -258,7 +258,7 @@ export class BankMatchService implements BankMatchServiceInterface {
             if (transactionOpen == undefined || input.amount.isGreaterThan(transactionOpen)) {
                 const amount: string = (transactionOpen ?? NumberUtilities.new(0)).toFixed();
                 throw new ConflictError(
-                    // eslint-disable-next-line stylistic/max-len
+
                     $ts`A match of the transaction needs to be at most ${amount} ${transaction.currency}, what of it is not matched yet.`
                 );
             }
@@ -327,7 +327,10 @@ export class BankMatchService implements BankMatchServiceInterface {
             catch (error) {
                 // a reversal of the same match committed meanwhile, which the check above could not see yet
                 if (error instanceof UniqueConstraintViolationError) {
-                    throw new ConflictError($ts`The match "${matchId}" is reversed already, and a match is reversed at most once.`, { cause: error });
+                    throw new ConflictError(
+                        $ts`The match "${matchId}" is reversed already, and a match is reversed at most once.`,
+                        { cause: error }
+                    );
                 }
                 throw error;
             }
@@ -368,7 +371,11 @@ export class BankMatchService implements BankMatchServiceInterface {
     }
 
     // eslint-disable-next-line jsdoc/require-jsdoc
-    async findTransactionDetails(page: number, limit: number, filter: BankTransactionFilter): Promise<PaginationResult<BankTransactionDetails>> {
+    async findTransactionDetails(
+        page: number,
+        limit: number,
+        filter: BankTransactionFilter
+    ): Promise<PaginationResult<BankTransactionDetails>> {
         this.validateTransactionFilter(filter);
         // the page of the states, which hold what the list is narrowed and ordered by, and then its transactions
         const states: PaginationResult<BankTransactionState> = await this.stateRepository.findAllPaginated(
@@ -499,7 +506,12 @@ export class BankMatchService implements BankMatchServiceInterface {
             // up to the end of the day of until, as a bank can book at a time of the day
             ...from == undefined && until == undefined
                 ? {}
-                : { bookingDate: { afterOrOn: from, before: until == undefined ? undefined : BookkeepingDayUtilities.resolveNextDay(until) } }
+                : {
+                    bookingDate: {
+                        afterOrOn: from,
+                        before: until == undefined ? undefined : BookkeepingDayUtilities.resolveNextDay(until)
+                    }
+                }
         };
     }
 
@@ -598,10 +610,15 @@ export class BankMatchService implements BankMatchServiceInterface {
             matches.push(row);
         }
         const reversed: Set<string> = new Set(matches.flatMap(m => m.reversesMatchId == undefined ? [] : [m.reversesMatchId]));
-        const standing: Pick<BankMatch, 'id' | 'targetId' | 'reversesMatchId'>[] = matches.filter(m => m.reversesMatchId == undefined && !reversed.has(m.id));
+        const standing: Pick<BankMatch, 'id' | 'targetId' | 'reversesMatchId'>[]
+            = matches.filter(m => m.reversesMatchId == undefined && !reversed.has(m.id));
         const invoices: Pick<Invoice, 'id' | 'number' | 'issuedAt'>[] = await this.findInPages(
             [...new Set(standing.map(m => m.targetId))],
-            async page => await this.invoiceRepository.findAll({ where: { id: { oneOf: page } }, select: { id: true, number: true, issuedAt: true }, limit: 'all' })
+            async page => await this.invoiceRepository.findAll({
+                where: { id: { oneOf: page } },
+                select: { id: true, number: true, issuedAt: true },
+                limit: 'all'
+            })
         );
         const byId: Map<string, Pick<Invoice, 'id' | 'number' | 'issuedAt'>> = new Map(invoices.map(i => [i.id, i]));
         return standing.flatMap((match): KeptRowDivergence[] => {
@@ -609,16 +626,18 @@ export class BankMatchService implements BankMatchServiceInterface {
             if (invoice?.issuedAt != undefined) {
                 return [];
             }
-            return [{
-                entity: BankMatch.name,
-                id: match.id,
-                sourceEntity: Invoice.name,
-                sourceId: match.targetId,
-                reason: invoice == undefined ? KeptRowDivergenceReason.SOURCE_MISSING : KeptRowDivergenceReason.SOURCE_DRAFT,
-                message: invoice == undefined
-                    ? `The bank match ${match.id} pays the invoice ${match.targetId}, which is gone.`
-                    : `The bank match ${match.id} pays the invoice ${invoice.number}, which is a draft again.`
-            }];
+            return [
+                {
+                    entity: BankMatch.name,
+                    id: match.id,
+                    sourceEntity: Invoice.name,
+                    sourceId: match.targetId,
+                    reason: invoice == undefined ? KeptRowDivergenceReason.SOURCE_MISSING : KeptRowDivergenceReason.SOURCE_DRAFT,
+                    message: invoice == undefined
+                        ? `The bank match ${match.id} pays the invoice ${match.targetId}, which is gone.`
+                        : `The bank match ${match.id} pays the invoice ${invoice.number}, which is a draft again.`
+                }
+            ];
         });
     }
 
@@ -921,8 +940,10 @@ export class BankMatchService implements BankMatchServiceInterface {
      */
     protected async findOpenInvoices(currencies: Set<string>): Promise<OpenInvoice[]> {
         // issued by its issuedAt, as a draft is
-        const invoices: Invoice[] = (await this.invoiceRepository.findAll({ where: { type: InvoiceType.INVOICE, issuedAt: { not: null } }, limit: 'all' }))
-            .filter(i => currencies.has(i.currency));
+        const invoices: Invoice[] = (await this.invoiceRepository.findAll({
+            where: { type: InvoiceType.INVOICE, issuedAt: { not: null } },
+            limit: 'all'
+        })).filter(i => currencies.has(i.currency));
         const states: InvoicePaymentState[] = await this.resolvePaymentStatesOf(invoices);
         return invoices.flatMap((invoice, index) => {
             const open: BigNumber | undefined = states[index]?.open;
@@ -952,7 +973,10 @@ export class BankMatchService implements BankMatchServiceInterface {
      */
     protected async findProposedMatches(transactions: BankTransaction[]): Promise<ProposedMatch[]> {
         const ids: Set<string> = new Set(transactions.map(t => t.id));
-        const requests: ApprovalRequest[] = await this.findRequestsOf(transactions, [ApprovalRequestStatus.PENDING, ApprovalRequestStatus.REJECTED]);
+        const requests: ApprovalRequest[] = await this.findRequestsOf(
+            transactions,
+            [ApprovalRequestStatus.PENDING, ApprovalRequestStatus.REJECTED]
+        );
         return requests.flatMap(request => {
             const match: ProposedMatch | undefined = this.findProposedMatch(request);
             return match != undefined && ids.has(match.transactionId) ? [match] : [];

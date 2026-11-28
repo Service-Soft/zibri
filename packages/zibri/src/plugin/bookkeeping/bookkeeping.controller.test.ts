@@ -1,7 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from '@jest/globals';
 import { TOTP } from 'otpauth';
-import {
-    type BookkeepingAccountModel,
+import { type BookkeepingAccountModel,
     type BookkeepingClosingProposalModel,
     type BookkeepingJournalReportModel,
     type BookkeepingLedgerReportModel,
@@ -23,8 +22,7 @@ import {
     type JournalEntryPageModel,
     type NewJournalEntryModel,
     type PaginationResult,
-    type PostingRuleSetModel
-} from 'zibri-contract';
+    type PostingRuleSetModel } from 'zibri-contract';
 import { createInMemoryDataSource } from 'zibri-testing';
 
 import { TestTimeouts } from '../../__testing__/constants';
@@ -57,10 +55,10 @@ import { type TenantServiceInterface } from '../../tenancy/tenant-service.interf
 import { FsUtilities } from '../../utilities/fs.utilities';
 import { UUIDUtilities } from '../../utilities/uuid.utilities';
 import { readExport, type ReadExport } from './bookkeeping-export.cases';
+import { BookkeepingVerificationCronJob } from './bookkeeping-verification.cron-job';
 import { bookkeepingTestEntities, bookkeepingTestOptions, ReceiptsFileStore, receiptsFolder, storeOf } from './bookkeeping.cases';
 import { BookkeepingController } from './bookkeeping.controller';
 import { ZibriBookkeepingPlugin } from './bookkeeping.plugin';
-import { BookkeepingVerificationCronJob } from './bookkeeping-verification.cron-job';
 import { BookkeepingAccountType } from './models/bookkeeping-account-type.enum';
 import { JournalEntry } from './models/journal-entry.model';
 import { ZibriBookkeepingPermissions, ZibriBookkeepingPlatformPermissions } from './models/zibri-bookkeeping-permissions.model';
@@ -218,11 +216,12 @@ async function createBooks(): Promise<Books> {
         company: { name: 'Acme GmbH', seat: 'Berlin', registerCourt: 'Amtsgericht Charlottenburg', registerNumber: 'HRB 123456 B' }
     });
     expect(settings).toMatchObject({ status: 200, body: { tenantId: admin.tenantId, currency: 'EUR', company: { name: 'Acme GmbH' } } });
-    const account = async (number: string, name: string, type: BookkeepingAccountType): Promise<BookkeepingAccountModel> => {
-        const res: Answer<BookkeepingAccountModel> = await call('accounts', admin, 'POST', { number, name, type });
-        expect(res.status).toBe(200);
-        return res.body;
-    };
+    const account: (number: string, name: string, type: BookkeepingAccountType) => Promise<BookkeepingAccountModel>
+        = async (number, name, type) => {
+            const res: Answer<BookkeepingAccountModel> = await call('accounts', admin, 'POST', { number, name, type });
+            expect(res.status).toBe(200);
+            return res.body;
+        };
     const bank: BookkeepingAccountModel = await account('1200', 'Bank', BookkeepingAccountType.ASSET);
     const capital: BookkeepingAccountModel = await account('2900', 'Share capital', BookkeepingAccountType.EQUITY);
     const result: BookkeepingAccountModel = await account('2970', 'Profit carried forward', BookkeepingAccountType.EQUITY);
@@ -333,7 +332,7 @@ describe('the routes of the books', () => {
         expect((await call(`fiscal-years/${books.fiscalYear.id}/closing`, admin, 'POST', { resultAccountId: accounts.result.id })).status).toBe(200);
         const path: string = `fiscal-years/${books.fiscalYear.id}/reopening`;
         const otpHeader: string = inject(ZIBRI_DI_TOKENS.OTP_HEADER);
-        const code = (): Record<string, string> => ({ [otpHeader]: new TOTP({ secret: OTP_SECRET }).generate() });
+        const code: () => Record<string, string> = () => ({ [otpHeader]: new TOTP({ secret: OTP_SECRET }).generate() });
 
         expect((await call(path, reader, 'POST', { reason: 'Rent booked twice' })).status).toBe(403);
         // the name tells a client whether to ask for a code or for a new login
@@ -665,7 +664,8 @@ describe('the routes of the books', () => {
         ]) {
             const res: Response = await fetch(`${baseUrl}/bookkeeping/${path}`, { headers: { 'x-api-key': reader.key, 'x-tenant-id': admin.tenantId ?? '' } });
             expect([path, res.status, res.headers.get('content-type')]).toEqual([path, 200, 'application/pdf']);
-            expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5).toString()).toBe('%PDF-');
+            expect(Buffer.from(await res.arrayBuffer()).subarray(0, 5)
+                .toString()).toBe('%PDF-');
         }
     });
 
@@ -748,7 +748,7 @@ describe('the routes of the books', () => {
         });
         await call(`expenses/${expense.body.id}/recording`, admin, 'POST');
         await call('entries', admin, 'POST', entryOf('2026-01-02', accounts.bank, accounts.capital, '1000.00'));
-        const download = async (caller: Caller, query: string = ''): Promise<Response> => await fetch(
+        const download: (caller: Caller, query?: string) => Promise<Response> = async (caller, query = '') => await fetch(
             `${baseUrl}/bookkeeping/fiscal-years/${books.fiscalYear.id}/export${query}`,
             { headers: caller.tenantId == undefined ? { 'x-api-key': caller.key } : { 'x-api-key': caller.key, 'x-tenant-id': caller.tenantId } }
         );
@@ -841,9 +841,7 @@ describe('the routes of the books', () => {
             acrossTenants: true,
             limit: 'all'
         });
-        expect(recorded.map(e => [e.tenantId, e.outcome, e.reason, e.subject])).toEqual([
-            [books.admin.tenantId, AuditOutcome.FAILURE, AuditReason.TAMPERED, posted.body.entry.id]
-        ]);
+        expect(recorded.map(e => [e.tenantId, e.outcome, e.reason, e.subject])).toEqual([[books.admin.tenantId, AuditOutcome.FAILURE, AuditReason.TAMPERED, posted.body.entry.id]]);
         const verification: Answer<BookkeepingVerificationModel> = await call('verification', books.admin);
         expect(verification.body).toMatchObject({
             intact: false,

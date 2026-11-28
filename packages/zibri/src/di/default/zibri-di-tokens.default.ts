@@ -54,11 +54,9 @@ import { WriteThroughReadThroughCache } from '../../caching/cache/read-through/w
 import { CacheServiceInterface } from '../../caching/cache-service.interface';
 import { type CalendarSyncServiceInterface } from '../../calendar-sync/calendar-sync-service.interface';
 import { CacheContext } from '../../context/cache/cache.context';
-import { type FileMirrorServiceInterface } from '../../file-mirror/file-mirror-service.interface';
 import { HttpRequestContext } from '../../context/request/http-request.context';
 import { WebsocketRequestContext } from '../../context/request/websocket-request.context';
 import { CronServiceInterface } from '../../cron/cron-service.interface';
-import { type ShareServiceInterface } from '../../sharing/share-service.interface';
 import { type ChainServiceInterface } from '../../data-source/chain/chain-service.interface';
 import { DataSourceServiceInterface } from '../../data-source/data-source-service.interface';
 import { RepositoryHooks } from '../../data-source/hooks/repository-hooks.model';
@@ -72,6 +70,7 @@ import { EventServiceInterface } from '../../event/event-service.interface';
 import { FrameworkEventNames } from '../../event/framework-event-names.model';
 import { FileServiceInterface } from '../../file/file-service.interface';
 import { TenantFileStoreOptions } from '../../file/tenant/tenant-file-store-options.model';
+import { type FileMirrorServiceInterface } from '../../file-mirror/file-mirror-service.interface';
 import { HandlebarOptions } from '../../handlebars/handlebar.utilities';
 import { CompressionOptions } from '../../http/compression.middleware';
 import { HttpServerLimits } from '../../http/http-server-limits.model';
@@ -96,6 +95,7 @@ import { WakeUpServiceInterface } from '../../polling/wake-up-service.interface'
 import { RateLimiterInterface } from '../../rate-limiting/limiter/rate-limiter.interface';
 import { RateLimitingServiceInterface } from '../../rate-limiting/rate-limiting-service.interface';
 import { RouterInterface } from '../../routing/router.interface';
+import { type ShareServiceInterface } from '../../sharing/share-service.interface';
 import { SmsServiceInterface } from '../../sms/sms-service.interface';
 import { MembershipServiceInterface } from '../../tenancy/membership/membership-service.interface';
 import { TenantServiceInterface } from '../../tenancy/tenant-service.interface';
@@ -376,7 +376,9 @@ export const ZIBRI_DI_TOKENS = {
     CALENDAR_ENTRY_LINK_USAGE_CLEANER: ziToken<TenantWebDavConnectionUsageCleanerInterface>('zi.calendar_entry_link_usage_cleaner'),
     FILE_MIRROR_SERVICE: ziToken<FileMirrorServiceInterface>('zi.file_mirror_service'),
     FILE_MIRROR_USAGE_CLEANER: ziToken<TenantWebDavConnectionUsageCleanerInterface>('zi.file_mirror_usage_cleaner'),
-    BACKUP_WEB_DAV_CONNECTION_USAGE_FINDER: ziToken<TenantWebDavConnectionUsageFinderInterface>('zi.backup_web_dav_connection_usage_finder'),
+    BACKUP_WEB_DAV_CONNECTION_USAGE_FINDER: ziToken<TenantWebDavConnectionUsageFinderInterface>(
+        'zi.backup_web_dav_connection_usage_finder'
+    ),
     EVENT_SERVICE: ziToken<EventServiceInterface>('zi.event_service'),
     EVENT_EXECUTION_LEASE_IN_MS: ziToken<number>('zi.event_execution_lease_in_ms'),
     EVENT_SUBSCRIBER_REGISTRATION_TTL_IN_MS: ziToken<number>('zi.event_subscriber_registration_ttl_in_ms'),
